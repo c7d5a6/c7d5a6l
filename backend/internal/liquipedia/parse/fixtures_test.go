@@ -78,6 +78,35 @@ func loadFixtures(t *testing.T) []fixture {
 	return out
 }
 
+// loadFixturesNamed returns only the listed fixture paths (slash-separated under testdata/liquipedia).
+// Extra downloaded HTML (player/team pages, etc.) can sit on disk without joining tournament parse tests.
+func loadFixturesNamed(t *testing.T, names map[string]struct{}) []fixture {
+	t.Helper()
+	all := loadFixtures(t)
+	byName := make(map[string]fixture, len(all))
+	for _, fx := range all {
+		byName[fx.name] = fx
+	}
+	out := make([]fixture, 0, len(names))
+	for name := range names {
+		fx, ok := byName[name]
+		if !ok {
+			t.Fatalf("missing fixture file %s", name)
+		}
+		out = append(out, fx)
+	}
+	return out
+}
+
+func loadFixturesForExpectations[T any](t *testing.T, want map[string]T) []fixture {
+	t.Helper()
+	names := make(map[string]struct{}, len(want))
+	for k := range want {
+		names[k] = struct{}{}
+	}
+	return loadFixturesNamed(t, names)
+}
+
 func documentFromHTML(t *testing.T, html string) *goquery.Document {
 	t.Helper()
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))

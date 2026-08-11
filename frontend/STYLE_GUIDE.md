@@ -177,7 +177,7 @@ Layer order (bottom → top):
 6. `.stage__vignette` — edge crush.
 7. `.console` — metal rim + glass belly.
 
-Stage grows with content (`min-height: 100svh`). Use `overflow: clip` on `.stage` so backdrop transforms/scan can't inflate `<body>` scroll height, and so there is no nested scrollbar. Page scroll follows in-flow content only. Scan band stays within the stage (`top: -26% → 74%`).
+Stage grows with content (`min-height: 100svh`). Use `overflow: clip` on `.stage` so backdrop transforms/scan can't inflate `<body>` scroll height, and so there is no nested scrollbar. Page scroll follows in-flow content only. Scan band runs the full stage (`top: -26% → 100%`); `.stage__scan { overflow: hidden }` clips the band at the edges.
 
 Keep grid/CRT/scan when swapping art; only replace the art asset.
 

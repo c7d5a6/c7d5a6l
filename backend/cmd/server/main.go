@@ -1,15 +1,37 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/c7d5a6/c7d5a6l/internal/api"
+	"github.com/c7d5a6/c7d5a6l/internal/db"
+	"github.com/c7d5a6/c7d5a6l/internal/debuglog"
 )
 
 func main() {
+	debuglog.ConfigureFromEnv()
+	if debuglog.Enabled() {
+		log.Printf("debug logging enabled")
+	}
+
+	dbPath := db.ResolvePath(os.Getenv("C7D5A6L_DB"))
+	debuglog.Printf("opening sqlite path=%s", dbPath)
+	sqlDB, err := db.Open(dbPath)
+	if err != nil {
+		log.Fatalf("db open %s: %v", dbPath, err)
+	}
+	defer sqlDB.Close()
+
+	if err := db.Migrate(context.Background(), sqlDB); err != nil {
+		log.Fatalf("db migrate: %v", err)
+	}
+	log.Printf("sqlite ready at %s", dbPath)
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +60,7 @@ func withCORS(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		debuglog.Printf("http %s %s", r.Method, r.URL.Path)
 		next.ServeHTTP(w, r)
 	})
 }

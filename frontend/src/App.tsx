@@ -1,5 +1,6 @@
-import { createMemo, createSignal, Show } from 'solid-js'
+import { createMemo, createSignal, Match, Show, Switch } from 'solid-js'
 import { ConsoleCard } from './components/ConsoleCard'
+import { PlayerTelemetry } from './components/PlayerTelemetry'
 import { TournamentTelemetry } from './components/TournamentTelemetry'
 import { validateLiquipediaURL } from './lib/liquipedia'
 import type { ErrorResponse, ParseResponse } from './types/tournament'
@@ -188,10 +189,18 @@ function App() {
           {(res) => (
             <>
               <hr class="rule" />
-              <TournamentTelemetry
-                message={res().message}
-                tournament={res().tournament}
-              />
+              <Switch>
+                <Match when={res().pageType === 'tournament' && res().tournament}>
+                  {(tournament) => (
+                    <TournamentTelemetry message={res().message} tournament={tournament()} />
+                  )}
+                </Match>
+                <Match when={res().pageType === 'player' && res().player}>
+                  {(player) => (
+                    <PlayerTelemetry message={res().message} player={player()} />
+                  )}
+                </Match>
+              </Switch>
             </>
           )}
         </Show>

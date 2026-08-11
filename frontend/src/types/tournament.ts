@@ -36,9 +36,21 @@ export type TournamentPage = {
   finished: boolean | null
 }
 
+export type PlayerPage = {
+  link: string
+  name: string | null
+  realName: string | null
+  ids: string[]
+  preferredRace: string | null
+}
+
+export type ParsePageType = 'tournament' | 'player' | 'unknown'
+
 export type ParseResponse = {
   message: string
-  tournament: TournamentPage
+  pageType: ParsePageType
+  tournament?: TournamentPage
+  player?: PlayerPage
 }
 
 export type ErrorResponse = {

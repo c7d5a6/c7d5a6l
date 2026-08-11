@@ -4,6 +4,8 @@ frontend/dist/
 
 # Go
 backend/bin/
+backend/devdata/*.sqlite
+backend/devdata/*.sqlite-*
 *.exe
 
 # Env / OS

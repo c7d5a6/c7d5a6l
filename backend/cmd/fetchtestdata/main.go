@@ -18,6 +18,9 @@ var fixtureURLs = []string{
 	"https://liquipedia.net/starcraft/AfreecaTV/StarCraft_League_Remastered/14",
 	"https://liquipedia.net/starcraft/AfreecaTV/StarCraft_League_Remastered/8",
 	"https://liquipedia.net/starcraft/KCM/Race_Survival/2026/1",
+	// Player / team pages (future parsers; not in parse tests yet)
+	"https://liquipedia.net/starcraft/Jaedong",
+	"https://liquipedia.net/starcraft/Evil_Geniuses",
 }
 
 func main() {

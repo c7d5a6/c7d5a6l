@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/c7d5a6/c7d5a6l/internal/debuglog"
 )
 
 const (
@@ -68,6 +70,7 @@ func (c *Client) FetchPage(ctx context.Context, pageURL string) (*Page, error) {
 
 // FetchPageRef downloads rendered HTML for a wiki page via action=parse.
 func (c *Client) FetchPageRef(ctx context.Context, ref PageRef) (*Page, error) {
+	debuglog.Printf("FetchPageRef wiki=%s title=%q", ref.Wiki, ref.Title)
 	if err := c.waitForParseSlot(ctx); err != nil {
 		return nil, err
 	}
@@ -93,6 +96,7 @@ func (c *Client) FetchPageRef(ctx context.Context, ref PageRef) (*Page, error) {
 	req.Header.Set("User-Agent", c.userAgent())
 	req.Header.Set("Accept", "application/json")
 
+	debuglog.Printf("FetchPageRef GET %s", endpoint.String())
 	res, err := c.httpClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("liquipedia request failed: %w", err)
@@ -118,13 +122,15 @@ func (c *Client) FetchPageRef(ctx context.Context, ref PageRef) (*Page, error) {
 		return nil, fmt.Errorf("liquipedia api response missing parse text")
 	}
 
-	return &Page{
+	page := &Page{
 		Ref:          ref,
 		Title:        parsed.Parse.Title,
 		DisplayTitle: parsed.Parse.DisplayTitle,
 		HTML:         parsed.Parse.Text,
 		FetchedAt:    time.Now().UTC(),
-	}, nil
+	}
+	debuglog.Printf("FetchPageRef ok title=%q htmlBytes=%d", page.Title, len(page.HTML))
+	return page, nil
 }
 
 func (c *Client) waitForParseSlot(ctx context.Context) error {
@@ -139,6 +145,7 @@ func (c *Client) waitForParseSlot(ctx context.Context) error {
 	if !c.lastParse.IsZero() {
 		wait := interval - time.Since(c.lastParse)
 		if wait > 0 {
+			debuglog.Printf("FetchPageRef rate-limit wait=%s", wait.Round(time.Millisecond))
 			timer := time.NewTimer(wait)
 			defer timer.Stop()
 			select {

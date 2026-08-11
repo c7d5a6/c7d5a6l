@@ -1,0 +1,33 @@
+---
+description: Backend Go layering — handlers, services, repositories, SQLite, jobs, tests
+globs: backend/**/*.go
+alwaysApply: false
+---
+
+# Backend Go conventions
+
+Full write-up: `backend/ARCHITECTURE.md`. Follow it when adding API, DB, or jobs.
+
+## Layers
+
+| Package | Role |
+|---|---|
+| `internal/handler` | HTTP only (prefer this name over “controller”) |
+| `internal/service` | Business use-cases; **TX for any DB writes** |
+| `internal/repository` | All SQLite access |
+| `internal/middleware` | Auth, CORS, logging, request ID |
+| `internal/job` | Scheduled work (`robfig/cron` in-process default) |
+| `internal/model` | Domain types |
+| `internal/liquipedia` | External fetch + HTML parse |
+
+Dependency flow: `handler → service → repository`. Jobs call **service**, not repository directly (unless read-only maintenance).
+
+## Rules
+
+1. Handlers do not run SQL or open transactions.
+2. Service methods that write DB: `BeginTx` → work → `Commit`; `defer Rollback()`.
+3. Do not hold a DB transaction across Liquipedia/network I/O.
+4. Tests: prefer integration with fixtures under `testdata/` (HTML + SQLite). Copy SQLite fixtures to a temp file per test; never write the committed file.
+5. Live HTTP fetch tests are opt-in (`LIVE_LIQUIPEDIA=1` or build tag), off in default CI.
+6. Dev DB under `devdata/` (gitignored working copy); schema via `migrations/`.
+7. Cron: `robfig/cron/v3` in-process for single-server SQLite; jobs idempotent + overlap-safe; stop on graceful shutdown.

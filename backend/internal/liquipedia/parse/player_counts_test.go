@@ -43,10 +43,7 @@ func TestPlayerCounts_AllFixtures(t *testing.T) {
 		},
 	}
 
-	fixtures := loadFixtures(t)
-	if len(fixtures) != len(wantByFixture) {
-		t.Fatalf("fixture count=%d, expected expectations for %d", len(fixtures), len(wantByFixture))
-	}
+	fixtures := loadFixturesForExpectations(t, wantByFixture)
 
 	for _, fx := range fixtures {
 		fx := fx

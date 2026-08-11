@@ -17,10 +17,7 @@ func TestName_AllFixtures(t *testing.T) {
 		"starcraft/KCM/Race_Survival/2026/1.html":                 "KCM Race Survival 2026 Season 1",
 	}
 
-	fixtures := loadFixtures(t)
-	if len(fixtures) != len(wantByFixture) {
-		t.Fatalf("fixture count=%d, expected expectations for %d", len(fixtures), len(wantByFixture))
-	}
+	fixtures := loadFixturesForExpectations(t, wantByFixture)
 
 	for _, fx := range fixtures {
 		fx := fx

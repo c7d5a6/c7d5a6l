@@ -24,11 +24,23 @@ type PlayerCounts struct {
 
 // Participant is a tournament entrant.
 type Participant struct {
-	Name *string `json:"name"`
+	Name     *string `json:"name"`
+	Link     *string `json:"link"`
+	Race     *string `json:"race"`
+	Excluded bool    `json:"excluded"`
 }
 
-// Result will hold placement / match outcome data. Empty for now.
-type Result struct{}
+// Result is a scheduled or completed match between two sides.
+type Result struct {
+	Played       bool          `json:"played"`
+	ScoreA       *int          `json:"scoreA"`
+	ScoreB       *int          `json:"scoreB"`
+	ParticipantA *Participant  `json:"participantA"`
+	ParticipantB *Participant  `json:"participantB"`
+	DateTime     *string       `json:"dateTime"`
+	Stage        *string       `json:"stage"`
+	Order        int           `json:"order"`
+}
 
 // NewTournamentPage returns an empty tournament shell for a validated page link.
 func NewTournamentPage(link string) TournamentPage {

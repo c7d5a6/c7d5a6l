@@ -1,9 +1,21 @@
 export type Participant = {
   name: string | null
+  link: string | null
+  race: string | null
+  excluded: boolean
 }
 
-/** Placeholder for future placement / bracket outcomes. */
-export type Result = Record<string, never>
+/** Scheduled or completed match between two sides. */
+export type Result = {
+  played: boolean
+  scoreA: number | null
+  scoreB: number | null
+  participantA: Participant | null
+  participantB: Participant | null
+  dateTime: string | null
+  stage: string | null
+  order: number
+}
 
 export type PlayerCounts = {
   total: number | null

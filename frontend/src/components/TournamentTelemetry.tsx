@@ -1,6 +1,7 @@
 import { For, Show } from 'solid-js'
 import { RACE_META } from '../lib/races'
 import { displayValue, type TournamentPage } from '../types/tournament'
+import { Player } from './Player'
 
 const RACE_STATS = ['protoss', 'terran', 'zerg'] as const
 
@@ -82,7 +83,16 @@ export function TournamentTelemetry(props: { tournament: TournamentPage; message
         >
           <ul class="telemetry__list">
             <For each={t().participants}>
-              {(p) => <li class="telemetry__val">{displayValue(p.name)}</li>}
+              {(p) => (
+                <li>
+                  <Player
+                    name={p.name}
+                    link={p.link}
+                    race={p.race}
+                    excluded={p.excluded}
+                  />
+                </li>
+              )}
             </For>
           </ul>
         </Show>
@@ -92,7 +102,69 @@ export function TournamentTelemetry(props: { tournament: TournamentPage; message
         <div class="telemetry__block-head">
           Results <span>({t().results.length})</span>
         </div>
-        <p class="telemetry__val">Results model standing by — empty</p>
+        <Show
+          when={t().results.length > 0}
+          fallback={<p class="telemetry__val">No results parsed yet</p>}
+        >
+          <ul class="telemetry__matches">
+            <For each={t().results}>
+              {(m) => (
+                <li classList={{ telemetry__match: true, 'telemetry__match--pending': !m.played }}>
+                  <span class="telemetry__match-order">#{m.order}</span>
+                  <div class="telemetry__match-body">
+                    <div class="telemetry__match-meta">
+                      <span class="telemetry__match-stage">{displayValue(m.stage)}</span>
+                      <span class="telemetry__match-time">{displayValue(m.dateTime)}</span>
+                    </div>
+                    <div class="telemetry__match-line">
+                      <div class="telemetry__match-side telemetry__match-side--a">
+                        <Show when={m.participantA} fallback={<span class="telemetry__val">—</span>}>
+                          {(p) => (
+                            <Player
+                              name={p().name}
+                              link={p().link}
+                              race={p().race}
+                              excluded={p().excluded}
+                              loser={
+                                m.played &&
+                                m.scoreA != null &&
+                                m.scoreB != null &&
+                                m.scoreA < m.scoreB
+                              }
+                            />
+                          )}
+                        </Show>
+                      </div>
+                      <span class="telemetry__match-score">
+                        <Show when={m.played} fallback={<span class="telemetry__match-vs">vs</span>}>
+                          {displayValue(m.scoreA)}:{displayValue(m.scoreB)}
+                        </Show>
+                      </span>
+                      <div class="telemetry__match-side telemetry__match-side--b">
+                        <Show when={m.participantB} fallback={<span class="telemetry__val">—</span>}>
+                          {(p) => (
+                            <Player
+                              name={p().name}
+                              link={p().link}
+                              race={p().race}
+                              excluded={p().excluded}
+                              loser={
+                                m.played &&
+                                m.scoreA != null &&
+                                m.scoreB != null &&
+                                m.scoreB < m.scoreA
+                              }
+                            />
+                          )}
+                        </Show>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
       </div>
     </section>
   )

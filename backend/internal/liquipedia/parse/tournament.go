@@ -49,6 +49,18 @@ func Tournament(link string, html string) (model.TournamentPage, error) {
 	}
 	page.PlayerCounts = playerCounts
 
+	participants, err := Participants(doc)
+	if err != nil {
+		return model.TournamentPage{}, fmt.Errorf("parse participants: %w", err)
+	}
+	page.Participants = participants
+
+	results, err := Results(doc)
+	if err != nil {
+		return model.TournamentPage{}, fmt.Errorf("parse results: %w", err)
+	}
+	page.Results = results
+
 	finished, err := Finished(doc)
 	if err != nil {
 		return model.TournamentPage{}, fmt.Errorf("parse finished: %w", err)

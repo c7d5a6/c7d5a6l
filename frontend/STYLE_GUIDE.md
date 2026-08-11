@@ -72,7 +72,7 @@ Defined in `src/index.css` `@theme`. Prefer tokens; do not invent one-off hex in
 
 ### Race palettes
 
-Scoped to player/race UI (count chips, future participant rows). Icons live in `src/assets/races/`.
+Scoped to player/race UI (`Player` component, count chips). Icons live in `src/assets/races/`.
 
 | Race | Background | Text | Link | Link hover |
 |---|---|---|---|---|
@@ -80,6 +80,8 @@ Scoped to player/race UI (count chips, future participant rows). Icons live in `
 | Terran | `--color-race-terran-bg` `#0a0f1e` | `#d6e4ff` | `#4a7cff` | `#7aa8ff` |
 | Zerg | `--color-race-zerg-bg` `#140808` | `#f0d0d0` | `#e03030` | `#ff5a4a` |
 | Random | `--color-race-random-bg` `#100c08` | `#e8dcc8` | `#c4893a` | `#e0a85a` |
+
+**`Player`** — race icon + name; profile links use that race’s link/hover tokens (not theme green). Excluded players are struck + dimmed with an `excluded` tag.
 
 **Protoss icon recolor:** paint the emblem to **`#e8c547`** (primary), with optional highlight **`#ffe070`** and shadow toward **`#7a6414`**. Do not use theme green — that stays global UI only.
 
@@ -175,7 +177,7 @@ Layer order (bottom → top):
 6. `.stage__vignette` — edge crush.
 7. `.console` — metal rim + glass belly.
 
-Stage uses `overflow-x: hidden` (slide-in clip), `overflow-y: auto`, and `place-items: safe center` so a tall card (e.g. with telemetry) pins to the top and scrolls instead of clipping chips under the title.
+Stage grows with content (`min-height: 100svh`). Use `overflow: clip` on `.stage` so backdrop transforms/scan can't inflate `<body>` scroll height, and so there is no nested scrollbar. Page scroll follows in-flow content only. Scan band stays within the stage (`top: -26% → 74%`).
 
 Keep grid/CRT/scan when swapping art; only replace the art asset.
 
@@ -265,6 +267,7 @@ Small living details sell the console — use them, but **never stack the same t
 | Primary button | Flat theme green at rest; CRT scanlines + energy sweep on hover only |
 | Ghost button | Transparent, red border; hover only shifts border/text — no gradient or CRT |
 | Telemetry | Glass belly, green header, hazard stripe rule, grey interior block separators |
+| Player | `Player` — race icon + race-colored profile link; excluded = strike + tag |
 | Interior separators | `.rule` — 1px `--color-rule` hairline inside glass; not red, not hazard |
 | Tabs | Spec only — see §3 Console tabs |
 | Info / idle hint | Info slate border/bg |

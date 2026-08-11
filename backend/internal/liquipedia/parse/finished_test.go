@@ -11,6 +11,7 @@ func TestFinished_AllFixtures(t *testing.T) {
 
 	wantByFixture := map[string]bool{
 		"starcraft/ASL/20.html": true,
+		"starcraft/ASL/22.html": false,
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/14.html": true,
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/8.html":  true,
 		"starcraft/KCM/Race_Survival/2026/1.html":                 false,

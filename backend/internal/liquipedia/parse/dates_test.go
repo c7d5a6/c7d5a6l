@@ -11,6 +11,7 @@ func TestStartDate_AllFixtures(t *testing.T) {
 
 	wantByFixture := map[string]string{
 		"starcraft/ASL/20.html": "2025-08-18",
+		"starcraft/ASL/22.html": "2026-08-17",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/14.html": "2022-08-09",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/8.html":  "2019-06-30",
 		"starcraft/KCM/Race_Survival/2026/1.html":                 "2026-01-15",
@@ -50,6 +51,7 @@ func TestEndDate_AllFixtures(t *testing.T) {
 
 	wantByFixture := map[string]string{
 		"starcraft/ASL/20.html": "2025-10-26",
+		"starcraft/ASL/22.html": "2026-10-17",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/14.html": "2022-10-09",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/8.html":  "2019-09-01",
 		"starcraft/KCM/Race_Survival/2026/1.html":                 "2026-03-26",

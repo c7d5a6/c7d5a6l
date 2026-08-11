@@ -17,6 +17,12 @@ func TestPlayerCounts_AllFixtures(t *testing.T) {
 			Terran:  intPtr(11),
 			Zerg:    intPtr(11),
 		},
+		"starcraft/ASL/22.html": {
+			Total:   intPtr(28),
+			Protoss: intPtr(6),
+			Terran:  intPtr(10),
+			Zerg:    intPtr(12),
+		},
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/14.html": {
 			Total:   intPtr(28),
 			Protoss: intPtr(7),

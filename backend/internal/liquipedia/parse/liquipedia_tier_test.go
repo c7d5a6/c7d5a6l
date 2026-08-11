@@ -11,6 +11,7 @@ func TestLiquipediaTier_AllFixtures(t *testing.T) {
 
 	wantByFixture := map[string]string{
 		"starcraft/ASL/20.html": "Premier",
+		"starcraft/ASL/22.html": "Premier",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/14.html": "Premier",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/8.html":  "Premier",
 		"starcraft/KCM/Race_Survival/2026/1.html":                 "Major",

@@ -11,6 +11,7 @@ func TestName_AllFixtures(t *testing.T) {
 
 	wantByFixture := map[string]string{
 		"starcraft/ASL/20.html": "ASL Season 20",
+		"starcraft/ASL/22.html": "ASL Season 22",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/14.html": "ASL Season 14",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/8.html":  "ASL Season 8",
 		"starcraft/KCM/Race_Survival/2026/1.html":                 "KCM Race Survival 2026 Season 1",

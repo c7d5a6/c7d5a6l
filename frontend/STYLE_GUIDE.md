@@ -14,6 +14,8 @@ References: classic StarCraft / Brood War UI chrome, [StarCraft: Remastered mark
 4. **Yellow-black stripes = hazard / metal trim** — not a primary text color.
 5. **CRT presence** — horizontal scanlines + drifting scan band on the stage.
 6. **Angular clips** — hard corners, no pill shapes, no soft cards.
+7. **No marketing fluff** — no large hero subtitles or explanatory blurb under the title. Labels, chips, fields, and status lines carry meaning; don’t pad the viewport with “what this page does” copy.
+8. **Grey rules inside** — section breaks in the glass belly use thin grey `.rule` lines (`--color-rule`). Red stays on frames; hazard stays on trim.
 
 ---
 
@@ -29,9 +31,10 @@ Defined in `src/index.css` `@theme`. Prefer tokens; do not invent one-off hex in
 | `--color-void-soft` | `#050505` | Secondary stage depth |
 | `--color-panel` | `#0a0a0a` | Main console fill |
 | `--color-panel-raised` | `#121212` | Nested blocks, chips |
-| `--color-metal` | `#1a1a1a` | Metallic plate base |
-| `--color-metal-hi` | `#2c2c2c` | Metal highlight edge |
-| `--color-metal-lo` | `#0d0d0d` | Metal shadow edge |
+| `--color-metal` | `#3a3a3a` | Metallic plate base |
+| `--color-metal-hi` | `#5a5a5a` | Metal highlight mid |
+| `--color-metal-lo` | `#242424` | Metal shadow edge |
+| `--color-metal-edge` | `#f2f2f2` | Hard silver rim highlight (1px, no soft gradient) |
 
 ### Theme green (accent)
 
@@ -63,6 +66,7 @@ Defined in `src/index.css` `@theme`. Prefer tokens; do not invent one-off hex in
 |---|---|---|
 | `--color-text` | `#e0e0e0` | Primary body / values |
 | `--color-text-dim` | `#9a9a9a` | Secondary / idle |
+| `--color-rule` | `#3a3a3a` | Interior section hairlines (`.rule`) |
 | `--color-info-border` | `#444459` | Neutral info panels |
 | `--color-info-bg` | `#4e4e5820` | Neutral info fill |
 
@@ -100,46 +104,62 @@ box-shadow:
   inset 0 -2px 8px rgba(0, 0, 0, 0.65);
 ```
 
-### Metallic plate (grim)
+### Metallic plate (grim) — CSS-only for now
 
-Vertical brushed gradient + hard inner rim:
+Grey plate with fake grain (stacked micro-gradients). **Rim highlight is a hard 1px silver edge** (`border-top: 1px solid var(--color-metal-edge)`) with a hard black recess under it — not a soft white gradient fade (match `terran_metal.png`).
 
 ```css
-background: linear-gradient(
-  180deg,
-  var(--color-metal-hi) 0%,
-  var(--color-metal) 42%,
-  var(--color-metal-lo) 100%
-);
-border: 1px solid var(--color-border);
+border-top: 1px solid var(--color-metal-edge); /* #f2f2f2 */
+box-shadow: inset 0 1px 0 #000; /* hard separation under the lip */
 ```
+
+**Later / now:** `src/assets/textures/dirt.webp` (grayscale grit map):
+
+| Surface | Treatment | Size / offset |
+|---|---|---|
+| Outer metal | `soft-light` grit | ~320px @ 12% 8% |
+| Mid rails | soft-light | ~200px @ -40px 55% |
+| Corner plates | soft-light | ~100–110px, unique positions |
+| Top caps | soft-light | ~220px, start vs end offsets |
+| Hazard stripes | grit image `multiply` @ ~70% (no solid brown wash) | ~500px @ 28% 10% |
+| Outer corners (sparse) | brown mask multiply ~12% | ~140px |
+| Silver lip / glass belly | **no dirt** | — |
 
 ### Dual-layer: metal rim + glass belly
 
-Used by the main console (and nested telemetry):
+Used by `ConsoleCard` (main card):
 
-1. **Rim (opaque)** — `.console__frame`: metallic plate + red border + hazard top rail + corner brackets.
+1. **Rim (opaque, multi-div)** — `.console__shell`:
+   - Outer stepped grey metal (`.console__metal--outer`)
+   - Top bar: metal caps + **hazard only in the middle** (`.console__hazard`)
+   - Mid plate with **thin right/bottom** rails and thicker corner blocks
+   - Dark well (`.console__well`) then **red inner border** (`.console__red`) with padding — no L-corner brackets
+   - Optional **top chrome** (`.console__header`) for nav / bars above the glass
 2. **Belly (glass)** — `.console__inner` / `.telemetry`:
 
 ```css
-background: rgba(0, 0, 0, 0.72);
+background: rgba(0, 0, 0, 0.52);
 backdrop-filter: blur(2px);
-border: 1px solid var(--color-border); /* telemetry only; inner inherits frame */
+/* few-pixel edge vignette via ::before inset shadow + soft radial */
 ```
 
-Art and CRT read through the belly; chrome stays solid so the panel still feels Brood War industrial.
+```tsx
+<ConsoleCard top={<nav>…</nav>}>
+  {/* glass body */}
+</ConsoleCard>
+```
+
+Reference silhouette: `assets/terran_metal.png`.
 
 ### Yellow hazard stripe rail
 
-Diagonal caution tape for headers / plate edges:
+Base caution tape stays readable yellow/black:
 
 ```css
-background: repeating-linear-gradient(
-  -45deg,
-  #000000 0 8px,
-  var(--color-hazard) 8px 16px
-);
+background: repeating-linear-gradient(-45deg, #050505 0 7px, #c9a227 7px 14px);
 ```
+
+Dirt: `::before` with `dirt.webp` at low opacity + `mix-blend-mode: multiply` (dark grit only dirty the yellow; no solid brown fill / mask wash). Recess with inset shadows.
 
 Use sparingly: top rail of the console, section dividers — not full backgrounds.
 
@@ -154,6 +174,8 @@ Layer order (bottom → top):
 5. `.stage__scan` — drifting green band.
 6. `.stage__vignette` — edge crush.
 7. `.console` — metal rim + glass belly.
+
+Stage uses `overflow-x: hidden` (slide-in clip), `overflow-y: auto`, and `place-items: safe center` so a tall card (e.g. with telemetry) pins to the top and scrolls instead of clipping chips under the title.
 
 Keep grid/CRT/scan when swapping art; only replace the art asset.
 
@@ -185,29 +207,65 @@ Do not ship tab components until product needs them; this section is the visual 
 
 | Role | Family | Notes |
 |---|---|---|
-| Display | Michroma (Eurostile stand-in) | Titles, buttons, labels — uppercase |
-| UI | Source Sans 3 | Body / subtitle |
+| Title | Orbitron (700) | Page hero title — SC menu geometry |
+| Display | Michroma (Eurostile stand-in) | Labels — uppercase |
+| Buttons | Orbitron (700) | Primary / ghost CTAs — uppercase |
+| UI | Source Sans 3 | Body / field text |
 | Mono | Source Code Pro | URLs, telemetry, chips |
 
-Title text uses `--color-text` with a light green glow; accent words use `--color-theme`.
+Title text uses `--font-title` / `--color-text` with a light green glow; accent words use `--color-theme`.
 
 ---
 
-## 5. Component mapping
+## 5. Atmosphere (sparse HUD life)
+
+Small living details sell the console — use them, but **never stack the same trick**.
+
+### Budget
+
+| Rule | Guidance |
+|---|---|
+| One beacon per region | At most **one** status light (green or red) in a meta row / header cluster |
+| No twin dots | Never place two beacons side-by-side (green+red, or two greens) |
+| Swap, don’t pile | Fault replaces live (`Channel open` → `Channel fault`) — don’t show both |
+| Mix families | Pair a beacon with a *different* flourish (phosphor breath, hazard rule, CRT stage) — not another pulse-dot |
+| Sparse motion | Prefer 1–2 atmospheric motions per viewport besides stage CRT |
+
+### Flourish catalog
+
+| Flourish | Class / recipe | Feel | Use |
+|---|---|---|---|
+| Live beacon | `.chip--live` | Soft green pulse (~2.4s) | Nominal / channel open / connected |
+| Alert beacon | `.chip--alert` | Faster red pulse (~1s) | Fault / danger / uplink error |
+| Phosphor breath | `.atm-phosphor` | Slow opacity breathe on text | One eyebrow or idle chrome line |
+| Hazard micro-rule | `.brand__eyebrow::before` | Static gold tick | Section identity |
+| CRT stage | `.stage__*` | Scan + grid + vignette | Full-bleed page backdrop only |
+| Energy sweep | primary `.btn:hover` | Green crawl | CTA hover — not chips |
+
+### Anti-patterns
+
+- Multiple glowing dots in the same row or card header  
+- Putting beacons on every chip “for consistency”  
+- Pulsing body copy or values  
+- Purple / neon stacks, bounce, or soft UI glow clouds  
+
+---
+
+## 6. Component mapping
 
 | UI piece | Recipe |
 |---|---|
 | Stage | Art (`home.jpg`) + grid + CRT + scan + vignette |
-| Console frame | Metallic rim + red border + hazard top rail (opaque) |
-| Console inner / telemetry | Glass belly `rgba(0,0,0,~0.72)` + light blur |
-| Corners | `--color-border-hot` L-brackets |
-| Chips | Blacked panel, red border; live dot = theme green |
+| Console frame | `ConsoleCard` — metal rim + hazard + red border; `top` slot; slide via `.motion-slide-in` / `exiting` → `.motion-slide-out` |
+| Console inner / telemetry | Glass belly ~52% black + few-px edge vignette + light blur |
+| Chips | Blacked panel, red border; live = green beacon; alert = red beacon (see §5) |
 | Input | Blacked well, red border; focus = hot red + green wash |
 | Valid input | Theme green border |
 | Invalid input | Hot red border |
 | Primary button | Flat theme green at rest; CRT scanlines + energy sweep on hover only |
 | Ghost button | Transparent, red border; hover only shifts border/text — no gradient or CRT |
-| Telemetry | Glass belly, green header, hazard stripe rule, red separators |
+| Telemetry | Glass belly, green header, hazard stripe rule, grey interior block separators |
+| Interior separators | `.rule` — 1px `--color-rule` hairline inside glass; not red, not hazard |
 | Tabs | Spec only — see §3 Console tabs |
 | Info / idle hint | Info slate border/bg |
 | Error status | Hot red text |
@@ -215,20 +273,42 @@ Title text uses `--color-text` with a light green glow; accent words use `--colo
 
 ---
 
-## 6. Motion
+## 7. Motion
 
-Keep intentional and sparse:
+Keep intentional and sparse.
 
-1. **Console enter** — short fade/rise.
-2. **CRT scan drift** — continuous, low opacity.
-3. **Primary button sweep** — green energy on hover only.
-4. **Busy pulse** — green rim while transmitting.
+### Metal slide (cards + nav with metal borders)
+
+Applies to `ConsoleCard`, future metal-bordered navigation items, and any panel that travels on/off stage.
+
+| Token / class | Value | Role |
+|---|---|---|
+| `--motion-slide-duration` | `600ms` | **Fixed** — same time for every slide, whether the travel is a short nudge or full off-screen |
+| `--motion-slide-ease` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | Ease-out: faster start, **slows at the end** |
+| `.motion-slide-in` | `translateX(100vw → 0)` | Enter from off-screen **right** |
+| `.motion-slide-out` | `translateX(0 → -100vw)` | Exit to off-screen **left** (opposite of enter) |
+
+Rules:
+
+1. **Constant duration** — do not scale time by distance. A short nav chip and a full card use the same `600ms`. Never invent per-element durations for the same motion family.
+2. **Same curve in and out** — enter and exit both use `--motion-slide-ease`.
+3. **Exit is reverse direction** — if enter comes from the right, exit leaves to the left (mirrored axis). No fade for this family.
+4. **Shared classes** — prefer `.motion-slide-in` / `.motion-slide-out` (or `ConsoleCard` `exiting`) instead of one-off keyframes.
+
+### Other motion
+
+1. **CRT scan drift** — continuous, low opacity.
+2. **Primary button sweep** — green energy on hover only.
+3. **Busy pulse** — green rim while transmitting.
+4. **Live beacon** — slow green blink on `.chip--live`.
+5. **Alert beacon** — faster red blink on `.chip--alert`.
+6. **Phosphor breath** — slow opacity on `.atm-phosphor` (one line max nearby).
 
 No bounce, no purple glow, no soft shadow stacks.
 
 ---
 
-## 7. Checklist for new UI
+## 8. Checklist for new UI
 
 - [ ] Uses tokens from this guide only  
 - [ ] Borders lean red; accents lean green  
@@ -236,3 +316,7 @@ No bounce, no purple glow, no soft shadow stacks.
 - [ ] Hazard stripes only on trim  
 - [ ] CRT visible on full-bleed stages  
 - [ ] Angular clip paths, not rounded cards  
+- [ ] Atmosphere budget respected — no twin beacons / repeated flourishes  
+- [ ] No large fluff subtitle under titles — chrome speaks through labels/status  
+- [ ] Interior section breaks use grey `.rule` — reserve red for frames, hazard for trim  
+- [ ] Metal slides use shared duration/ease; exit = opposite direction of enter  

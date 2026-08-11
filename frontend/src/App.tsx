@@ -1,4 +1,5 @@
 import { createMemo, createSignal, Show } from 'solid-js'
+import { ConsoleCard } from './components/ConsoleCard'
 import { TournamentTelemetry } from './components/TournamentTelemetry'
 import { validateLiquipediaURL } from './lib/liquipedia'
 import type { ErrorResponse, ParseResponse } from './types/tournament'
@@ -20,6 +21,13 @@ function App() {
   })
 
   const canSubmit = createMemo(() => live().state === 'ok' && !submitting())
+
+  const uplinkFault = createMemo(
+    () =>
+      Boolean(clientError()) ||
+      Boolean(serverError()) ||
+      (touched() && live().state === 'bad'),
+  )
 
   function clearForm() {
     setUrl('')
@@ -72,124 +80,122 @@ function App() {
       <div class="stage__scan" aria-hidden="true" />
       <div class="stage__vignette" aria-hidden="true" />
 
-      <div class="console">
-        <div class="console__frame">
-          <div class="console__hazard" aria-hidden="true" />
-          <div class="console__corners" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-            <span />
-          </div>
+      <ConsoleCard>
+        <header class="brand">
+          <p class="brand__eyebrow atm-phosphor">Brood War · Command Protocol</p>
+          <h1 class="brand__title">
+            ASL <span>Uplink</span>
+          </h1>
+        </header>
 
-          <div class="console__inner">
-            <header class="brand">
-              <p class="brand__eyebrow">Brood War · Command Protocol</p>
-              <h1 class="brand__title">
-                ASL <span>Uplink</span>
-              </h1>
-              <p class="brand__sub">
-                Transmit any Liquipedia link for parsing. HTTPS uplink to liquipedia.net only.
-              </p>
-            </header>
-
-            <div class="meta-row">
-              <span class="chip chip--live">Channel open</span>
-              <span class="chip">
-                Target{' '}
-                <a href="https://liquipedia.net/" target="_blank" rel="noreferrer">
-                  liquipedia.net
-                </a>
-              </span>
-            </div>
-
-            <form class="field" onSubmit={onSubmit}>
-              <label class="field__label" for="uplink-url">
-                <span>Link uplink</span>
-                <span class="field__hint">https required</span>
-              </label>
-
-              <div
-                classList={{
-                  field__shell: true,
-                  'field__shell--ok': touched() && live().state === 'ok',
-                  'field__shell--bad':
-                    touched() && (live().state === 'bad' || Boolean(clientError())),
-                }}
-              >
-                <span class="field__glyph" aria-hidden="true" />
-                <input
-                  id="uplink-url"
-                  class="field__input"
-                  type="url"
-                  name="url"
-                  value={url()}
-                  onInput={(e) => {
-                    setUrl(e.currentTarget.value)
-                    setTouched(true)
-                    setClientError(null)
-                    setServerError(null)
-                    setResult(null)
-                  }}
-                  onBlur={() => setTouched(true)}
-                  placeholder="https://liquipedia.net/…"
-                  autocomplete="off"
-                  spellcheck={false}
-                  aria-invalid={touched() && live().state === 'bad' ? true : undefined}
-                  aria-describedby="uplink-status"
-                />
-              </div>
-
-              <div class="actions">
-                <button
-                  type="submit"
-                  classList={{ btn: true, 'btn--busy': submitting() }}
-                  disabled={!canSubmit()}
-                >
-                  {submitting() ? 'Transmitting…' : 'Engage parse'}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn--ghost"
-                  onClick={clearForm}
-                  disabled={!url() && !result() && !clientError() && !serverError()}
-                >
-                  Clear
-                </button>
-              </div>
-            </form>
-
-            <div id="uplink-status" aria-live="polite">
-              <Show
-                when={
-                  clientError() ??
-                  (touched() && live().state === 'bad' ? live().error : null)
-                }
-              >
-                {(err) => <p class="status status--error">{err()}</p>}
-              </Show>
-              <Show when={serverError()}>
-                {(err) => <p class="status status--error">{err()}</p>}
-              </Show>
-              <Show when={!clientError() && !serverError() && live().state === 'ok' && !result()}>
-                <p class="status status--ok">Link verified — ready to transmit</p>
-              </Show>
-              <Show when={!touched() && !result() && !serverError()}>
-                <p class="status status--idle">Awaiting valid liquipedia.net URL</p>
-              </Show>
-            </div>
-
-            <Show when={result()}>
-              {(res) => (
-                <TournamentTelemetry
-                  message={res().message}
-                  tournament={res().tournament}
-                />
-              )}
-            </Show>
-          </div>
+        <div class="meta-row">
+          <span
+            classList={{
+              chip: true,
+              'chip--live': !uplinkFault(),
+              'chip--alert': uplinkFault(),
+            }}
+          >
+            {uplinkFault() ? 'Channel fault' : 'Channel open'}
+          </span>
+          <span class="chip">
+            Target{' '}
+            <a href="https://liquipedia.net/" target="_blank" rel="noreferrer">
+              liquipedia.net
+            </a>
+          </span>
         </div>
-      </div>
+
+        <hr class="rule" />
+
+        <form class="field" onSubmit={onSubmit}>
+          <label class="field__label" for="uplink-url">
+            <span>Link uplink</span>
+            <span class="field__hint">https required</span>
+          </label>
+
+          <div
+            classList={{
+              field__shell: true,
+              'field__shell--ok': touched() && live().state === 'ok',
+              'field__shell--bad':
+                touched() && (live().state === 'bad' || Boolean(clientError())),
+            }}
+          >
+            <span class="field__glyph" aria-hidden="true" />
+            <input
+              id="uplink-url"
+              class="field__input"
+              type="url"
+              name="url"
+              value={url()}
+              onInput={(e) => {
+                setUrl(e.currentTarget.value)
+                setTouched(true)
+                setClientError(null)
+                setServerError(null)
+                setResult(null)
+              }}
+              onBlur={() => setTouched(true)}
+              placeholder="https://liquipedia.net/…"
+              autocomplete="off"
+              spellcheck={false}
+              aria-invalid={touched() && live().state === 'bad' ? true : undefined}
+              aria-describedby="uplink-status"
+            />
+          </div>
+
+          <div class="actions">
+            <button
+              type="submit"
+              classList={{ btn: true, 'btn--busy': submitting() }}
+              disabled={!canSubmit()}
+            >
+              {submitting() ? 'Transmitting…' : 'Engage parse'}
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost"
+              onClick={clearForm}
+              disabled={!url() && !result() && !clientError() && !serverError()}
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+
+        <div id="uplink-status" aria-live="polite">
+          <Show
+            when={
+              clientError() ??
+              (touched() && live().state === 'bad' ? live().error : null)
+            }
+          >
+            {(err) => <p class="status status--error">{err()}</p>}
+          </Show>
+          <Show when={serverError()}>
+            {(err) => <p class="status status--error">{err()}</p>}
+          </Show>
+          <Show when={!clientError() && !serverError() && live().state === 'ok' && !result()}>
+            <p class="status status--ok">Link verified — ready to transmit</p>
+          </Show>
+          <Show when={!touched() && !result() && !serverError()}>
+            <p class="status status--idle">Awaiting valid liquipedia.net URL</p>
+          </Show>
+        </div>
+
+        <Show when={result()}>
+          {(res) => (
+            <>
+              <hr class="rule" />
+              <TournamentTelemetry
+                message={res().message}
+                tournament={res().tournament}
+              />
+            </>
+          )}
+        </Show>
+      </ConsoleCard>
     </div>
   )
 }

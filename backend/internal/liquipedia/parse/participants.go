@@ -314,20 +314,24 @@ func profileURL(href string) *string {
 		return nil
 	}
 
+	raw := href
 	if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
 		u, err := url.Parse(href)
 		if err != nil || !strings.EqualFold(u.Host, liquipedia.AllowedHost) {
 			return nil
 		}
-		out := u.String()
-		return &out
-	}
-
-	if !strings.HasPrefix(href, "/") {
+		raw = u.String()
+	} else if strings.HasPrefix(href, "/") {
+		raw = "https://" + liquipedia.AllowedHost + href
+	} else {
 		return nil
 	}
-	out := "https://" + liquipedia.AllowedHost + href
-	return &out
+
+	canonical, err := liquipedia.ValidateURL(raw)
+	if err != nil {
+		return nil
+	}
+	return &canonical
 }
 
 func isRaceProfileLink(link string) bool {

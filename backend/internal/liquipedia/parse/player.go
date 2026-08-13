@@ -43,8 +43,10 @@ func Player(link string, html string) (model.PlayerPage, error) {
 		return model.PlayerPage{}, fmt.Errorf("parse preferred race: %w", err)
 	}
 	page.PreferredRace = race
-	debuglog.Printf("parse.Player name=%s realName=%s race=%s ids=%v",
-		debuglog.Str(name), debuglog.Str(realName), debuglog.Str(race), ids)
+
+	page.PortraitURL = playerPortraitURL(doc)
+	debuglog.Printf("parse.Player name=%s realName=%s race=%s portrait=%s ids=%v",
+		debuglog.Str(name), debuglog.Str(realName), debuglog.Str(race), debuglog.Str(page.PortraitURL), ids)
 
 	return page, nil
 }
@@ -92,6 +94,19 @@ func playerPreferredRace(doc *goquery.Document) (*string, error) {
 		return &r, nil
 	}
 	return nil, nil
+}
+
+// playerPortraitURL is the infobox player image (lightmode preferred).
+func playerPortraitURL(doc *goquery.Document) *string {
+	img := doc.Find(".fo-nttax-infobox .infobox-image-wrapper .infobox-image.lightmode img").First()
+	if img.Length() == 0 {
+		img = doc.Find(".fo-nttax-infobox .infobox-image-wrapper img").First()
+	}
+	if img.Length() == 0 {
+		return nil
+	}
+	src := strings.TrimSpace(img.AttrOr("src", ""))
+	return profileURL(src)
 }
 
 func splitCommaList(s string) []string {

@@ -1,7 +1,7 @@
 -- tournament / player core schema
 CREATE TABLE tournament (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    link TEXT UNIQUE,
+    link TEXT UNIQUE COLLATE NOCASE,
     name TEXT,
     start_date TEXT,
     end_date TEXT,
@@ -12,7 +12,7 @@ CREATE TABLE tournament (
 
 CREATE TABLE player (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    link TEXT UNIQUE,
+    link TEXT UNIQUE COLLATE NOCASE,
     name TEXT,
     real_name TEXT,
     preferred_race TEXT CHECK (
@@ -32,7 +32,7 @@ CREATE TABLE player_race (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id INTEGER NOT NULL REFERENCES player (id) ON DELETE CASCADE,
     race TEXT NOT NULL CHECK (race IN ('protoss', 'terran', 'zerg', 'random')),
-    elo REAL NOT NULL DEFAULT 1500,
+    elo REAL NOT NULL DEFAULT 950,
     UNIQUE (player_id, race)
 );
 

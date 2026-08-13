@@ -1,0 +1,132 @@
+import { ConsoleCard } from '../components/ConsoleCard'
+import { Show, createEffect, createSignal, type JSX } from 'solid-js'
+import { useNavigate } from '@solidjs/router'
+import { authUser, homePath, logout, updateAlias } from '../lib/auth'
+
+/** Profile channel — Telegram identity + logout. */
+export function MePage(): JSX.Element {
+  const navigate = useNavigate()
+  const [busy, setBusy] = createSignal(false)
+  const [aliasDraft, setAliasDraft] = createSignal('')
+  const [aliasBusy, setAliasBusy] = createSignal(false)
+  const [aliasError, setAliasError] = createSignal<string | null>(null)
+  const [aliasOk, setAliasOk] = createSignal(false)
+
+  createEffect(() => {
+    const u = authUser()
+    if (u) setAliasDraft(u.alias)
+  })
+
+  async function onLogout() {
+    setBusy(true)
+    try {
+      await logout()
+      navigate(homePath())
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onSaveAlias(e: Event) {
+    e.preventDefault()
+    setAliasBusy(true)
+    setAliasError(null)
+    setAliasOk(false)
+    try {
+      await updateAlias(aliasDraft())
+      setAliasOk(true)
+    } catch (err) {
+      setAliasError(err instanceof Error ? err.message : 'Alias update failed')
+    } finally {
+      setAliasBusy(false)
+    }
+  }
+
+  return (
+    <ConsoleCard>
+      <header class="brand">
+        <p class="brand__eyebrow atm-phosphor">Identity · Command Protocol</p>
+        <h1 class="brand__title">
+          Operator <span>Profile</span>
+        </h1>
+      </header>
+      <hr class="rule" />
+
+      <Show
+        when={authUser()}
+        fallback={<p class="status status--idle">No active session — use Login on the auth dock.</p>}
+      >
+        {(u) => (
+          <div class="me-profile">
+            <Show when={u().photoUrl}>
+              {(src) => (
+                <img class="me-profile__photo" src={src()} alt="" width={96} height={96} referrerPolicy="no-referrer" />
+              )}
+            </Show>
+            <dl class="me-profile__meta">
+              <div>
+                <dt>Alias</dt>
+                <dd>
+                  <form class="me-profile__alias" onSubmit={(e) => void onSaveAlias(e)}>
+                    <label class="field me-profile__alias-field">
+                      <span class="field__shell">
+                        <input
+                          class="field__input"
+                          type="text"
+                          value={aliasDraft()}
+                          maxlength={64}
+                          autocomplete="nickname"
+                          disabled={aliasBusy()}
+                          onInput={(e) => {
+                            setAliasDraft(e.currentTarget.value)
+                            setAliasOk(false)
+                            setAliasError(null)
+                          }}
+                        />
+                      </span>
+                    </label>
+                    <button type="submit" class="btn btn--primary" disabled={aliasBusy() || !aliasDraft().trim()}>
+                      {aliasBusy() ? 'Saving…' : 'Save'}
+                    </button>
+                  </form>
+                  <Show when={aliasError()}>
+                    <p class="status status--error">{aliasError()}</p>
+                  </Show>
+                  <Show when={aliasOk()}>
+                    <p class="status status--ok">Alias updated</p>
+                  </Show>
+                </dd>
+              </div>
+              <div>
+                <dt>Telegram</dt>
+                <dd>
+                  {u().telegramUsername
+                    ? `@${u().telegramUsername}`
+                    : u().telegramId != null
+                      ? `id ${u().telegramId}`
+                      : 'Not linked'}
+                </dd>
+              </div>
+              <div>
+                <dt>Name</dt>
+                <dd>
+                  {u().firstName}
+                  {u().lastName ? ` ${u().lastName}` : ''}
+                </dd>
+              </div>
+              <div>
+                <dt>Role</dt>
+                <dd>{u().role}</dd>
+              </div>
+            </dl>
+            <div class="actions">
+              <button type="button" class="btn btn--ghost" disabled={busy()} onClick={() => void onLogout()}>
+                {busy() ? 'Signing out…' : 'Logout'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Show>
+    </ConsoleCard>
+  )
+}

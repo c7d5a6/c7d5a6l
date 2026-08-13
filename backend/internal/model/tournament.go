@@ -50,3 +50,10 @@ func NewTournamentPage(link string) TournamentPage {
 		Results:      []Result{},
 	}
 }
+
+// TournamentSummary is a lightweight tournament row for pickers.
+type TournamentSummary struct {
+	ID   int64   `json:"id"`
+	Link string  `json:"link"`
+	Name *string `json:"name"`
+}

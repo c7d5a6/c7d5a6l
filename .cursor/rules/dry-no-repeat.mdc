@@ -1,0 +1,43 @@
+---
+description: DRY — extract shared logic when the same pattern appears 3+ times
+alwaysApply: true
+---
+
+# Do not repeat yourself
+
+If the same or clearly similar code appears **3 or more times**, refactor into a shared helper, function, method, component, hook, or constant instead of copying again.
+
+## Apply when
+
+- Writing new code that would be a third copy of an existing pattern
+- Editing a file and noticing a repeated block already at or above three uses
+- Parallel branches that only differ by a value or type (parameterize)
+
+## Prefer
+
+- One named function/method with clear parameters
+- Shared component or small utility in the nearest sensible package
+- Constants / maps for repeated literals or switch-like duplication
+
+## Avoid
+
+- Premature abstraction for a one-off or second copy (two is usually fine until a third)
+- Mega-utilities that hide unrelated concerns just to “dedupe”
+- Copy-paste with tiny renames when a parameter would suffice
+
+## Examples
+
+```go
+// ❌ third copy of the same pointer-string log formatting
+debuglog.Printf("name=%v", name)
+debuglog.Printf("real=%v", realName)
+debuglog.Printf("race=%v", race)
+
+// ✅ shared helper after the pattern repeats
+debuglog.Printf("name=%s", debuglog.Str(name))
+```
+
+```tsx
+// ❌ third near-identical status/button block
+// ✅ extract a component or shared handler once you need it again
+```

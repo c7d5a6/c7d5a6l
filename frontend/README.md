@@ -1,28 +1,34 @@
 ## Usage
 
 ```bash
-$ npm install # or pnpm install or yarn install
+$ npm install
+$ npm run dev          # http://localhost:3000
 ```
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+### Local HTTPS (`c7d5a6l.lo`) for Telegram Login Widget
+
+Telegram’s iframe only allows **HTTPS on port 443**. No Apache vhosts needed — Vite serves TLS directly.
+
+1. Install [mkcert](https://github.com/FiloSottile/mkcert) and run `mkcert -install`
+2. Map the host: `echo '127.0.0.1  c7d5a6l.lo' | sudo tee -a /etc/hosts`
+3. From `frontend/`: `npm run setup:https`, then once `npm run allow:https`, then `npm run dev:https`
+4. BotFather → `/setdomain` → `c7d5a6l.lo`
+5. Open **https://c7d5a6l.lo/**
 
 ## Available Scripts
 
-In the project directory, you can run:
-
 ### `npm run dev`
 
-Runs the app in the development mode.<br>
-Open [http://localhost:5173](http://localhost:5173) to view it in the browser.
+HTTP on [http://localhost:3000](http://localhost:3000).
+
+### `npm run dev:https`
+
+HTTPS on [https://c7d5a6l.lo/](https://c7d5a6l.lo/) (port 443; needs certs from `setup:https`).
 
 ### `npm run build`
 
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+Production build to `dist/`.
 
 ## Deployment
 
-Learn more about deploying your application with the [documentations](https://vite.dev/guide/static-deploy.html)
+See [Vite static deploy](https://vite.dev/guide/static-deploy.html).

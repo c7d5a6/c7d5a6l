@@ -6,11 +6,17 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/c7d5a6/c7d5a6l/internal/api"
 	"github.com/c7d5a6/c7d5a6l/internal/db"
 	"github.com/c7d5a6/c7d5a6l/internal/debuglog"
+	"github.com/c7d5a6/c7d5a6l/internal/liquipedia"
+	"github.com/c7d5a6/c7d5a6l/internal/middleware"
+	"github.com/c7d5a6/c7d5a6l/internal/model"
+	"github.com/c7d5a6/c7d5a6l/internal/repository"
+	"github.com/c7d5a6/c7d5a6l/internal/service"
 )
 
 func main() {
@@ -32,7 +38,44 @@ func main() {
 	}
 	log.Printf("sqlite ready at %s", dbPath)
 
+	lpClient := liquipedia.NewClient()
+	playerRepo := repository.NewPlayer(sqlDB)
+	tournamentRepo := repository.NewTournament(sqlDB)
+	playerSvc := service.NewPlayer(sqlDB, playerRepo, lpClient)
+	tournamentSvc := service.NewTournament(
+		sqlDB,
+		tournamentRepo,
+		playerRepo,
+		service.LiquipediaPlayerFetcher{Client: lpClient},
+		lpClient,
+	)
+	fantasyRepo := repository.NewFantasy(sqlDB)
+	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo)
+	userRepo := repository.NewUser(sqlDB)
+	authSvc := service.NewAuth(sqlDB, userRepo, service.AuthConfig{
+		BotToken:         os.Getenv("C7D5A6L_TELEGRAM_BOT_TOKEN"),
+		BotID:            os.Getenv("C7D5A6L_TELEGRAM_BOT_ID"),
+		BotUsername:      os.Getenv("C7D5A6L_TELEGRAM_BOT_USERNAME"),
+		JWTSecret:        os.Getenv("C7D5A6L_JWT_SECRET"),
+		JWTTTL:           service.ParseDurationEnv(os.Getenv("C7D5A6L_JWT_TTL"), 7*24*time.Hour),
+		AdminTelegramIDs: service.ParseAdminTelegramIDs(os.Getenv("C7D5A6L_ADMIN_TELEGRAM_IDS")),
+	})
+	if !authSvc.Configured() {
+		log.Printf("auth: Telegram login disabled (set C7D5A6L_TELEGRAM_BOT_TOKEN, C7D5A6L_TELEGRAM_BOT_USERNAME, C7D5A6L_JWT_SECRET)")
+	}
+	apiServer := &api.Server{
+		Liquipedia:  lpClient,
+		Players:     playerSvc,
+		Tournaments: tournamentSvc,
+		Fantasy:     fantasySvc,
+		Auth:        authSvc,
+	}
+
 	mux := http.NewServeMux()
+	requireAuth := middleware.RequireAuth(authSvc)
+	requireAdmin := func(h http.HandlerFunc) http.Handler {
+		return requireAuth(middleware.RequireRole(model.RoleAdmin)(http.HandlerFunc(h)))
+	}
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -42,7 +85,40 @@ func main() {
 		})
 	})
 
-	mux.HandleFunc("POST /api/parse", api.ParseLink)
+	mux.Handle("POST /api/parse", requireAdmin(apiServer.ParseLink))
+	mux.HandleFunc("GET /api/players", apiServer.ListPlayers)
+	mux.Handle("POST /api/players", requireAdmin(apiServer.SavePlayer))
+	mux.Handle("PATCH /api/players/races/{id}", requireAdmin(apiServer.PatchPlayerRace))
+	mux.HandleFunc("GET /api/players/lookup", apiServer.GetPlayerLookup)
+	mux.HandleFunc("GET /api/players/portrait", apiServer.GetPlayerPortrait)
+	mux.HandleFunc("GET /api/tournaments", apiServer.ListTournaments)
+	mux.Handle("POST /api/tournaments", requireAdmin(apiServer.SaveTournament))
+	mux.Handle("GET /api/tournaments/unused-for-fantasy", requireAdmin(apiServer.ListUnusedTournamentsForFantasy))
+
+	mux.HandleFunc("GET /api/fantasy-leagues", apiServer.ListFantasyLeagues)
+	mux.HandleFunc("GET /api/fantasy-leagues/active", apiServer.GetActiveFantasyLeague)
+	mux.Handle("GET /api/fantasy-leagues/preview", requireAdmin(apiServer.PreviewFantasyLeague))
+	mux.Handle("POST /api/fantasy-leagues", requireAdmin(apiServer.CreateFantasyLeague))
+	mux.HandleFunc("GET /api/fantasy-leagues/{id}", apiServer.GetFantasyLeague)
+	mux.Handle("PATCH /api/fantasy-leagues/{id}", requireAdmin(apiServer.PatchFantasyLeague))
+	mux.Handle("POST /api/fantasy-leagues/{id}/start", requireAdmin(apiServer.StartFantasyLeague))
+	mux.Handle("POST /api/fantasy-leagues/{id}/finish", requireAdmin(apiServer.FinishFantasyLeague))
+	mux.HandleFunc("GET /api/fantasy-leagues/{id}/players", apiServer.ListFantasyPlayers)
+	mux.Handle("PATCH /api/fantasy-leagues/{id}/players/{playerId}", requireAdmin(apiServer.PatchFantasyPlayer))
+	mux.HandleFunc("GET /api/fantasy-leagues/{id}/teams", apiServer.ListFantasyTeams)
+	mux.Handle("POST /api/fantasy-leagues/{id}/teams", requireAdmin(apiServer.CreateFantasyTeam))
+	mux.Handle("PUT /api/fantasy-leagues/{id}/teams/{teamId}", requireAdmin(apiServer.UpdateFantasyTeam))
+	mux.Handle("DELETE /api/fantasy-leagues/{id}/teams/{teamId}", requireAdmin(apiServer.DeleteFantasyTeam))
+	mux.Handle("GET /api/fantasy-leagues/{id}/my-team", requireAuth(http.HandlerFunc(apiServer.GetMyFantasyTeam)))
+	mux.Handle("PUT /api/fantasy-leagues/{id}/my-team", requireAuth(http.HandlerFunc(apiServer.PutMyFantasyTeam)))
+
+	mux.HandleFunc("GET /api/auth/config", apiServer.AuthConfig)
+	mux.HandleFunc("POST /api/auth/telegram", apiServer.AuthTelegram)
+	mux.Handle("GET /api/me", requireAuth(http.HandlerFunc(apiServer.Me)))
+	mux.Handle("PATCH /api/me", requireAuth(http.HandlerFunc(apiServer.PatchMe)))
+	mux.Handle("POST /api/auth/logout", requireAuth(http.HandlerFunc(apiServer.AuthLogout)))
+	mux.Handle("GET /api/users", requireAdmin(apiServer.ListUsers))
+	mux.Handle("POST /api/users", requireAdmin(apiServer.CreateUser))
 
 	addr := ":18765"
 	log.Printf("backend listening on %s", addr)
@@ -52,10 +128,27 @@ func main() {
 }
 
 func withCORS(next http.Handler) http.Handler {
+	allowed := map[string]struct{}{
+		"http://localhost:3000": {},
+		"http://127.0.0.1:3000": {},
+		"https://c7d5a6l.lo":    {},
+	}
+	if extra := strings.TrimSpace(os.Getenv("C7D5A6L_CORS_ORIGIN")); extra != "" {
+		for _, o := range strings.Split(extra, ",") {
+			o = strings.TrimSpace(o)
+			if o != "" {
+				allowed[o] = struct{}{}
+			}
+		}
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		origin := r.Header.Get("Origin")
+		if _, ok := allowed[origin]; ok {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

@@ -61,15 +61,26 @@ func ParsePageRef(raw string) (PageRef, error) {
 		return PageRef{}, fmt.Errorf("invalid page title in url")
 	}
 
+	// Build via url.URL so nested titles (with "/") stay as path segments, then keep
+	// MediaWiki-style literal parentheses. Go's PathEscape turns () into %28/%29, but
+	// Liquipedia hrefs and browser URLs keep "()", and that is what we store in DB.
 	canonical := &url.URL{
 		Scheme: "https",
 		Host:   AllowedHost,
 		Path:   "/" + wiki + "/" + title,
 	}
+	canonicalURL := keepMediaWikiParens(canonical.String())
 
 	return PageRef{
 		Wiki:  wiki,
 		Title: title,
-		URL:   canonical.String(),
+		URL:   canonicalURL,
 	}, nil
+}
+
+// keepMediaWikiParens restores () that url.URL.String / PathEscape percent-encodes.
+func keepMediaWikiParens(s string) string {
+	s = strings.ReplaceAll(s, "%28", "(")
+	s = strings.ReplaceAll(s, "%29", ")")
+	return s
 }

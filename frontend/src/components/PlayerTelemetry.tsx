@@ -1,14 +1,34 @@
-import { For, Show } from 'solid-js'
+import { For, Show, createMemo } from 'solid-js'
 import { parseRaceId, RACE_META } from '../lib/races'
-import { displayValue, type PlayerPage } from '../types/tournament'
+import {
+  displayChangeValue,
+  displayValue,
+  playerPortraitSrc,
+  type PlayerPage,
+  type PlayerSync,
+} from '../types/tournament'
 import { Player } from './Player'
 
-export function PlayerTelemetry(props: { player: PlayerPage; message: string }) {
+export type PlayerTelemetryProps = {
+  player: PlayerPage
+  sync: PlayerSync
+  message: string
+}
+
+export function PlayerTelemetry(props: PlayerTelemetryProps) {
   const p = () => props.player
+  const sync = () => props.sync
   const raceMeta = () => {
     const id = parseRaceId(p().preferredRace)
     return id ? RACE_META[id] : null
   }
+
+  const dbStatus = createMemo(() => {
+    const s = sync()
+    if (!s.exists) return 'Not in database'
+    if (s.same) return 'In database — matches parse'
+    return 'In database — differs from parse'
+  })
 
   return (
     <section class="telemetry" aria-label="Player parse result">
@@ -19,6 +39,10 @@ export function PlayerTelemetry(props: { player: PlayerPage; message: string }) 
 
       <div class="telemetry__grid">
         <div class="telemetry__row">
+          <span class="telemetry__key">DB status</span>
+          <span class="telemetry__val">{dbStatus()}</span>
+        </div>
+        <div class="telemetry__row">
           <span class="telemetry__key">Link</span>
           <a class="telemetry__val telemetry__link" href={p().link} target="_blank" rel="noreferrer">
             {p().link}
@@ -28,6 +52,25 @@ export function PlayerTelemetry(props: { player: PlayerPage; message: string }) 
           <span class="telemetry__key">Name</span>
           <span class="telemetry__val">
             <Player name={p().name} link={p().link} race={p().preferredRace} />
+          </span>
+        </div>
+        <div class="telemetry__row">
+          <span class="telemetry__key">Portrait</span>
+          <span class="telemetry__val">
+            <Show
+              when={playerPortraitSrc(p())}
+              fallback={
+                <Show when={p().portraitUrl} fallback={displayValue(null)}>
+                  {(url) => (
+                    <span title={url()}>Cached on save</span>
+                  )}
+                </Show>
+              }
+            >
+              {(src) => (
+                <img class="telemetry__portrait" src={src()} alt="" />
+              )}
+            </Show>
           </span>
         </div>
         <div class="telemetry__row">
@@ -55,15 +98,32 @@ export function PlayerTelemetry(props: { player: PlayerPage; message: string }) 
         <div class="telemetry__block-head">
           IDs <span>({p().ids.length})</span>
         </div>
-        <Show
-          when={p().ids.length > 0}
-          fallback={<p class="telemetry__val">—</p>}
-        >
+        <Show when={p().ids.length > 0} fallback={<p class="telemetry__val">—</p>}>
           <ul class="telemetry__list">
             <For each={p().ids}>{(id) => <li>{id}</li>}</For>
           </ul>
         </Show>
       </div>
+
+      <Show when={(sync().changes?.length ?? 0) > 0}>
+        <div class="telemetry__block">
+          <div class="telemetry__block-head">
+            Differences <span>({sync().changes!.length})</span>
+          </div>
+          <div class="telemetry__grid">
+            <For each={sync().changes}>
+              {(change) => (
+                <div class="telemetry__row">
+                  <span class="telemetry__key">{change.field}</span>
+                  <span class="telemetry__val">
+                    {displayChangeValue(change.before)} → {displayChangeValue(change.after)}
+                  </span>
+                </div>
+              )}
+            </For>
+          </div>
+        </div>
+      </Show>
     </section>
   )
 }

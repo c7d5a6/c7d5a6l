@@ -3,7 +3,12 @@ module github.com/c7d5a6/c7d5a6l
 go 1.26.5
 
 require (
-	github.com/PuerkitoBio/goquery v1.10.3 // indirect
+	github.com/PuerkitoBio/goquery v1.10.3
+	github.com/golang-jwt/jwt/v5 v5.2.2
+	modernc.org/sqlite v1.56.0
+)
+
+require (
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -15,5 +20,4 @@ require (
 	modernc.org/libc v1.74.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.56.0 // indirect
 )

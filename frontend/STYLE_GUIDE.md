@@ -169,7 +169,7 @@ Use sparingly: top rail of the console, section dividers — not full background
 
 Layer order (bottom → top):
 
-1. `.stage__art` — full-bleed image (`src/assets/background/home.jpg`), `cover`, dimmed (`brightness` ~0.48, slight desat).
+1. `.stage__art` — full-bleed page background (`cover`), dimmed (`brightness` ~0.48, slight desat). **Per-route asset** — see §3a.
 2. Art darken wash (gradient overlay).
 3. `.stage__grid` — animated green grid (masked).
 4. `.stage__crt` — horizontal scanlines.
@@ -179,29 +179,56 @@ Layer order (bottom → top):
 
 Stage grows with content (`min-height: 100svh`). Use `overflow: clip` on `.stage` so backdrop transforms/scan can't inflate `<body>` scroll height, and so there is no nested scrollbar. Page scroll follows in-flow content only. Scan band runs the full stage (`top: -26% → 100%`); `.stage__scan { overflow: hidden }` clips the band at the edges.
 
-Keep grid/CRT/scan when swapping art; only replace the art asset.
+Keep grid/CRT/scan when swapping art; only replace the art asset (and its fade handoff). Source catalog: [`assets/background/BACKGROUND.md`](./assets/background/BACKGROUND.md) (library under `frontend/assets/background/`; runtime copies live under `src/assets/background/` as needed).
 
-### Console tabs (spec only — not implemented yet)
+### 3a. Per-page backgrounds
 
-Original StarCraft / Remastered endgame style: mechanical chips on the frame, not modern underlines.
+Every routed channel gets its **own** stage art. Do not reuse one global `home.jpg` for all pages once multi-page backgrounds are wired.
+
+#### Rules
+
+1. **One unique image per distinct page** — `/parser`, `/players`, `/fantasy-league`, and any future top-level channel each pick a different file from the catalog.
+2. **Similar pages → similar palettes** — group by tone family from `BACKGROUND.md`, not by filename order. Nested or sibling views that feel like the same channel (e.g. player detail under Players) stay in that family’s palette even if the exact file differs.
+3. **Main pages → best tone/content fit** — choose the catalog entry whose **atmosphere + content** match the channel’s job (console work, roster/people, epic league), not merely a pretty frame. Prefer the “Strong fits” rows in `BACKGROUND.md`.
+4. **Fade through black** — on route change, art does **not** cross-dissolve image→image. Sequence: current art → fade to void black → new art fades in. Keep CRT/grid/scan/vignette mounted; only the art layer opacity (or a black scrim over art) animates. Duration should feel deliberate but shorter than card slide (`--motion-slide-duration`); reuse a shared token (e.g. `--motion-bg-fade-duration`) rather than one-offs.
+5. **Legibility first** — catalog notes on bright beams / logo bands still apply; glass belly + darken wash stay. Do not pick a busier hero just because it is “more epic” if UI contrast dies.
+6. **UI chrome unchanged** — green/red/metal tokens stay global. Background palette informs *which art* to pick, not a second HUD color system (no cyan Protoss panels, no purple marketing washes on chrome).
+
+#### Palette families (from catalog)
+
+| Family | Feel | Typical hex anchors | Use for |
+|---|---|---|---|
+| Terran industrial | Dust, steel, amber lamps, phosphor | charcoal, ochre, amber, CRT green | Parser, bunker/console, settings-like |
+| Terran war / roster | Marines, rain, battlecruiser void | gunmetal, planet blue, fire orange | Players, human-facing lists |
+| Cosmic desolate | Moon, desert plain, cold nebula | indigo, silver moon, dusty brown | Neutral default / uplink calm |
+| Epic void war | Carriers, bombardment, fleet scale | void black, beam cyan, lava/gold | Fantasy League, competition |
+| Protoss sacred | Gold hull, cyan psi, temple sky | bronze, cyan, blood-sky red | Future Protoss-tagged views |
+| Zerg organic | Creep, hive, hydralisk, swarm dust | umber, maroon, magenta, sepia | Future Zerg-tagged views |
+
+#### Canonical main-channel picks
+
+Lock these unless the catalog gains a clearly better tone match — then update this table and `BACKGROUND.md` together.
+
+| Route | Job | Family | Preferred art (catalog id / file) |
+|---|---|---|---|
+| `/parser` | Liquipedia uplink / console work | Terran industrial (+ cosmic OK) | `010` bunker CRT · calm alt `015` / `home.jpg` |
+| `/me` | Operator profile / identity | Terran industrial (sibling of parser) | `002` industrial towers |
+| `/players` | Roster / people | Terran war / roster | `terran-01` / `terran.png` · alt `009` rain marine · fleet alt `003` |
+| `/fantasy-league` | Competition / league scale | Epic void war | `001` purification · alt `sc03` bombardment · `007` / `sc01` |
+
+Sibling pages under a channel inherit that row’s **family**; pick a different file in-family so the fade still changes the picture.
+
+### Console tabs
+
+Original StarCraft / Remastered endgame style: mechanical chips, not modern underlines.
 
 | State | Look |
 |---|---|
 | Idle | Dark translucent fill, dim text, thin `--color-border` |
-| Active | `--color-theme` text, stronger border, merges into glass belly (`border-bottom` transparent / shared fill) |
-| Shape | Angular / notched top; sit on the console top edge, overlapping or replacing part of the hazard rail |
-| Optional | Idle tabs may use race- or section-tinted borders (red / steel); active label always theme green |
+| Active | `--color-theme` text, stronger border, bottom edge open to panel |
+| Shape | Angular / notched top via clip-path |
 
-Markup sketch for a future pass:
-
-```html
-<nav class="console__tabs" role="tablist">
-  <button type="button" class="tab tab--active" role="tab" aria-selected="true">Parse</button>
-  <button type="button" class="tab" role="tab" aria-selected="false">History</button>
-</nav>
-```
-
-Do not ship tab components until product needs them; this section is the visual contract only.
+Used in tournament telemetry (`Overview` / `Players` / `Results`): `.console__tabs` + `.tab` / `.tab--active`.
 
 ---
 
@@ -243,6 +270,7 @@ Small living details sell the console — use them, but **never stack the same t
 | Hazard micro-rule | `.brand__eyebrow::before` | Static gold tick | Section identity |
 | CRT stage | `.stage__*` | Scan + grid + vignette | Full-bleed page backdrop only |
 | Energy sweep | primary `.btn:hover` | Green crawl | CTA hover — not chips |
+| Lamp flash | `installLampFlash` → `.lamp-flash` | Bright wash + pip on the pressed control only | Confirm on **any** enabled button press |
 
 ### Anti-patterns
 
@@ -257,22 +285,34 @@ Small living details sell the console — use them, but **never stack the same t
 
 | UI piece | Recipe |
 |---|---|
-| Stage | Art (`home.jpg`) + grid + CRT + scan + vignette |
-| Console frame | `ConsoleCard` — metal rim + hazard + red border; `top` slot; slide via `.motion-slide-in` / `exiting` → `.motion-slide-out` |
+| Stage | `StageArt` — per-route art (§3a) + grid + CRT + scan + vignette; art swaps via fade-to-black |
+| Console frame | `ConsoleCard` — metal rim + hazard + red border; `top` slot; optional `slide` for solo card motion; route pages use `PagePanels` |
 | Console inner / telemetry | Glass belly ~52% black + few-px edge vignette + light blur |
+| Page panels | `PagePanels` — one or more consoles slide in (right) / out (left) together on route change |
 | Chips | Blacked panel, red border; live = green beacon; alert = red beacon (see §5) |
 | Input | Blacked well, red border; focus = hot red + green wash |
+| Checkbox | `.sc-check` — angular void plate, red rim; checked = theme green tick + glow |
 | Valid input | Theme green border |
 | Invalid input | Hot red border |
 | Primary button | Flat theme green at rest; CRT scanlines + energy sweep on hover only |
 | Ghost button | Transparent, red border; hover only shifts border/text — no gradient or CRT |
+| Action dock | `ActionDock` — mini Ok/Cancel console shells; mount only when a confirm/dismiss action is required (not on the uplink form by default) |
+| Auth dock | `AuthDock` — floating Login / alias plate (deep drop shadow above stage) |
+| Nav rail | `NavRail` — left metal plates; green SVG icons; bottom strip ≤720px; floating drop-shadow; `visible` to hide; routes `/parser`, `/players`, `/fantasy-league` |
 | Telemetry | Glass belly, green header, hazard stripe rule, grey interior block separators |
-| Player | `Player` — race icon + race-colored profile link; excluded = strike + tag |
+| Player | `Player` — race icon + race-colored profile link; excluded = strike + tag; hover dossier after ~360ms (shell first, then lookup + cached portrait) |
+| Fantasy scores | `TeamScoreMeta` — PTS phosphor green + glow; COST quiet hazard-dim metal |
+| Roster chip | `RosterPlayerChip` — pick-plate; race chrome; cost/pts; defeated muted |
+| Champion | `ChampionMark` — pulsing phosphor star; hot green rim on winner chip/row |
 | Interior separators | `.rule` — 1px `--color-rule` hairline inside glass; not red, not hazard |
-| Tabs | Spec only — see §3 Console tabs |
+| Tabs | `.console__tabs` / `.tab` — mechanical chips; used in tournament telemetry |
 | Info / idle hint | Info slate border/bg |
 | Error status | Hot red text |
 | Success status | Theme green text |
+
+**Nav rail mobile:** at `max-width: 720px` the rail becomes a fixed bottom strip (3 equal cells). Stage gains bottom padding so the console isn’t covered; ActionDock lifts above the strip when both are present.
+
+**Routes:** `/` → `/parser`; `/players` and `/fantasy-league` are channel pages (fantasy is a placeholder). Nav selection navigates; exit starts immediately, enter follows after `--motion-slide-stagger` (220ms). `/tournaments` redirects to `/fantasy-league`.
 
 ---
 
@@ -287,16 +327,36 @@ Applies to `ConsoleCard`, future metal-bordered navigation items, and any panel 
 | Token / class | Value | Role |
 |---|---|---|
 | `--motion-slide-duration` | `600ms` | **Fixed** — same time for every slide, whether the travel is a short nudge or full off-screen |
-| `--motion-slide-ease` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | Ease-out: faster start, **slows at the end** |
+| `--motion-slide-ease` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | Ease-out: faster start, **slows at the end** (enter and exit) |
+| `--motion-slide-stagger` | `220ms` | Delay before route enter so exit clears the stage without a long empty gap |
+| `--motion-resize-duration` | `280ms` | Console shell height when content grows/shrinks — **shorter** than slide |
 | `.motion-slide-in` | `translateX(100vw → 0)` | Enter from off-screen **right** |
-| `.motion-slide-out` | `translateX(0 → -100vw)` | Exit to off-screen **left** (opposite of enter) |
+| `.motion-slide-in--staggered` | + `animation-delay: stagger` | Route handoff enter only |
+| `.motion-slide-out` | `translateX(0 → 100vw)` | Exit back off-screen **right** (reverse of enter) |
+| `.motion-rise-in` | `translateY(100% → 0)` | Enter from off-screen **bottom** (action dock) |
+| `.motion-rise-out` | `translateY(0 → 100%)` | Exit downward (reverse of rise) |
 
 Rules:
 
 1. **Constant duration** — do not scale time by distance. A short nav chip and a full card use the same `600ms`. Never invent per-element durations for the same motion family.
 2. **Same curve in and out** — enter and exit both use `--motion-slide-ease`.
-3. **Exit is reverse direction** — if enter comes from the right, exit leaves to the left (mirrored axis). No fade for this family.
-4. **Shared classes** — prefer `.motion-slide-in` / `.motion-slide-out` (or `ConsoleCard` `exiting`) instead of one-off keyframes.
+3. **Exit reverses enter** — same axis and timing; play the enter path backwards (e.g. in from right → out to right). No fade for this family.
+4. **Shared classes** — prefer `.motion-slide-in` / `.motion-slide-out` (or `PagePanels` `exiting`) instead of one-off keyframes.
+5. **Resize ≠ slide** — panel height changes (telemetry appear/dismiss) use `--motion-resize-duration`, not slide duration.
+6. **Route handoff stagger** — exit starts immediately; enter waits `--motion-slide-stagger` so panels don’t share the stage, without a long empty beat.
+7. **Exit out of flow** — `.page-panels.motion-slide-out` is `position: absolute` so a tall outgoing page does not keep document height alive (avoids centering jump when the stage shrinks). Scroll resets to top on route change.
+
+### Background art fade (route change)
+
+| Token / behavior | Guidance |
+|---|---|
+| `--motion-bg-fade-duration` | `350ms` each half (out / in); shorter than slide |
+| Out | Current `.stage__art` (or black scrim) → void `#000` |
+| Hold | Brief black beat optional; avoid a long empty stage |
+| In | New art opacity 0 → 1 from black |
+| Forbidden | Direct crossfade between two photos; wiping/sliding the photograph with the console |
+
+Coordinate with panel slide: art may start fading as soon as the route changes; consoles still follow §7 metal-slide rules.
 
 ### Other motion
 
@@ -306,6 +366,8 @@ Rules:
 4. **Live beacon** — slow green blink on `.chip--live`.
 5. **Alert beacon** — faster red blink on `.chip--alert`.
 6. **Phosphor breath** — slow opacity on `.atm-phosphor` (one line max nearby).
+7. **Console resize** — `ConsoleCard` shell height eases when inner content size changes.
+8. **Stage art fade** — through black on route background change (§3a).
 
 No bounce, no purple glow, no soft shadow stacks.
 
@@ -315,11 +377,15 @@ No bounce, no purple glow, no soft shadow stacks.
 
 - [ ] Uses tokens from this guide only  
 - [ ] Borders lean red; accents lean green  
+- [ ] Checkboxes use `.sc-check` (no native OS chrome)  
+- [ ] Floating chrome (nav / auth / login modal) casts a clear drop shadow above the stage  
 - [ ] Panels are black or metallic — not blue navy  
 - [ ] Hazard stripes only on trim  
 - [ ] CRT visible on full-bleed stages  
+- [ ] Page has its own stage art from `BACKGROUND.md`; family matches channel (§3a)  
+- [ ] Background route change fades through black — no photo crossfade  
 - [ ] Angular clip paths, not rounded cards  
 - [ ] Atmosphere budget respected — no twin beacons / repeated flourishes  
 - [ ] No large fluff subtitle under titles — chrome speaks through labels/status  
 - [ ] Interior section breaks use grey `.rule` — reserve red for frames, hazard for trim  
-- [ ] Metal slides use shared duration/ease; exit = opposite direction of enter  
+- [ ] Metal slides use shared duration/ease; exit = reverse of enter (same axis)  

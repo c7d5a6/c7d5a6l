@@ -12,6 +12,7 @@ func TestPlayer(t *testing.T) {
 		realName      string
 		ids           []string
 		preferredRace string
+		portraitURL   string
 	}
 
 	wantByFixture := map[string]wantPlayer{
@@ -20,6 +21,7 @@ func TestPlayer(t *testing.T) {
 			realName:      "Lee Jae Dong",
 			ids:           []string{"JD", "n.Die_Jaedong", "n.Die_yOngKIN"},
 			preferredRace: "zerg",
+			portraitURL:   "https://liquipedia.net/commons/images/6/60/JD_%EC%9D%B4%EC%A0%9C%EB%8F%99.png",
 		},
 	}
 
@@ -44,6 +46,9 @@ func TestPlayer(t *testing.T) {
 		}
 		if got.PreferredRace == nil || *got.PreferredRace != want.preferredRace {
 			t.Errorf("%s: preferredRace=%v, want %q", fx.name, got.PreferredRace, want.preferredRace)
+		}
+		if got.PortraitURL == nil || *got.PortraitURL != want.portraitURL {
+			t.Errorf("%s: portraitUrl=%v, want %q", fx.name, got.PortraitURL, want.portraitURL)
 		}
 		if len(got.IDs) != len(want.ids) {
 			t.Fatalf("%s: ids=%v, want %v", fx.name, got.IDs, want.ids)

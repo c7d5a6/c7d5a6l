@@ -34,6 +34,18 @@ func TestValidateURL(t *testing.T) {
 			wantOut: "https://liquipedia.net/starcraft/ASL/19",
 		},
 		{
+			name:    "player disambiguation parens",
+			in:      "https://liquipedia.net/starcraft/Larva_(Player)",
+			wantOK:  true,
+			wantOut: "https://liquipedia.net/starcraft/Larva_(Player)",
+		},
+		{
+			name:    "player disambiguation encoded parens",
+			in:      "https://liquipedia.net/starcraft/Larva_%28Player%29",
+			wantOK:  true,
+			wantOut: "https://liquipedia.net/starcraft/Larva_(Player)",
+		},
+		{
 			name:   "root only",
 			in:     "https://liquipedia.net/",
 			wantOK: false,

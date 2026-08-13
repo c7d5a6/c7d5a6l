@@ -28,6 +28,10 @@ type listFantasyTeamsResponse struct {
 	Teams []model.FantasyTeamRow `json:"teams"`
 }
 
+type listFantasyGroupsResponse struct {
+	Groups []model.FantasyGroup `json:"groups"`
+}
+
 type fantasyLeagueResponse struct {
 	League model.FantasyLeague `json:"league"`
 }
@@ -221,6 +225,29 @@ func (s *Server) ListFantasyPlayers(w http.ResponseWriter, r *http.Request) {
 		players = []model.FantasyPlayerRow{}
 	}
 	_ = json.NewEncoder(w).Encode(listFantasyPlayersResponse{Players: players})
+}
+
+// ListFantasyGroups returns tournament groups with fantasy costs for a league.
+func (s *Server) ListFantasyGroups(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.Fantasy == nil {
+		writeError(w, http.StatusInternalServerError, "fantasy service not configured")
+		return
+	}
+	id, ok := pathInt64(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid fantasy league id")
+		return
+	}
+	groups, err := s.Fantasy.ListGroups(r.Context(), id)
+	if err != nil {
+		writeFantasyErr(w, err)
+		return
+	}
+	if groups == nil {
+		groups = []model.FantasyGroup{}
+	}
+	_ = json.NewEncoder(w).Encode(listFantasyGroupsResponse{Groups: groups})
 }
 
 // ListFantasyTeams returns fantasy teams for a league.

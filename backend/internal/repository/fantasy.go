@@ -361,6 +361,103 @@ func (r *Fantasy) ListPlayers(ctx context.Context, q DBTX, leagueID int64, sort 
 	return out, rows.Err()
 }
 
+// ListGroups returns tournament groups for a league with fantasy player costs.
+func (r *Fantasy) ListGroups(ctx context.Context, q DBTX, leagueID int64) ([]model.FantasyGroup, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT tg.id, tg.name, tg.phase, tg.sort_order
+		FROM tournament_group tg
+		JOIN fantasy_league fl ON fl.tournament_id = tg.tournament_id
+		WHERE fl.id = ?
+		ORDER BY tg.sort_order ASC, tg.id ASC
+	`, leagueID)
+	if err != nil {
+		return nil, fmt.Errorf("list fantasy groups: %w", err)
+	}
+	defer rows.Close()
+
+	type groupRow struct {
+		id        int64
+		name      string
+		phase     string
+		sortOrder int
+	}
+	var groups []groupRow
+	for rows.Next() {
+		var g groupRow
+		if err := rows.Scan(&g.id, &g.name, &g.phase, &g.sortOrder); err != nil {
+			return nil, err
+		}
+		groups = append(groups, g)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]model.FantasyGroup, 0, len(groups))
+	for _, g := range groups {
+		players, err := r.listGroupPlayers(ctx, q, leagueID, g.id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, model.FantasyGroup{
+			Name:      g.name,
+			Phase:     g.phase,
+			SortOrder: g.sortOrder,
+			Players:   players,
+		})
+	}
+	return out, nil
+}
+
+func (r *Fantasy) listGroupPlayers(ctx context.Context, q DBTX, leagueID, groupID int64) ([]model.FantasyGroupPlayer, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT
+			fp.id,
+			pa.name,
+			p.link,
+			pr.race,
+			fp.cost,
+			tp.excluded
+		FROM tournament_group_player tgp
+		JOIN tournament_player tp ON tp.id = tgp.tournament_player_id
+		JOIN fantasy_player fp ON fp.tournament_player_id = tp.id AND fp.fantasy_league_id = ?
+		JOIN player_race pr ON pr.id = tp.player_race_id
+		JOIN player_alias pa ON pa.id = tp.player_alias_id
+		JOIN player p ON p.id = pr.player_id
+		WHERE tgp.tournament_group_id = ?
+		ORDER BY tgp.sort_order ASC, tgp.id ASC
+	`, leagueID, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("list fantasy group players: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]model.FantasyGroupPlayer, 0)
+	for rows.Next() {
+		var (
+			p        model.FantasyGroupPlayer
+			name     string
+			link     sql.NullString
+			race     string
+			excluded int
+		)
+		if err := rows.Scan(&p.FantasyPlayerID, &name, &link, &race, &p.Cost, &excluded); err != nil {
+			return nil, err
+		}
+		n := name
+		p.Name = &n
+		if link.Valid {
+			l := link.String
+			p.Link = &l
+		}
+		raceVal := race
+		p.Race = &raceVal
+		p.Excluded = excluded != 0
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // GetPlayerByID returns a fantasy player in a league, or nil.
 func (r *Fantasy) GetPlayerByID(ctx context.Context, q DBTX, leagueID, playerID int64) (*model.FantasyPlayerRow, error) {
 	row := q.QueryRowContext(ctx, `

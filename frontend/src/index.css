@@ -14,6 +14,9 @@
   --motion-slide-stagger: 220ms;
   /* Console content grow/shrink — shorter than slide */
   --motion-resize-duration: 280ms;
+  /* Top drop exit only — longer; slow start → fast finish (enter keeps slide timing) */
+  --motion-drop-duration: 900ms;
+  --motion-drop-ease: cubic-bezier(0.55, 0.05, 0.9, 0.2);
   /* Stage art fade through black (each half: out or in) */
   --motion-bg-fade-duration: 350ms;
   --motion-bg-fade-ease: ease;
@@ -136,10 +139,10 @@ body {
   }
 }
 
-/* Top auth-dock enter / exit — drop from above / rise back up */
+/* Top enter / exit — self height + viewport so tall panels fully clear the stage */
 @keyframes motion-drop-in {
   from {
-    transform: translateY(-100%);
+    transform: translateY(calc(-100% - 100svh));
   }
   to {
     transform: translateY(0);
@@ -151,7 +154,7 @@ body {
     transform: translateY(0);
   }
   to {
-    transform: translateY(-100%);
+    transform: translateY(calc(-100% - 100svh));
   }
 }
 
@@ -455,6 +458,69 @@ button.lamp-flash::after {
   width: min(100%, 58rem);
 }
 
+.console--side {
+  width: 20rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/*
+ * Fantasy league layout: main console always fills the page-panels column
+ * (same width + position). Groups side panel sits to the right without
+ * shifting the main card.
+ */
+.fantasy-league-layout {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.fantasy-league-layout .console--wide {
+  width: 100%;
+}
+
+@media (min-width: 1260px) {
+  /*
+   * Same grid cell as main: margin pushes the side panel right, while its
+   * in-flow height still grows the row — so a tall groups panel gets a
+   * document scrollbar (absolute did not).
+   */
+  .fantasy-league-layout--side {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fantasy-league-layout--side .console--wide,
+  .fantasy-league-layout--side .console--side {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .fantasy-league-layout--side .console--side {
+    justify-self: start;
+    align-self: start;
+    margin-left: calc(100% + 1rem);
+    width: 20rem;
+    z-index: 2;
+  }
+}
+
+@media (max-width: 1259px) {
+  /*
+   * Below the main card (in flow). Overlay covered the caps line
+   * ("N / max players · cost …"); stacking above pushed the edit button down.
+   */
+  .fantasy-league-layout--side {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .fantasy-league-layout--side .console--side {
+    width: 100%;
+  }
+}
+
 /* Route page stack — multiple consoles share one slide in/out */
 .stage__pages {
   position: relative;
@@ -517,11 +583,13 @@ button.lamp-flash::after {
 }
 
 .motion-drop-in {
+  /* Enter keeps the shared slide timing (fast start, ease out) */
   animation: motion-drop-in var(--motion-slide-duration) var(--motion-slide-ease) both;
 }
 
 .motion-drop-out {
-  animation: motion-drop-out var(--motion-slide-duration) var(--motion-slide-ease) both;
+  /* Exit only: longer + slow start → fast finish */
+  animation: motion-drop-out var(--motion-drop-duration) var(--motion-drop-ease) both;
 }
 
 /* —— Nav rail (desktop left / mobile bottom) —— */
@@ -1455,7 +1523,8 @@ button.lamp-flash::after {
 
 /* Shared metal fill — dirt.webp as soft grit (soft-light); silver lip stays clean */
 .console__metal,
-.console__top-cap {
+.console__top-cap,
+.console__top-fill {
   --dirt: url("./assets/textures/dirt.webp");
   background-color: var(--color-metal);
   background-image:
@@ -1648,6 +1717,50 @@ button.lamp-flash::after {
   z-index: 2;
   background: linear-gradient(
     180deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    transparent 40%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+}
+
+/* Plain top rail (no center hazard) — used with right hazard rail */
+.console__top--plain {
+  grid-template-columns: minmax(3.5rem, 0.9fr) minmax(0, 1fr) minmax(3.5rem, 0.9fr);
+}
+
+.console__top-fill {
+  position: relative;
+  isolation: isolate;
+  background-size: 220px 220px, auto, auto, auto;
+  background-position: 40% 30%, 0 0, 0 0, 0 0;
+  border-top: 1px solid var(--color-metal-edge);
+  box-shadow:
+    inset 0 1px 0 #000000,
+    inset 0 -1px 0 rgba(0, 0, 0, 0.7);
+}
+
+/* Vertical hazard on the right edge (side consoles) */
+.console--hazard-right .console__metal--mid {
+  inset: 20px 16px 4px 8px;
+}
+
+.console--hazard-right .console__well {
+  margin: 6px 16px 5px 9px;
+}
+
+.console__hazard--rail {
+  position: absolute;
+  z-index: 3;
+  top: 24px;
+  right: 5px;
+  bottom: 8px;
+  width: 12px;
+  clip-path: polygon(0 8px, 100% 0, 100% 100%, 0 calc(100% - 6px));
+}
+
+.console__hazard--rail::after {
+  background: linear-gradient(
+    90deg,
     rgba(255, 255, 255, 0.07) 0%,
     transparent 40%,
     rgba(0, 0, 0, 0.35) 100%
@@ -2319,6 +2432,25 @@ button.lamp-flash::after {
   list-style: none;
   display: grid;
   gap: 0.35rem;
+}
+
+.telemetry__list--chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.telemetry__group {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.telemetry__group-name {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
 }
 
 .telemetry__matches {
@@ -3441,6 +3573,65 @@ button.lamp-flash::after {
 
 .fantasy-my-team {
   margin-bottom: 1rem;
+}
+
+.fantasy-groups {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.fantasy-groups__head {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.fantasy-groups__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+
+.fantasy-groups__title span {
+  color: var(--color-theme);
+}
+
+.fantasy-groups__card {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.55rem 0.5rem;
+  border: 1px solid var(--color-rule);
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.fantasy-groups__card + .fantasy-groups__card {
+  margin-top: 0.55rem;
+}
+
+.fantasy-groups__player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.fantasy-groups__cost {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--color-hazard-dim);
+}
+
+.console--side .console__inner {
+  padding: clamp(0.85rem, 2.5vw, 1.25rem);
+  gap: 0.85rem;
 }
 
 .fantasy-admin-add-team {

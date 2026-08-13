@@ -108,6 +108,7 @@ func main() {
 	mux.Handle("POST /api/fantasy-leagues/{id}/finish", requireAdmin(apiServer.FinishFantasyLeague))
 	mux.HandleFunc("GET /api/fantasy-leagues/{id}/players", apiServer.ListFantasyPlayers)
 	mux.Handle("PATCH /api/fantasy-leagues/{id}/players/{playerId}", requireAdmin(apiServer.PatchFantasyPlayer))
+	mux.HandleFunc("GET /api/fantasy-leagues/{id}/groups", apiServer.ListFantasyGroups)
 	mux.HandleFunc("GET /api/fantasy-leagues/{id}/teams", apiServer.ListFantasyTeams)
 	mux.Handle("POST /api/fantasy-leagues/{id}/teams", requireAdmin(apiServer.CreateFantasyTeam))
 	mux.Handle("PUT /api/fantasy-leagues/{id}/teams/{teamId}", requireAdmin(apiServer.UpdateFantasyTeam))

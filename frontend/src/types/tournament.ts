@@ -19,6 +19,14 @@ export type Result = {
   order: number
 }
 
+/** Named player pool within a tournament phase. */
+export type TournamentGroup = {
+  name: string
+  phase: string
+  sortOrder: number
+  players: Participant[]
+}
+
 export type PlayerCounts = {
   total: number | null
   protoss: number | null
@@ -35,6 +43,7 @@ export type TournamentPage = {
   playerCounts: PlayerCounts | null
   participants: Participant[]
   results: Result[]
+  groups: TournamentGroup[]
   finished: boolean | null
 }
 

@@ -88,6 +88,14 @@ func (s *Fantasy) ListTeams(ctx context.Context, leagueID int64) ([]model.Fantas
 	return AssignTeamRanks(teams), nil
 }
 
+// ListGroups returns tournament groups with fantasy costs for drafting.
+func (s *Fantasy) ListGroups(ctx context.Context, leagueID int64) ([]model.FantasyGroup, error) {
+	if _, err := s.GetLeague(ctx, leagueID); err != nil {
+		return nil, err
+	}
+	return s.repo.ListGroups(ctx, s.db, leagueID)
+}
+
 // CreateParams configures fantasy league creation.
 type CreateParams struct {
 	TournamentID int64

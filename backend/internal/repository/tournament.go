@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
+	"github.com/c7d5a6/c7d5a6l/internal/debuglog"
 	"github.com/c7d5a6/c7d5a6l/internal/model"
 )
 
@@ -79,6 +81,12 @@ func (r *Tournament) GetByLink(ctx context.Context, q DBTX, link string) (*Store
 		return nil, err
 	}
 	page.Participants = participants
+
+	groups, err := r.ListGroups(ctx, q, id)
+	if err != nil {
+		return nil, err
+	}
+	page.Groups = groups
 
 	return &StoredTournament{Page: page, Participants: participants}, nil
 }
@@ -219,15 +227,46 @@ type RosterEntry struct {
 	Excluded      bool
 }
 
-// ReplaceRoster deletes existing enrollment and inserts entries.
+// ReplaceRoster upserts enrollment by (tournament_id, player_race_id) so existing
+// tournament_player ids stay stable (fantasy_player FKs). Rows not in entries are deleted.
 func (r *Tournament) ReplaceRoster(ctx context.Context, q DBTX, tournamentID int64, entries []RosterEntry) error {
-	if _, err := q.ExecContext(ctx, `DELETE FROM tournament_player WHERE tournament_id = ?`, tournamentID); err != nil {
-		return fmt.Errorf("clear tournament roster: %w", err)
+	rows, err := q.QueryContext(ctx, `
+		SELECT id, player_race_id FROM tournament_player WHERE tournament_id = ?
+	`, tournamentID)
+	if err != nil {
+		return fmt.Errorf("list tournament roster ids: %w", err)
 	}
+	existing := map[int64]int64{} // player_race_id -> tournament_player.id
+	for rows.Next() {
+		var id, raceID int64
+		if err := rows.Scan(&id, &raceID); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[raceID] = id
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	keep := make(map[int64]struct{}, len(entries))
 	for _, e := range entries {
+		keep[e.PlayerRaceID] = struct{}{}
 		excluded := 0
 		if e.Excluded {
 			excluded = 1
+		}
+		if id, ok := existing[e.PlayerRaceID]; ok {
+			if _, err := q.ExecContext(ctx, `
+				UPDATE tournament_player
+				SET player_alias_id = ?, excluded = ?
+				WHERE id = ?
+			`, e.PlayerAliasID, excluded, id); err != nil {
+				return fmt.Errorf("update tournament_player: %w", err)
+			}
+			continue
 		}
 		if _, err := q.ExecContext(ctx, `
 			INSERT INTO tournament_player (tournament_id, player_race_id, player_alias_id, excluded)
@@ -236,5 +275,180 @@ func (r *Tournament) ReplaceRoster(ctx context.Context, q DBTX, tournamentID int
 			return fmt.Errorf("insert tournament_player: %w", err)
 		}
 	}
+
+	for raceID, id := range existing {
+		if _, ok := keep[raceID]; ok {
+			continue
+		}
+		if _, err := q.ExecContext(ctx, `DELETE FROM tournament_player WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("delete removed tournament_player: %w", err)
+		}
+	}
 	return nil
+}
+
+// GroupEntry is one group row plus roster member links (player profile URLs).
+type GroupEntry struct {
+	Name        string
+	Phase       string
+	SortOrder   int
+	PlayerLinks []string
+}
+
+// ReplaceGroups deletes existing groups for a tournament and inserts entries.
+// Player links that are not on the roster are skipped (not an error).
+func (r *Tournament) ReplaceGroups(ctx context.Context, q DBTX, tournamentID int64, entries []GroupEntry) error {
+	if _, err := q.ExecContext(ctx, `DELETE FROM tournament_group WHERE tournament_id = ?`, tournamentID); err != nil {
+		return fmt.Errorf("clear tournament groups: %w", err)
+	}
+	for _, e := range entries {
+		res, err := q.ExecContext(ctx, `
+			INSERT INTO tournament_group (tournament_id, name, phase, sort_order)
+			VALUES (?, ?, ?, ?)
+		`, tournamentID, e.Name, e.Phase, e.SortOrder)
+		if err != nil {
+			return fmt.Errorf("insert tournament_group: %w", err)
+		}
+		groupID, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("tournament_group last insert id: %w", err)
+		}
+		for i, link := range e.PlayerLinks {
+			link = strings.TrimSpace(link)
+			if link == "" {
+				continue
+			}
+			tpID, err := r.tournamentPlayerIDByLink(ctx, q, tournamentID, link)
+			if err != nil {
+				return err
+			}
+			if tpID == 0 {
+				debuglog.Printf("ReplaceGroups skip orphan link=%s tournamentID=%d", link, tournamentID)
+				continue
+			}
+			if _, err := q.ExecContext(ctx, `
+				INSERT INTO tournament_group_player (tournament_group_id, tournament_player_id, sort_order)
+				VALUES (?, ?, ?)
+			`, groupID, tpID, i); err != nil {
+				return fmt.Errorf("insert tournament_group_player: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// ListGroups returns groups with members ordered by sort_order.
+func (r *Tournament) ListGroups(ctx context.Context, q DBTX, tournamentID int64) ([]model.TournamentGroup, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT id, name, phase, sort_order
+		FROM tournament_group
+		WHERE tournament_id = ?
+		ORDER BY sort_order ASC, id ASC
+	`, tournamentID)
+	if err != nil {
+		return nil, fmt.Errorf("list tournament groups: %w", err)
+	}
+	defer rows.Close()
+
+	type groupRow struct {
+		id        int64
+		name      string
+		phase     string
+		sortOrder int
+	}
+	var groups []groupRow
+	for rows.Next() {
+		var g groupRow
+		if err := rows.Scan(&g.id, &g.name, &g.phase, &g.sortOrder); err != nil {
+			return nil, err
+		}
+		groups = append(groups, g)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]model.TournamentGroup, 0, len(groups))
+	for _, g := range groups {
+		players, err := r.listGroupPlayers(ctx, q, g.id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, model.TournamentGroup{
+			Name:      g.name,
+			Phase:     g.phase,
+			SortOrder: g.sortOrder,
+			Players:   players,
+		})
+	}
+	return out, nil
+}
+
+func (r *Tournament) listGroupPlayers(ctx context.Context, q DBTX, groupID int64) ([]model.Participant, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT
+			p.link,
+			pa.name,
+			pr.race,
+			tp.excluded
+		FROM tournament_group_player tgp
+		JOIN tournament_player tp ON tp.id = tgp.tournament_player_id
+		JOIN player_race pr ON pr.id = tp.player_race_id
+		JOIN player_alias pa ON pa.id = tp.player_alias_id
+		JOIN player p ON p.id = pr.player_id
+		WHERE tgp.tournament_group_id = ?
+		ORDER BY tgp.sort_order ASC, tgp.id ASC
+	`, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("list tournament group players: %w", err)
+	}
+	defer rows.Close()
+
+	var out []model.Participant
+	for rows.Next() {
+		var (
+			link     sql.NullString
+			name     string
+			race     string
+			excluded int
+		)
+		if err := rows.Scan(&link, &name, &race, &excluded); err != nil {
+			return nil, err
+		}
+		p := model.Participant{Excluded: excluded != 0}
+		n := name
+		p.Name = &n
+		if link.Valid && link.String != "" {
+			l := link.String
+			p.Link = &l
+		}
+		if race != "" {
+			r := race
+			p.Race = &r
+		}
+		out = append(out, p)
+	}
+	if out == nil {
+		out = []model.Participant{}
+	}
+	return out, rows.Err()
+}
+
+func (r *Tournament) tournamentPlayerIDByLink(ctx context.Context, q DBTX, tournamentID int64, link string) (int64, error) {
+	var id int64
+	err := q.QueryRowContext(ctx, `
+		SELECT tp.id
+		FROM tournament_player tp
+		JOIN player_race pr ON pr.id = tp.player_race_id
+		JOIN player p ON p.id = pr.player_id
+		WHERE tp.tournament_id = ? AND p.link = ? COLLATE NOCASE
+		LIMIT 1
+	`, tournamentID, link).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("tournament player by link: %w", err)
+	}
+	return id, nil
 }

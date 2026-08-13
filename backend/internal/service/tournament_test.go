@@ -172,5 +172,108 @@ func TestTournamentSaveRollsBackOnRosterError(t *testing.T) {
 	}
 }
 
+func TestTournamentSaveGroupsRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	playerRepo := repository.NewPlayer(sqlDB)
+	tourRepo := repository.NewTournament(sqlDB)
+	jaedongLink := "https://liquipedia.net/starcraft/Jaedong"
+	flashLink := "https://liquipedia.net/starcraft/Flash"
+	orphanLink := "https://liquipedia.net/starcraft/NotOnRoster"
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+		jaedongLink: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
+		flashLink:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
+	}, nil)
+
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/groups-test",
+		Name: str("Groups Test"),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+		},
+		Groups: []model.TournamentGroup{
+			{
+				Name:      "Group A",
+				Phase:     "Round of 24",
+				SortOrder: 0,
+				Players: []model.Participant{
+					{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+					{Name: str("Orphan"), Link: str(orphanLink), Race: str("zerg")},
+				},
+			},
+			{
+				Name:      "Group B",
+				Phase:     "Round of 24",
+				SortOrder: 1,
+				Players: []model.Participant{
+					{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+				},
+			},
+		},
+	}
+
+	saved, _, err := svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Groups) != 2 {
+		t.Fatalf("groups=%d, want 2", len(saved.Groups))
+	}
+	if saved.Groups[0].Phase != "Round of 24" || saved.Groups[0].Name != "Group A" {
+		t.Fatalf("group0=%+v", saved.Groups[0])
+	}
+	if len(saved.Groups[0].Players) != 1 {
+		t.Fatalf("orphan should be skipped, players=%d", len(saved.Groups[0].Players))
+	}
+	if saved.Groups[0].Players[0].Link == nil || *saved.Groups[0].Players[0].Link != jaedongLink {
+		t.Fatalf("group A player=%v", saved.Groups[0].Players[0].Link)
+	}
+	if saved.Groups[1].Name != "Group B" || len(saved.Groups[1].Players) != 1 {
+		t.Fatalf("group1=%+v", saved.Groups[1])
+	}
+
+	page.Groups = []model.TournamentGroup{
+		{
+			Name:      "Group C",
+			Phase:     "Round of 16",
+			SortOrder: 0,
+			Players: []model.Participant{
+				{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+				{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+			},
+		},
+	}
+	saved, _, err = svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Groups) != 1 || saved.Groups[0].Name != "Group C" {
+		t.Fatalf("after replace groups=%+v", saved.Groups)
+	}
+	if len(saved.Groups[0].Players) != 2 {
+		t.Fatalf("group C players=%d", len(saved.Groups[0].Players))
+	}
+	if saved.Groups[0].Players[0].Link == nil || *saved.Groups[0].Players[0].Link != flashLink {
+		t.Fatalf("sort order: first=%v", saved.Groups[0].Players[0].Link)
+	}
+
+	stored, err := tourRepo.GetByLink(ctx, sqlDB, page.Link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored == nil || len(stored.Page.Groups) != 1 {
+		t.Fatalf("GetByLink groups=%v", stored)
+	}
+}
+
 func intPtr(n int) *int       { return &n }
 func boolPtr(b bool) *bool    { return &b }

@@ -152,6 +152,11 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 		return model.TournamentPage{}, model.TournamentSync{}, err
 	}
 
+	groupEntries := buildGroupEntries(page.Groups)
+	if err := s.tours.ReplaceGroups(ctx, tx, tournamentID, groupEntries); err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("commit: %w", err)
 	}
@@ -169,6 +174,9 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 	out.Results = page.Results
 	if out.Results == nil {
 		out.Results = []model.Result{}
+	}
+	if out.Groups == nil {
+		out.Groups = []model.TournamentGroup{}
 	}
 
 	playerStatuses, err := s.playerStatuses(ctx, out.Participants)
@@ -293,6 +301,13 @@ func CompareTournament(
 			After:  rosterKeys(parsed.Participants),
 		})
 	}
+	if !groupsEqual(parsed.Groups, stored.Groups) {
+		changes = append(changes, model.FieldChange{
+			Field:  "groups",
+			Before: groupSummaries(stored.Groups),
+			After:  groupSummaries(parsed.Groups),
+		})
+	}
 
 	willImport := false
 	for _, st := range playerStatuses {
@@ -386,6 +401,53 @@ func rosterKeys(list []model.Participant) []string {
 func rosterEqual(a, b []model.Participant) bool {
 	ka := rosterKeys(a)
 	kb := rosterKeys(b)
+	if len(ka) != len(kb) {
+		return false
+	}
+	for i := range ka {
+		if ka[i] != kb[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func buildGroupEntries(groups []model.TournamentGroup) []repository.GroupEntry {
+	out := make([]repository.GroupEntry, 0, len(groups))
+	for i, g := range groups {
+		sortOrder := g.SortOrder
+		if sortOrder == 0 {
+			sortOrder = i
+		}
+		entry := repository.GroupEntry{
+			Name:        g.Name,
+			Phase:       g.Phase,
+			SortOrder:   sortOrder,
+			PlayerLinks: make([]string, 0, len(g.Players)),
+		}
+		for _, p := range g.Players {
+			link := strings.TrimSpace(nullStr(p.Link))
+			if link != "" {
+				entry.PlayerLinks = append(entry.PlayerLinks, link)
+			}
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func groupSummaries(groups []model.TournamentGroup) []string {
+	out := make([]string, 0, len(groups))
+	for _, g := range groups {
+		out = append(out, strings.ToLower(strings.TrimSpace(g.Phase))+"|"+strings.ToLower(strings.TrimSpace(g.Name)))
+	}
+	sort.Strings(out)
+	return out
+}
+
+func groupsEqual(a, b []model.TournamentGroup) bool {
+	ka := groupSummaries(a)
+	kb := groupSummaries(b)
 	if len(ka) != len(kb) {
 		return false
 	}

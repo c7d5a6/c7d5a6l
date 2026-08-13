@@ -1,11 +1,21 @@
 import { ConsoleCard } from '../components/ConsoleCard'
 import { ChampionMark } from '../components/ChampionMark'
+import { FantasyGroupsPanel, fetchFantasyGroups } from '../components/FantasyGroupsPanel'
 import { TeamScoreMeta } from '../components/FantasyScoreReadout'
 import { Player } from '../components/Player'
 import { RosterPlayerChip } from '../components/RosterPlayerChip'
 import { TeamEditor } from '../components/TeamEditor'
 import { UserTitles } from '../components/UserTitles'
-import { For, Match, Show, Switch, createMemo, createResource, createSignal } from 'solid-js'
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+} from 'solid-js'
 import { authFetch, authUser } from '../lib/auth'
 import { displayValue } from '../types/tournament'
 import {
@@ -20,6 +30,7 @@ import {
 } from '../types/fantasy'
 
 type TabId = 'points' | 'teams'
+type GroupsShell = 'off' | 'in' | 'out'
 
 async function fetchActiveLeague(): Promise<FantasyLeague | null> {
   const res = await authFetch('/api/fantasy-leagues/active')
@@ -47,8 +58,11 @@ async function fetchTeams(leagueId: number): Promise<FantasyTeamRow[]> {
 export function FantasyLeaguePage() {
   const [league] = createResource(fetchActiveLeague)
   const [tab, setTab] = createSignal<TabId>('points')
+  const [editingTeam, setEditingTeam] = createSignal(false)
+  const [groupsShell, setGroupsShell] = createSignal<GroupsShell>('off')
 
   const leagueId = createMemo(() => league()?.id ?? null)
+  const groupsPanelLive = createMemo(() => groupsShell() !== 'off')
 
   const [pointPlayers, { refetch: refetchPlayers }] = createResource(
     () => leagueId(),
@@ -59,113 +73,163 @@ export function FantasyLeaguePage() {
     (id) => (id == null ? Promise.resolve([] as FantasyTeamRow[]) : fetchTeams(id)),
   )
 
+  const groupsFetchKey = createMemo(() => {
+    if (!editingTeam() && !groupsPanelLive()) return null
+    return leagueId()
+  })
+  const [groups] = createResource(groupsFetchKey, (id) => fetchFantasyGroups(id))
+
+  // Mount side panel only after groups load so height matches content.
+  createEffect(() => {
+    if (!editingTeam()) return
+    if (groups.loading) return
+    if (groupsShell() !== 'off') return
+    if (groups.state === 'ready' || groups.error) setGroupsShell('in')
+  })
+
+  function setEditing(next: boolean) {
+    if (next) {
+      setEditingTeam(true)
+      return
+    }
+    setEditingTeam(false)
+    if (groupsShell() === 'in') setGroupsShell('out')
+    else setGroupsShell('off')
+  }
+
+  function selectTab(id: TabId) {
+    if (id !== 'teams') setEditing(false)
+    setTab(id)
+  }
+
   return (
-    <ConsoleCard class="console--wide">
-      <header class="brand">
-        <p class="brand__eyebrow atm-phosphor">League · Command Protocol</p>
-        <h1 class="brand__title">
-          Fantasy <span>League</span>
-        </h1>
-      </header>
-      <hr class="rule" />
+    <div
+      classList={{
+        'fantasy-league-layout': true,
+        'fantasy-league-layout--side': groupsPanelLive(),
+      }}
+    >
+      <ConsoleCard class="console--wide">
+        <header class="brand">
+          <p class="brand__eyebrow atm-phosphor">League · Command Protocol</p>
+          <h1 class="brand__title">
+            Fantasy <span>League</span>
+          </h1>
+        </header>
+        <hr class="rule" />
 
-      <Switch>
-        <Match when={league.loading}>
-          <p class="status status--idle">Locking fantasy uplink…</p>
-        </Match>
-        <Match when={league.error}>
-          <p class="status status--error">
-            {(league.error as Error)?.message ?? 'Fantasy uplink failed'}
-          </p>
-        </Match>
-        <Match when={league() === null}>
-          <p class="status status--idle">No fantasy league in database</p>
-        </Match>
-        <Match when={league()}>
-          {(active) => (
-            <>
-              <div class="fantasy-league-banner">
-                <a
-                  class="hud-link"
-                  href={active().tournamentLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Open Liquipedia page"
-                >
-                  <span class="hud-link__text">
-                    {displayValue(active().tournamentName) || active().tournamentLink}
+        <Switch>
+          <Match when={league.loading}>
+            <p class="status status--idle">Locking fantasy uplink…</p>
+          </Match>
+          <Match when={league.error}>
+            <p class="status status--error">
+              {(league.error as Error)?.message ?? 'Fantasy uplink failed'}
+            </p>
+          </Match>
+          <Match when={league() === null}>
+            <p class="status status--idle">No fantasy league in database</p>
+          </Match>
+          <Match when={league()}>
+            {(active) => (
+              <>
+                <div class="fantasy-league-banner">
+                  <a
+                    class="hud-link"
+                    href={active().tournamentLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open Liquipedia page"
+                  >
+                    <span class="hud-link__text">
+                      {displayValue(active().tournamentName) || active().tournamentLink}
+                    </span>
+                    <svg class="hud-link__ext" viewBox="0 0 16 16" aria-hidden="true">
+                      <path
+                        d="M6 3 H3 V13 H13 V10 M8 3 H13 V8 M13 3 L7 9"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linejoin="miter"
+                      />
+                    </svg>
+                  </a>
+                  <Show when={active().finished}>
+                    <span class="chip chip--alert">Finished</span>
+                  </Show>
+                  <Show when={active().started && !active().finished}>
+                    <span class="chip chip--live">Started</span>
+                  </Show>
+                  <Show when={!active().started && !active().finished}>
+                    <span class="chip fantasy-status-chip--open">Open</span>
+                  </Show>
+                  <span class="fantasy-league-banner__caps">
+                    {active().maxPlayers}p / {active().maxCost}c
                   </span>
-                  <svg class="hud-link__ext" viewBox="0 0 16 16" aria-hidden="true">
-                    <path
-                      d="M6 3 H3 V13 H13 V10 M8 3 H13 V8 M13 3 L7 9"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linejoin="miter"
+                </div>
+
+                <nav class="console__tabs" role="tablist" aria-label="Fantasy sections">
+                  <button
+                    type="button"
+                    role="tab"
+                    classList={{ tab: true, 'tab--active': tab() === 'points' }}
+                    aria-selected={tab() === 'points'}
+                    onClick={() => selectTab('points')}
+                  >
+                    Points
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    classList={{ tab: true, 'tab--active': tab() === 'teams' }}
+                    aria-selected={tab() === 'teams'}
+                    onClick={() => selectTab('teams')}
+                  >
+                    Teams
+                  </button>
+                </nav>
+
+                <Switch>
+                  <Match when={tab() === 'points'}>
+                    <FantasyPointsBoard
+                      loading={pointPlayers.loading}
+                      error={pointPlayers.error}
+                      rows={pointPlayers() ?? []}
                     />
-                  </svg>
-                </a>
-                <Show when={active().finished}>
-                  <span class="chip chip--alert">Finished</span>
-                </Show>
-                <Show when={active().started && !active().finished}>
-                  <span class="chip chip--live">Started</span>
-                </Show>
-                <Show when={!active().started && !active().finished}>
-                  <span class="chip fantasy-status-chip--open">Open</span>
-                </Show>
-                <span class="fantasy-league-banner__caps">
-                  {active().maxPlayers}p / {active().maxCost}c
-                </span>
-              </div>
+                  </Match>
+                  <Match when={tab() === 'teams'}>
+                    <FantasyTeamsPanel
+                      league={active()}
+                      loading={teams.loading}
+                      error={teams.error}
+                      teams={teams() ?? []}
+                      players={pointPlayers() ?? []}
+                      editing={editingTeam()}
+                      onEditingChange={setEditing}
+                      onSaved={async () => {
+                        await Promise.all([refetchTeams(), refetchPlayers()])
+                      }}
+                    />
+                  </Match>
+                </Switch>
+              </>
+            )}
+          </Match>
+        </Switch>
+      </ConsoleCard>
 
-              <nav class="console__tabs" role="tablist" aria-label="Fantasy sections">
-                <button
-                  type="button"
-                  role="tab"
-                  classList={{ tab: true, 'tab--active': tab() === 'points' }}
-                  aria-selected={tab() === 'points'}
-                  onClick={() => setTab('points')}
-                >
-                  Points
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  classList={{ tab: true, 'tab--active': tab() === 'teams' }}
-                  aria-selected={tab() === 'teams'}
-                  onClick={() => setTab('teams')}
-                >
-                  Teams
-                </button>
-              </nav>
-
-              <Switch>
-                <Match when={tab() === 'points'}>
-                  <FantasyPointsBoard
-                    loading={pointPlayers.loading}
-                    error={pointPlayers.error}
-                    rows={pointPlayers() ?? []}
-                  />
-                </Match>
-                <Match when={tab() === 'teams'}>
-                  <FantasyTeamsPanel
-                    league={active()}
-                    loading={teams.loading}
-                    error={teams.error}
-                    teams={teams() ?? []}
-                    players={pointPlayers() ?? []}
-                    onSaved={async () => {
-                      await Promise.all([refetchTeams(), refetchPlayers()])
-                    }}
-                  />
-                </Match>
-              </Switch>
-            </>
-          )}
-        </Match>
-      </Switch>
-    </ConsoleCard>
+      <Show when={groupsPanelLive()}>
+        <ConsoleCard
+          class="console--side"
+          hazard="right"
+          drop
+          exiting={groupsShell() === 'out'}
+          onExitEnd={() => setGroupsShell('off')}
+        >
+          <FantasyGroupsPanel groups={groups() ?? []} error={groups.error} />
+        </ConsoleCard>
+      </Show>
+    </div>
   )
 }
 
@@ -323,6 +387,8 @@ function FantasyTeamsPanel(props: {
   error: unknown
   teams: FantasyTeamRow[]
   players: FantasyPlayerRow[]
+  editing: boolean
+  onEditingChange: (editing: boolean) => void
   onSaved: () => Promise<void>
 }) {
   const me = () => authUser()
@@ -332,7 +398,6 @@ function FantasyTeamsPanel(props: {
     return props.teams.find((t) => t.userId === u.id) ?? null
   })
   const canEdit = createMemo(() => !!me() && !props.league.started && !props.league.finished)
-  const [editing, setEditing] = createSignal(false)
   const [selectedIds, setSelectedIds] = createSignal<number[]>([])
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
@@ -340,7 +405,7 @@ function FantasyTeamsPanel(props: {
   function startEdit() {
     const t = myTeam()
     setSelectedIds(t ? t.members.map((m) => m.fantasyPlayerId) : [])
-    setEditing(true)
+    props.onEditingChange(true)
     setError(null)
   }
 
@@ -362,7 +427,7 @@ function FantasyTeamsPanel(props: {
         }
         throw new Error(msg)
       }
-      setEditing(false)
+      props.onEditingChange(false)
       await props.onSaved()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
@@ -376,7 +441,7 @@ function FantasyTeamsPanel(props: {
       <Show when={canEdit()}>
         <div class="fantasy-my-team">
           <Show
-            when={editing()}
+            when={props.editing}
             fallback={
               <button type="button" class="btn btn--primary" onClick={startEdit}>
                 {myTeam() ? 'Edit my team' : 'Create my team'}
@@ -395,7 +460,12 @@ function FantasyTeamsPanel(props: {
               <button type="button" class="btn btn--primary" disabled={busy()} onClick={() => void saveTeam()}>
                 {busy() ? 'Saving…' : 'Save team'}
               </button>
-              <button type="button" class="btn btn--ghost" disabled={busy()} onClick={() => setEditing(false)}>
+              <button
+                type="button"
+                class="btn btn--ghost"
+                disabled={busy()}
+                onClick={() => props.onEditingChange(false)}
+              >
                 Cancel
               </button>
             </div>

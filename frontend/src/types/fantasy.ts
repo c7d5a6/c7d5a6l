@@ -69,6 +69,22 @@ export type TournamentSummary = {
   name: string | null
 }
 
+export type FantasyGroupPlayer = {
+  fantasyPlayerId: number
+  name: string | null
+  link: string | null
+  race: string | null
+  cost: number
+  excluded: boolean
+}
+
+export type FantasyGroup = {
+  name: string
+  phase: string
+  sortOrder: number
+  players: FantasyGroupPlayer[]
+}
+
 export const POINT_STAGES = ['Ro24', 'Ro16', 'Ro8', 'Ro4', 'Ro2'] as const
 export type PointStage = (typeof POINT_STAGES)[number]
 

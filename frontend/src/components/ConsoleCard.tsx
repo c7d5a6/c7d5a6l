@@ -5,11 +5,21 @@ export type ConsoleCardProps = ParentProps<{
   top?: JSX.Element
   class?: string
   /**
+   * Hazard stripe placement. Default `top` (main consoles).
+   * `right` — vertical rail on the right edge (side panels).
+   */
+  hazard?: 'top' | 'right'
+  /**
    * Metal slide on this card. Default false — route pages use `PagePanels` for
    * enter/exit so multiple cards can move as one stack.
    */
   slide?: boolean
-  /** Exit slide (left) — only when `slide` is true. */
+  /**
+   * Drop from top (enter) / rise back up (exit). Used for side panels.
+   * Mutually exclusive with `slide` in practice — `drop` wins if both are set.
+   */
+  drop?: boolean
+  /** Exit motion — only when `slide` or `drop` is true. */
   exiting?: boolean
   onExitEnd?: () => void
 }>
@@ -21,9 +31,12 @@ export type ConsoleCardProps = ParentProps<{
  */
 export function ConsoleCard(props: ConsoleCardProps) {
   const motion = () => {
+    if (props.drop) return props.exiting ? 'motion-drop-out' : 'motion-drop-in'
     if (!props.slide) return ''
     return props.exiting ? 'motion-slide-out' : 'motion-slide-in'
   }
+
+  const hazardRight = () => (props.hazard ?? 'top') === 'right'
 
   let shell!: HTMLDivElement
   let body!: HTMLDivElement
@@ -95,22 +108,47 @@ export function ConsoleCard(props: ConsoleCardProps) {
 
   function onAnimationEnd(e: AnimationEvent) {
     if (e.target !== e.currentTarget) return
-    if (!props.slide || !props.exiting) return
+    if (!props.exiting) return
+    // Switching in→out cancels the enter animation and can fire animationend;
+    // only unmount after the actual exit keyframes finish.
+    if (props.drop) {
+      if (e.animationName !== 'motion-drop-out') return
+    } else if (props.slide) {
+      if (e.animationName !== 'motion-slide-out') return
+    } else {
+      return
+    }
     props.onExitEnd?.()
   }
 
+  const className = () => {
+    const parts = ['console', motion()]
+    if (hazardRight()) parts.push('console--hazard-right')
+    if (props.class) parts.push(props.class)
+    return parts.filter(Boolean).join(' ')
+  }
+
   return (
-    <div
-      class={props.class ? `console ${motion()} ${props.class}` : `console ${motion()}`}
-      onAnimationEnd={onAnimationEnd}
-    >
+    <div class={className()} onAnimationEnd={onAnimationEnd}>
       <div class="console__shell" ref={shell}>
         <div class="console__metal console__metal--outer" aria-hidden="true" />
-        <div class="console__top" aria-hidden="true">
-          <div class="console__top-cap console__top-cap--start" />
-          <div class="console__hazard" />
-          <div class="console__top-cap console__top-cap--end" />
-        </div>
+        <Show
+          when={hazardRight()}
+          fallback={
+            <div class="console__top" aria-hidden="true">
+              <div class="console__top-cap console__top-cap--start" />
+              <div class="console__hazard" />
+              <div class="console__top-cap console__top-cap--end" />
+            </div>
+          }
+        >
+          <div class="console__top console__top--plain" aria-hidden="true">
+            <div class="console__top-cap console__top-cap--start" />
+            <div class="console__top-fill" />
+            <div class="console__top-cap console__top-cap--end" />
+          </div>
+          <div class="console__hazard console__hazard--rail" aria-hidden="true" />
+        </Show>
         <div class="console__metal console__metal--mid" aria-hidden="true" />
         <div class="console__well">
           <div class="console__red" ref={body}>

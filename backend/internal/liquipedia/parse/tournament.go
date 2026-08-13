@@ -66,6 +66,13 @@ func Tournament(link string, html string) (model.TournamentPage, error) {
 	page.Results = results
 	debuglog.Printf("parse.Tournament results=%d", len(results))
 
+	groups, err := Groups(doc, results)
+	if err != nil {
+		return model.TournamentPage{}, fmt.Errorf("parse groups: %w", err)
+	}
+	page.Groups = groups
+	debuglog.Printf("parse.Tournament groups=%d", len(groups))
+
 	finished, err := Finished(doc)
 	if err != nil {
 		return model.TournamentPage{}, fmt.Errorf("parse finished: %w", err)

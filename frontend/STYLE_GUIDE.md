@@ -133,7 +133,8 @@ Used by `ConsoleCard` (main card):
 
 1. **Rim (opaque, multi-div)** — `.console__shell`:
    - Outer stepped grey metal (`.console__metal--outer`)
-   - Top bar: metal caps + **hazard only in the middle** (`.console__hazard`)
+   - Top bar: metal caps + **hazard only in the middle** (`.console__hazard`) — default
+   - **Right-hazard variant** (`hazard="right"` / `.console--hazard-right`): plain metal top + vertical `.console__hazard--rail` on the right edge (side panels)
    - Mid plate with **thin right/bottom** rails and thicker corner blocks
    - Dark well (`.console__well`) then **red inner border** (`.console__red`) with padding — no L-corner brackets
    - Optional **top chrome** (`.console__header`) for nav / bars above the glass
@@ -149,6 +150,11 @@ backdrop-filter: blur(2px);
 <ConsoleCard top={<nav>…</nav>}>
   {/* glass body */}
 </ConsoleCard>
+
+{/* Side draft panel — drops from top, hazard on the right */}
+<ConsoleCard class="console--side motion-drop-in" hazard="right">
+  {/* groups + cost */}
+</ConsoleCard>
 ```
 
 Reference silhouette: `assets/terran_metal.png`.
@@ -163,7 +169,7 @@ background: repeating-linear-gradient(-45deg, #050505 0 7px, #c9a227 7px 14px);
 
 Dirt: `::before` with `dirt.webp` at low opacity + `mix-blend-mode: multiply` (dark grit only dirty the yellow; no solid brown fill / mask wash). Recess with inset shadows.
 
-Use sparingly: top rail of the console, section dividers — not full backgrounds.
+Use sparingly: top rail of the console, **right rail on side consoles**, section dividers — not full backgrounds.
 
 ### CRT stage + background art
 
@@ -286,9 +292,10 @@ Small living details sell the console — use them, but **never stack the same t
 | UI piece | Recipe |
 |---|---|
 | Stage | `StageArt` — per-route art (§3a) + grid + CRT + scan + vignette; art swaps via fade-to-black |
-| Console frame | `ConsoleCard` — metal rim + hazard + red border; `top` slot; optional `slide` for solo card motion; route pages use `PagePanels` |
+| Console frame | `ConsoleCard` — metal rim + hazard + red border; `top` slot; `hazard="right"` for side panels; optional `slide` for solo card motion; route pages use `PagePanels` |
 | Console inner / telemetry | Glass belly ~52% black + few-px edge vignette + light blur |
 | Page panels | `PagePanels` — one or more consoles slide in (right) / out (left) together on route change |
+| Fantasy groups side panel | `FantasyGroupsPanel` inside `console--side` + `drop` motion + `hazard="right"`; on wide view shares the main grid cell and `margin-left` docks it to the **right** (main width/position unchanged; tall panel grows page height for scroll); on narrow viewports stacks **below** the main card so the team-editor caps line stays visible |
 | Chips | Blacked panel, red border; live = green beacon; alert = red beacon (see §5) |
 | Input | Blacked well, red border; focus = hot red + green wash |
 | Checkbox | `.sc-check` — angular void plate, red rim; checked = theme green tick + glow |
@@ -330,16 +337,20 @@ Applies to `ConsoleCard`, future metal-bordered navigation items, and any panel 
 | `--motion-slide-ease` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | Ease-out: faster start, **slows at the end** (enter and exit) |
 | `--motion-slide-stagger` | `220ms` | Delay before route enter so exit clears the stage without a long empty gap |
 | `--motion-resize-duration` | `280ms` | Console shell height when content grows/shrinks — **shorter** than slide |
+| `--motion-drop-duration` | `900ms` | **Exit only** — longer than slide (tall panels travel farther) |
+| `--motion-drop-ease` | `cubic-bezier(0.55, 0.05, 0.9, 0.2)` | **Exit only** — ease-in: slow start, accelerates toward the end |
 | `.motion-slide-in` | `translateX(100vw → 0)` | Enter from off-screen **right** |
 | `.motion-slide-in--staggered` | + `animation-delay: stagger` | Route handoff enter only |
 | `.motion-slide-out` | `translateX(0 → 100vw)` | Exit back off-screen **right** (reverse of enter) |
 | `.motion-rise-in` | `translateY(100% → 0)` | Enter from off-screen **bottom** (action dock) |
 | `.motion-rise-out` | `translateY(0 → 100%)` | Exit downward (reverse of rise) |
+| `.motion-drop-in` | `translateY(calc(-100% - 100svh) → 0)` | Enter from off-screen **top** — uses slide duration + ease |
+| `.motion-drop-out` | `translateY(0 → calc(-100% - 100svh))` | Exit upward — drop duration + ease; self height + viewport clears tall panels |
 
 Rules:
 
 1. **Constant duration** — do not scale time by distance. A short nav chip and a full card use the same `600ms`. Never invent per-element durations for the same motion family.
-2. **Same curve in and out** — enter and exit both use `--motion-slide-ease`.
+2. **Same curve in and out** — slide enter/exit both use `--motion-slide-ease`. Drop **enter** keeps slide timing; drop **exit** uses `--motion-drop-duration` / `--motion-drop-ease`.
 3. **Exit reverses enter** — same axis and timing; play the enter path backwards (e.g. in from right → out to right). No fade for this family.
 4. **Shared classes** — prefer `.motion-slide-in` / `.motion-slide-out` (or `PagePanels` `exiting`) instead of one-off keyframes.
 5. **Resize ≠ slide** — panel height changes (telemetry appear/dismiss) use `--motion-resize-duration`, not slide duration.

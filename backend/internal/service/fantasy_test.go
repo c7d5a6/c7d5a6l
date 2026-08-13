@@ -98,6 +98,82 @@ func TestFantasyCreateOrSeedIdempotent(t *testing.T) {
 	}
 }
 
+func TestFantasySurvivesTournamentResave(t *testing.T) {
+	ctx, fantasySvc, fantasyRepo, tournamentID := setupFantasyFixture(t)
+	sqlDB := fantasyRepo.DB()
+
+	league, err := fantasySvc.CreateOrSeed(ctx, tournamentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := fantasySvc.ListPlayers(ctx, league.ID, repository.PlayerSortCost)
+	if err != nil || len(before) != 2 {
+		t.Fatalf("before=%d err=%v", len(before), err)
+	}
+	if _, err := sqlDB.ExecContext(ctx, `
+		UPDATE fantasy_player SET cost = 42 WHERE id = ?
+	`, before[0].ID); err != nil {
+		t.Fatal(err)
+	}
+
+	playerRepo := repository.NewPlayer(sqlDB)
+	tourRepo := repository.NewTournament(sqlDB)
+	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+		"https://liquipedia.net/starcraft/Jaedong": {
+			Link: "https://liquipedia.net/starcraft/Jaedong", Name: str("Jaedong"), IDs: []string{}, PreferredRace: str("zerg"),
+		},
+		"https://liquipedia.net/starcraft/Flash": {
+			Link: "https://liquipedia.net/starcraft/Flash", Name: str("Flash"), IDs: []string{}, PreferredRace: str("terran"),
+		},
+		"https://liquipedia.net/starcraft/Skip": {
+			Link: "https://liquipedia.net/starcraft/Skip", Name: str("Skip"), IDs: []string{}, PreferredRace: str("protoss"),
+		},
+	}, nil)
+
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/20",
+		Name: str("ASL Season 20"),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str("https://liquipedia.net/starcraft/Jaedong"), Race: str("zerg")},
+			{Name: str("Flash"), Link: str("https://liquipedia.net/starcraft/Flash"), Race: str("terran")},
+			{Name: str("Skip"), Link: str("https://liquipedia.net/starcraft/Skip"), Race: str("protoss"), Excluded: true},
+		},
+		Groups: []model.TournamentGroup{
+			{
+				Name: "Group A", Phase: "Round of 24", SortOrder: 0,
+				Players: []model.Participant{
+					{Name: str("Jaedong"), Link: str("https://liquipedia.net/starcraft/Jaedong"), Race: str("zerg")},
+					{Name: str("Flash"), Link: str("https://liquipedia.net/starcraft/Flash"), Race: str("terran")},
+				},
+			},
+		},
+		Results: []model.Result{},
+	}
+	if _, _, err := tourSvc.Save(ctx, page); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := fantasySvc.ListPlayers(ctx, league.ID, repository.PlayerSortCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 2 {
+		t.Fatalf("fantasy players after tournament resave=%d want 2", len(after))
+	}
+	byID := map[int64]model.FantasyPlayerRow{}
+	for _, p := range after {
+		byID[p.ID] = p
+	}
+	for _, p := range before {
+		if _, ok := byID[p.ID]; !ok {
+			t.Fatalf("fantasy player id=%d missing after resave", p.ID)
+		}
+	}
+	if byID[before[0].ID].Cost != 42 {
+		t.Fatalf("preserved cost=%d want 42", byID[before[0].ID].Cost)
+	}
+}
+
 func TestFantasyListPlayersSortCostAndPoints(t *testing.T) {
 	ctx, svc, repo, tournamentID := setupFantasyFixture(t)
 	league, err := svc.CreateOrSeed(ctx, tournamentID)

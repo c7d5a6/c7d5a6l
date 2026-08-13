@@ -73,3 +73,21 @@ type FantasyPlayerCostOverride struct {
 	TournamentPlayerID int64 `json:"tournamentPlayerId"`
 	Cost               int   `json:"cost"`
 }
+
+// FantasyGroupPlayer is a tournament group member with fantasy cost (no points).
+type FantasyGroupPlayer struct {
+	FantasyPlayerID int64   `json:"fantasyPlayerId"`
+	Name            *string `json:"name"`
+	Link            *string `json:"link"`
+	Race            *string `json:"race"`
+	Cost            int     `json:"cost"`
+	Excluded        bool    `json:"excluded"`
+}
+
+// FantasyGroup is a tournament group with fantasy costs for drafting.
+type FantasyGroup struct {
+	Name      string               `json:"name"`
+	Phase     string               `json:"phase"`
+	SortOrder int                  `json:"sortOrder"`
+	Players   []FantasyGroupPlayer `json:"players"`
+}

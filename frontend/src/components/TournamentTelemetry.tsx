@@ -3,13 +3,14 @@ import { RACE_META } from '../lib/races'
 import {
   displayChangeValue,
   displayValue,
+  type TournamentGroup,
   type TournamentPage,
   type TournamentSync,
 } from '../types/tournament'
 import { Player } from './Player'
 
 const RACE_STATS = ['protoss', 'terran', 'zerg'] as const
-type TabId = 'overview' | 'players' | 'results'
+type TabId = 'overview' | 'players' | 'groups' | 'results'
 
 export function TournamentTelemetry(props: {
   tournament: TournamentPage
@@ -20,6 +21,18 @@ export function TournamentTelemetry(props: {
   const t = () => props.tournament
   const sync = () => props.sync
   const counts = () => t().playerCounts
+  const groups = () => t().groups ?? []
+
+  const groupsByPhase = createMemo(() => {
+    const map = new Map<string, TournamentGroup[]>()
+    for (const g of groups()) {
+      const phase = g.phase || '—'
+      const list = map.get(phase) ?? []
+      list.push(g)
+      map.set(phase, list)
+    }
+    return [...map.entries()]
+  })
 
   const dbStatus = createMemo(() => {
     const s = sync()
@@ -56,6 +69,15 @@ export function TournamentTelemetry(props: {
           onClick={() => setTab('players')}
         >
           Players
+        </button>
+        <button
+          type="button"
+          role="tab"
+          classList={{ tab: true, 'tab--active': tab() === 'groups' }}
+          aria-selected={tab() === 'groups'}
+          onClick={() => setTab('groups')}
+        >
+          Groups
         </button>
         <button
           type="button"
@@ -189,6 +211,47 @@ export function TournamentTelemetry(props: {
                   )}
                 </For>
               </ul>
+            </Show>
+          </div>
+        </Match>
+
+        <Match when={tab() === 'groups'}>
+          <div class="telemetry__panel" role="tabpanel">
+            <div class="telemetry__block-head">
+              Groups <span>({groups().length})</span>
+            </div>
+            <Show
+              when={groups().length > 0}
+              fallback={<p class="telemetry__val">No groups parsed yet</p>}
+            >
+              <For each={groupsByPhase()}>
+                {([phase, phaseGroups]) => (
+                  <div class="telemetry__block">
+                    <div class="telemetry__block-head">{phase}</div>
+                    <For each={phaseGroups}>
+                      {(g) => (
+                        <div class="telemetry__group">
+                          <div class="telemetry__group-name">{g.name}</div>
+                          <ul class="telemetry__list telemetry__list--chips">
+                            <For each={g.players}>
+                              {(p) => (
+                                <li>
+                                  <Player
+                                    name={p.name}
+                                    link={p.link}
+                                    race={p.race}
+                                    excluded={p.excluded}
+                                  />
+                                </li>
+                              )}
+                            </For>
+                          </ul>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                )}
+              </For>
             </Show>
           </div>
         </Match>

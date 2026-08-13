@@ -10,7 +10,7 @@ type ListPlayersResponse = {
 }
 
 async function fetchPlayers(): Promise<PlayerRaceEntry[]> {
-  const res = await fetch('/api/players')
+  const res = await authFetch('/api/players')
   if (!res.ok) {
     throw new Error(`roster uplink failed (${res.status})`)
   }

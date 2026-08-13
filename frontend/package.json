@@ -9,7 +9,8 @@
     "setup:https": "./scripts/setup-local-https.sh",
     "allow:https": "./scripts/allow-https-port.sh",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:gh-pages": "./scripts/deploy-gh-pages.sh"
   },
   "dependencies": {
     "@solidjs/router": "^1.0.0",

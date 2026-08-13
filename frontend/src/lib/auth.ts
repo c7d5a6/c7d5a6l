@@ -1,4 +1,5 @@
 import { createSignal } from 'solid-js'
+import { apiUrl } from './api'
 import type { AuthUser, TelegramAuthPayload } from '../types/user'
 
 const TOKEN_KEY = 'c7d5a6l.accessToken'
@@ -54,7 +55,7 @@ export async function authFetch(input: string, init: RequestInit = {}): Promise<
   if (!headers.has('Content-Type') && init.body) {
     headers.set('Content-Type', 'application/json')
   }
-  const res = await fetch(input, { ...init, headers })
+  const res = await fetch(apiUrl(input), { ...init, headers })
   if (res.status === 401) clearSession()
   return res
 }
@@ -83,7 +84,7 @@ export async function bootAuthSession(): Promise<void> {
 }
 
 export async function fetchAuthConfig(): Promise<{ botId?: string; botUsername: string }> {
-  const res = await fetch('/api/auth/config')
+  const res = await fetch(apiUrl('/api/auth/config'))
   if (!res.ok) {
     throw new Error(`auth config failed (${res.status})`)
   }
@@ -93,7 +94,7 @@ export async function fetchAuthConfig(): Promise<{ botId?: string; botUsername: 
 }
 
 export async function loginWithTelegram(payload: TelegramAuthPayload): Promise<AuthUser> {
-  const res = await fetch('/api/auth/telegram', {
+  const res = await fetch(apiUrl('/api/auth/telegram'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

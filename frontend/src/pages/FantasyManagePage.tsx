@@ -7,7 +7,7 @@ import { displayValue } from '../types/tournament'
 import type { FantasyLeague, FantasyPreviewPlayer, TournamentSummary } from '../types/fantasy'
 
 async function fetchLeagues(): Promise<FantasyLeague[]> {
-  const res = await fetch('/api/fantasy-leagues')
+  const res = await authFetch('/api/fantasy-leagues')
   if (!res.ok) throw new Error(`leagues uplink failed (${res.status})`)
   const data = (await res.json()) as { leagues: FantasyLeague[] }
   return data.leagues ?? []

@@ -21,7 +21,7 @@ import {
 type TabId = 'points' | 'teams'
 
 async function fetchActiveLeague(): Promise<FantasyLeague | null> {
-  const res = await fetch('/api/fantasy-leagues/active')
+  const res = await authFetch('/api/fantasy-leagues/active')
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`fantasy league uplink failed (${res.status})`)
   const data = (await res.json()) as { league: FantasyLeague }
@@ -29,14 +29,14 @@ async function fetchActiveLeague(): Promise<FantasyLeague | null> {
 }
 
 async function fetchPlayers(leagueId: number, sort: string): Promise<FantasyPlayerRow[]> {
-  const res = await fetch(`/api/fantasy-leagues/${leagueId}/players?sort=${sort}`)
+  const res = await authFetch(`/api/fantasy-leagues/${leagueId}/players?sort=${sort}`)
   if (!res.ok) throw new Error(`fantasy players uplink failed (${res.status})`)
   const data = (await res.json()) as { players: FantasyPlayerRow[] }
   return data.players ?? []
 }
 
 async function fetchTeams(leagueId: number): Promise<FantasyTeamRow[]> {
-  const res = await fetch(`/api/fantasy-leagues/${leagueId}/teams`)
+  const res = await authFetch(`/api/fantasy-leagues/${leagueId}/teams`)
   if (!res.ok) throw new Error(`fantasy teams uplink failed (${res.status})`)
   const data = (await res.json()) as { teams: FantasyTeamRow[] }
   return data.teams ?? []

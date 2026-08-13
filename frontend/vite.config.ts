@@ -18,7 +18,14 @@ if (useLocalHttps && !httpsReady) {
   )
 }
 
+function pagesBase(): string {
+  const raw = process.env.C7D5A6L_PAGES_BASE?.trim()
+  if (!raw) return '/'
+  return raw.endsWith('/') ? raw : `${raw}/`
+}
+
 export default defineConfig({
+  base: pagesBase(),
   plugins: [solid(), tailwindcss()],
   server: useLocalHttps
     ? {

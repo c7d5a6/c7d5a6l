@@ -31,21 +31,21 @@ type PlayerDraft = {
 }
 
 async function fetchLeague(id: number): Promise<FantasyLeague> {
-  const res = await fetch(`/api/fantasy-leagues/${id}`)
+  const res = await authFetch(`/api/fantasy-leagues/${id}`)
   if (!res.ok) throw new Error(`league failed (${res.status})`)
   const data = (await res.json()) as { league: FantasyLeague }
   return data.league
 }
 
 async function fetchPlayers(id: number): Promise<FantasyPlayerRow[]> {
-  const res = await fetch(`/api/fantasy-leagues/${id}/players?sort=elo`)
+  const res = await authFetch(`/api/fantasy-leagues/${id}/players?sort=elo`)
   if (!res.ok) throw new Error(`players failed (${res.status})`)
   const data = (await res.json()) as { players: FantasyPlayerRow[] }
   return data.players ?? []
 }
 
 async function fetchTeams(id: number): Promise<FantasyTeamRow[]> {
-  const res = await fetch(`/api/fantasy-leagues/${id}/teams`)
+  const res = await authFetch(`/api/fantasy-leagues/${id}/teams`)
   if (!res.ok) throw new Error(`teams failed (${res.status})`)
   const data = (await res.json()) as { teams: FantasyTeamRow[] }
   return data.teams ?? []

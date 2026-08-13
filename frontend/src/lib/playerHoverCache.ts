@@ -1,5 +1,5 @@
-import type { PlayerPage } from '../types/tournament'
-import { playerPortraitSrc } from '../types/tournament'
+import { authFetch } from './auth'
+import { playerPortraitSrc, type PlayerPage } from '../types/tournament'
 
 export type PlayerLookupResult =
   | { status: 'ok'; player: PlayerPage }
@@ -28,7 +28,7 @@ export function loadPlayerInfo(link: string): Promise<PlayerLookupResult> {
 
   const req = (async (): Promise<PlayerLookupResult> => {
     try {
-      const res = await fetch(`/api/players/lookup?link=${encodeURIComponent(key)}`)
+      const res = await authFetch(`/api/players/lookup?link=${encodeURIComponent(key)}`)
       if (res.status === 404) {
         const miss: PlayerLookupResult = { status: 'missing' }
         infoCache.set(key, miss)

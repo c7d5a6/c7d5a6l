@@ -135,7 +135,7 @@ function HomeRedirect(): JSX.Element {
 
 function App() {
   return (
-    <Router root={StageShell}>
+    <Router root={StageShell} base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <Route path="/" component={HomeRedirect} />
       <Route path="/parser" component={() => null} />
       <Route path="/players" component={() => null} />

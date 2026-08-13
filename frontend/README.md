@@ -31,4 +31,12 @@ Production build to `dist/`.
 
 ## Deployment
 
-See [Vite static deploy](https://vite.dev/guide/static-deploy.html).
+Production: [https://league.c7d5a6.com](https://league.c7d5a6.com) (GitHub Pages), API [https://api.league.c7d5a6.com](https://api.league.c7d5a6.com).
+
+Working tree must be clean; version is `package.json` → git tag `v$version`.
+
+```bash
+npm run deploy:gh-pages
+```
+
+Point DNS `league.c7d5a6.com` CNAME at `<user>.github.io`, then GitHub → Settings → Pages → custom domain `league.c7d5a6.com`.

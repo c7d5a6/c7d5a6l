@@ -1,3 +1,5 @@
+import { apiUrl } from '../lib/api'
+
 export type Participant = {
   name: string | null
   link: string | null
@@ -64,7 +66,7 @@ export type PlayerRaceEntry = {
 /** Local API URL for a cached player portrait, or null. */
 export function playerPortraitSrc(player: Pick<PlayerPage, 'link' | 'hasPortrait'>): string | null {
   if (!player.hasPortrait) return null
-  return `/api/players/portrait?link=${encodeURIComponent(player.link)}`
+  return apiUrl(`/api/players/portrait?link=${encodeURIComponent(player.link)}`)
 }
 
 export type PlayerFieldChange = {

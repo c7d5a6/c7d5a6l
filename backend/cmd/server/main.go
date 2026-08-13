@@ -129,9 +129,10 @@ func main() {
 
 func withCORS(next http.Handler) http.Handler {
 	allowed := map[string]struct{}{
-		"http://localhost:3000": {},
-		"http://127.0.0.1:3000": {},
-		"https://c7d5a6l.lo":    {},
+		"http://localhost:3000":     {},
+		"http://127.0.0.1:3000":     {},
+		"https://c7d5a6l.lo":        {},
+		"https://league.c7d5a6.com": {},
 	}
 	if extra := strings.TrimSpace(os.Getenv("C7D5A6L_CORS_ORIGIN")); extra != "" {
 		for _, o := range strings.Split(extra, ",") {

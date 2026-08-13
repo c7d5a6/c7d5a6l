@@ -52,6 +52,8 @@ func main() {
 	fantasyRepo := repository.NewFantasy(sqlDB)
 	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo)
 	userRepo := repository.NewUser(sqlDB)
+	titleRepo := repository.NewTitle(sqlDB)
+	titleSvc := service.NewTitle(sqlDB, titleRepo, userRepo, fantasyRepo)
 	authSvc := service.NewAuth(sqlDB, userRepo, service.AuthConfig{
 		BotToken:         os.Getenv("C7D5A6L_TELEGRAM_BOT_TOKEN"),
 		BotID:            os.Getenv("C7D5A6L_TELEGRAM_BOT_ID"),
@@ -69,6 +71,7 @@ func main() {
 		Tournaments: tournamentSvc,
 		Fantasy:     fantasySvc,
 		Auth:        authSvc,
+		Titles:      titleSvc,
 	}
 
 	mux := http.NewServeMux()
@@ -119,6 +122,11 @@ func main() {
 	mux.Handle("POST /api/auth/logout", requireAuth(http.HandlerFunc(apiServer.AuthLogout)))
 	mux.Handle("GET /api/users", requireAdmin(apiServer.ListUsers))
 	mux.Handle("POST /api/users", requireAdmin(apiServer.CreateUser))
+	mux.Handle("GET /api/user-titles", requireAdmin(apiServer.ListUserTitles))
+	mux.Handle("POST /api/user-titles", requireAdmin(apiServer.CreateUserTitle))
+	mux.HandleFunc("GET /api/user-titles/{id}/image", apiServer.GetUserTitleImage)
+	mux.Handle("PATCH /api/user-titles/{id}", requireAdmin(apiServer.UpdateUserTitle))
+	mux.Handle("DELETE /api/user-titles/{id}", requireAdmin(apiServer.DeleteUserTitle))
 
 	addr := ":18765"
 	log.Printf("backend listening on %s", addr)

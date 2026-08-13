@@ -1002,6 +1002,10 @@ button.lamp-flash::after {
   letter-spacing: 0;
 }
 
+.me-profile__titles-row {
+  align-items: center;
+}
+
 /*
  * Mini Terran plate: outer metal → hazard strip → mid rail → well → red → face.
  * Metal weight is asymmetric (thin top/left, thick bottom/right), like the main console.
@@ -2531,6 +2535,80 @@ button.lamp-flash::after {
   min-width: min(16rem, 100%);
 }
 
+.titles-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.titles-form__clear {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+.roster--titles .roster__head,
+.roster--titles .roster__row {
+  grid-template-columns: 3.5rem minmax(0, 1.4fr) 7rem 6rem minmax(0, 1fr) auto;
+}
+
+.user-titles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem;
+  vertical-align: middle;
+}
+
+.user-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  color: var(--color-hazard);
+  flex-shrink: 0;
+}
+
+.user-title__glyph {
+  width: 1.45rem;
+  height: 1.45rem;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-hazard) 55%, transparent));
+}
+
+.user-title__hex {
+  position: relative;
+  width: 1.7rem;
+  height: 1.7rem;
+}
+
+.user-title__photo {
+  position: absolute;
+  inset: 0.22rem;
+  width: calc(100% - 0.44rem);
+  height: calc(100% - 0.44rem);
+  object-fit: cover;
+  clip-path: polygon(50% 6.7%, 89.2% 29.2%, 89.2% 70.8%, 50% 93.3%, 10.8% 70.8%, 10.8% 29.2%);
+}
+
+.user-title__hex-stroke {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--color-hazard);
+  stroke-width: 1.35;
+  stroke-linejoin: miter;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--color-hazard) 70%, transparent));
+  pointer-events: none;
+}
+
 /* —— Fantasy league —— */
 
 .fantasy-toolbar {
@@ -3379,9 +3457,49 @@ button.lamp-flash::after {
   margin-bottom: 0.85rem;
 }
 
+/* HUD name — CRT louver mask on the letters; outbound glyph = link */
+.hud-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  min-width: 0;
+  text-decoration: none;
+  color: var(--color-theme);
+}
+
+.hud-link__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  text-shadow: 0 0 10px var(--color-theme-glow);
+}
+
+.hud-link__ext {
+  flex-shrink: 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  opacity: 0.75;
+}
+
+.hud-link:hover .hud-link__text {
+  color: var(--color-theme-light);
+  text-shadow: 0 0 14px var(--color-theme-glow);
+}
+
+.hud-link:hover .hud-link__ext {
+  opacity: 1;
+}
+
 .fantasy-league-banner__caps {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
   color: var(--color-text-dim);
 }
 

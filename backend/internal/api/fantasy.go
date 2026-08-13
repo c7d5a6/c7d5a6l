@@ -243,6 +243,7 @@ func (s *Server) ListFantasyTeams(w http.ResponseWriter, r *http.Request) {
 	if teams == nil {
 		teams = []model.FantasyTeamRow{}
 	}
+	teams = s.attachTeamTitles(r, teams)
 	_ = json.NewEncoder(w).Encode(listFantasyTeamsResponse{Teams: teams})
 }
 
@@ -472,7 +473,7 @@ func (s *Server) CreateFantasyTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(teamResponse{Team: team})
+	_ = json.NewEncoder(w).Encode(teamResponse{Team: s.attachOneTeamTitles(r, team)})
 }
 
 // UpdateFantasyTeam admin-updates a team roster.
@@ -502,7 +503,7 @@ func (s *Server) UpdateFantasyTeam(w http.ResponseWriter, r *http.Request) {
 		writeFantasyErr(w, err)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(teamResponse{Team: team})
+	_ = json.NewEncoder(w).Encode(teamResponse{Team: s.attachOneTeamTitles(r, team)})
 }
 
 // DeleteFantasyTeam admin-deletes a team.
@@ -555,7 +556,7 @@ func (s *Server) GetMyFantasyTeam(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "team not found")
 		return
 	}
-	_ = json.NewEncoder(w).Encode(teamResponse{Team: *team})
+	_ = json.NewEncoder(w).Encode(teamResponse{Team: s.attachOneTeamTitles(r, *team)})
 }
 
 // PutMyFantasyTeam upserts the caller's team (only before start).
@@ -590,7 +591,7 @@ func (s *Server) PutMyFantasyTeam(w http.ResponseWriter, r *http.Request) {
 		writeFantasyErr(w, err)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(teamResponse{Team: team})
+	_ = json.NewEncoder(w).Encode(teamResponse{Team: s.attachOneTeamTitles(r, team)})
 }
 
 func writeFantasyErr(w http.ResponseWriter, err error) {

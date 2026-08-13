@@ -20,6 +20,7 @@ type Server struct {
 	Tournaments *service.Tournament
 	Fantasy     *service.Fantasy
 	Auth        *service.Auth
+	Titles      *service.Title
 }
 
 type parseRequest struct {

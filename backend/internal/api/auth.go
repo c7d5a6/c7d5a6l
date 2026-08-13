@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -107,6 +108,12 @@ func (s *Server) Me(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load profile")
 		return
 	}
+	user, err = s.userWithTitles(r.Context(), user)
+	if err != nil {
+		log.Printf("me titles userId=%d: %v", user.ID, err)
+		writeError(w, http.StatusInternalServerError, "failed to load profile")
+		return
+	}
 	_ = json.NewEncoder(w).Encode(meResponse{User: user})
 }
 
@@ -152,6 +159,12 @@ func (s *Server) PatchMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	debuglog.Printf("PatchMe userId=%d alias=%s", user.ID, user.Alias)
+	user, err = s.userWithTitles(r.Context(), user)
+	if err != nil {
+		log.Printf("patch me titles userId=%d: %v", user.ID, err)
+		writeError(w, http.StatusInternalServerError, "failed to update alias")
+		return
+	}
 	_ = json.NewEncoder(w).Encode(telegramLoginResponse{Token: token, User: user})
 }
 
@@ -204,4 +217,17 @@ func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 	debuglog.Printf("CreateUser userId=%d alias=%s", user.ID, user.Alias)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(createUserResponse{User: user})
+}
+
+func (s *Server) userWithTitles(ctx context.Context, user model.User) (model.User, error) {
+	if s.Titles == nil {
+		user.Titles = []model.UserTitle{}
+		return user, nil
+	}
+	titles, err := s.Titles.ListByUserID(ctx, user.ID)
+	if err != nil {
+		return user, err
+	}
+	user.Titles = titles
+	return user, nil
 }

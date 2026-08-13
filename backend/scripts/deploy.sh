@@ -77,7 +77,8 @@ if remote "test -f $(printf '%q' "$REMOTE_DIR/.env")"; then
   SEEDED_ENV=0
 else
   echo "==> Seed ${REMOTE_DIR}/.env from example (edit secrets on the server)"
-  rsync -a "$STAGE/.env.example" "${DEPLOY_HOST}:${REMOTE_DIR}/.env"
+  sed 's|^C7D5A6L_DB=.*|C7D5A6L_DB=data/app.sqlite|' "$STAGE/.env.example" > "$STAGE/.env.prod"
+  rsync -a "$STAGE/.env.prod" "${DEPLOY_HOST}:${REMOTE_DIR}/.env"
   SEEDED_ENV=1
 fi
 

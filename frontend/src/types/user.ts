@@ -1,4 +1,24 @@
+import { apiUrl } from '../lib/api'
+
 export type UserRole = 'ADMIN' | 'USER'
+
+export type UserTitleKind = 'fantasy' | 'tournament'
+
+export type UserTitle = {
+  id: number
+  userId: number
+  userAlias: string
+  kind: UserTitleKind
+  name: string
+  fantasyLeagueId: number | null
+  fantasyLeagueName?: string | null
+  hasImage: boolean
+  createdAt: string
+}
+
+export function titleImageSrc(id: number): string {
+  return apiUrl(`/api/user-titles/${id}/image`)
+}
 
 export type AuthUser = {
   id: number
@@ -12,6 +32,7 @@ export type AuthUser = {
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null
+  titles?: UserTitle[]
 }
 
 export type TelegramAuthPayload = {

@@ -7,6 +7,7 @@ export const NAV_PATHS: Record<NavRailId, string> = {
   fantasy: '/fantasy-league',
   leagues: '/fantasy-manage',
   users: '/users',
+  titles: '/titles',
 }
 
 export function normalizePath(path: string): string {
@@ -22,6 +23,7 @@ export function pathToNavId(path: string): NavRailId {
   if (p.startsWith(NAV_PATHS.fantasy) || p.startsWith('/tournaments')) return 'fantasy'
   if (p.startsWith(NAV_PATHS.leagues)) return 'leagues'
   if (p.startsWith(NAV_PATHS.users)) return 'users'
+  if (p.startsWith(NAV_PATHS.titles)) return 'titles'
   return 'parser'
 }
 
@@ -42,7 +44,7 @@ export function fantasyManageLeagueId(path: string): number | null {
 export function guardAdminPath(path: string): string | null {
   const p = normalizePath(path)
   if (
-    (p === NAV_PATHS.parser || p === NAV_PATHS.users || isFantasyManagePath(p)) &&
+    (p === NAV_PATHS.parser || p === NAV_PATHS.users || p === NAV_PATHS.titles || isFantasyManagePath(p)) &&
     !isAdmin()
   ) {
     return NAV_PATHS.fantasy

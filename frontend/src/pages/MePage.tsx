@@ -1,4 +1,5 @@
 import { ConsoleCard } from '../components/ConsoleCard'
+import { UserTitles } from '../components/UserTitles'
 import { Show, createEffect, createSignal, type JSX } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 import { authUser, homePath, logout, updateAlias } from '../lib/auth'
@@ -94,6 +95,14 @@ export function MePage(): JSX.Element {
                   </Show>
                   <Show when={aliasOk()}>
                     <p class="status status--ok">Alias updated</p>
+                  </Show>
+                </dd>
+              </div>
+              <div class="me-profile__titles-row">
+                <dt>Titles</dt>
+                <dd class="me-profile__titles">
+                  <Show when={(u().titles ?? []).length > 0} fallback="—">
+                    <UserTitles titles={u().titles} />
                   </Show>
                 </dd>
               </div>

@@ -1,3 +1,5 @@
+import type { UserTitle } from './user'
+
 export type FantasyLeague = {
   id: number
   tournamentId: number
@@ -58,6 +60,7 @@ export type FantasyTeamRow = {
   points: number
   cost: number
   members: FantasyTeamMemberRow[]
+  titles?: UserTitle[]
 }
 
 export type TournamentSummary = {

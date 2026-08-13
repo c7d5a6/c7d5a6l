@@ -30,8 +30,8 @@ func TestMigrate_idempotent(t *testing.T) {
 	if err := sqlDB.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatalf("version: %v", err)
 	}
-	if version != 10 {
-		t.Fatalf("version=%d, want 10", version)
+	if version != 11 {
+		t.Fatalf("version=%d, want 11", version)
 	}
 
 	tables := []string{
@@ -45,6 +45,7 @@ func TestMigrate_idempotent(t *testing.T) {
 		"fantasy_player",
 		"fantasy_team",
 		"fantasy_team_member",
+		"user_title",
 	}
 	for _, name := range tables {
 		var n int

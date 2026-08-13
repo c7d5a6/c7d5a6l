@@ -1,7 +1,7 @@
 import { For, Show, createMemo, type JSX } from 'solid-js'
 import { isAdmin } from '../lib/auth'
 
-export type NavRailId = 'parser' | 'players' | 'fantasy' | 'leagues' | 'users'
+export type NavRailId = 'parser' | 'players' | 'fantasy' | 'leagues' | 'users' | 'titles'
 
 export type NavRailProps = {
   /** When false, rail is not rendered. */
@@ -17,6 +17,7 @@ const ALL_ITEMS: { id: NavRailId; lines: string[]; adminOnly?: boolean }[] = [
   { id: 'fantasy', lines: ['Fantasy', 'League'] },
   { id: 'leagues', lines: ['Leagues'], adminOnly: true },
   { id: 'users', lines: ['Users'], adminOnly: true },
+  { id: 'titles', lines: ['Titles'], adminOnly: true },
 ]
 
 /**
@@ -124,6 +125,12 @@ function NavIcon(props: { id: NavRailId }): JSX.Element {
           <circle cx="16" cy="9" r="2.25" />
           <path d="M4.5 19 C4.5 15.8 6.6 14 9 14 C10.2 14 11.3 14.4 12.1 15.1" />
           <path d="M12.5 19 C12.5 16.2 14.2 14.8 16 14.8 C17.8 14.8 19.5 16.2 19.5 19" />
+        </svg>
+      )
+    case 'titles':
+      return (
+        <svg {...common}>
+          <path d="M12 3 L14.2 8.4 L20 9 L15.6 12.8 L16.9 18.6 L12 15.8 L7.1 18.6 L8.4 12.8 L4 9 L9.8 8.4 Z" />
         </svg>
       )
   }

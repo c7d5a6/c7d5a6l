@@ -19,6 +19,7 @@ import { FantasyManagePage } from './pages/FantasyManagePage'
 import { MePage } from './pages/MePage'
 import { ParserPage } from './pages/ParserPage'
 import { PlayersPage } from './pages/PlayersPage'
+import { TitlesPage } from './pages/TitlesPage'
 import { UsersPage } from './pages/UsersPage'
 
 type PageLayer = {
@@ -115,6 +116,9 @@ function StageShell(props: RouteSectionProps): JSX.Element {
                 <Match when={layer.path === NAV_PATHS.users && isAdmin()}>
                   <UsersPage />
                 </Match>
+                <Match when={layer.path === NAV_PATHS.titles && isAdmin()}>
+                  <TitlesPage />
+                </Match>
                 <Match when={layer.path === '/me'}>
                   <MePage />
                 </Match>
@@ -143,6 +147,7 @@ function App() {
       <Route path="/fantasy-manage" component={() => null} />
       <Route path="/fantasy-manage/:id" component={() => null} />
       <Route path="/users" component={() => null} />
+      <Route path="/titles" component={() => null} />
       <Route path="/me" component={() => null} />
       <Route path="/tournaments" component={() => <Navigate href={NAV_PATHS.fantasy} />} />
       <Route path="*404" component={HomeRedirect} />

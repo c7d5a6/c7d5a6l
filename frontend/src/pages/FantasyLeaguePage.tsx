@@ -4,6 +4,7 @@ import { TeamScoreMeta } from '../components/FantasyScoreReadout'
 import { Player } from '../components/Player'
 import { RosterPlayerChip } from '../components/RosterPlayerChip'
 import { TeamEditor } from '../components/TeamEditor'
+import { UserTitles } from '../components/UserTitles'
 import { For, Match, Show, Switch, createMemo, createResource, createSignal } from 'solid-js'
 import { authFetch, authUser } from '../lib/auth'
 import { displayValue } from '../types/tournament'
@@ -84,6 +85,26 @@ export function FantasyLeaguePage() {
           {(active) => (
             <>
               <div class="fantasy-league-banner">
+                <a
+                  class="hud-link"
+                  href={active().tournamentLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open Liquipedia page"
+                >
+                  <span class="hud-link__text">
+                    {displayValue(active().tournamentName) || active().tournamentLink}
+                  </span>
+                  <svg class="hud-link__ext" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M6 3 H3 V13 H13 V10 M8 3 H13 V8 M13 3 L7 9"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linejoin="miter"
+                    />
+                  </svg>
+                </a>
                 <Show when={active().finished}>
                   <span class="chip chip--alert">Finished</span>
                 </Show>
@@ -94,7 +115,7 @@ export function FantasyLeaguePage() {
                   <span class="chip fantasy-status-chip--open">Open</span>
                 </Show>
                 <span class="fantasy-league-banner__caps">
-                  {displayValue(active().tournamentName)} · {active().maxPlayers}p / {active().maxCost}c
+                  {active().maxPlayers}p / {active().maxCost}c
                 </span>
               </div>
 
@@ -426,6 +447,7 @@ function FantasyTeamsPanel(props: {
                           {team.rank}
                         </span>
                         <h2 class="fantasy-team__title">{team.userAlias}</h2>
+                        <UserTitles titles={team.titles} />
                         <Show when={rosterActive()}>
                           <span
                             class="chip chip--live fantasy-team__live"

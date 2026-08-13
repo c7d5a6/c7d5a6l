@@ -13,6 +13,7 @@ const STAGE_BACKGROUNDS: Record<string, string> = {
   '/players': playersArt,
   '/fantasy-league': fantasyArt,
   '/users': meArt,
+  '/titles': meArt,
   '/me': meArt,
 }
 

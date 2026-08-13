@@ -1,11 +1,17 @@
-.PHONY: server dev test build deploy
+.PHONY: server dev test build deploy ensure-env
 
-server:
-	go run ./cmd/server
+# Source backend/.env in the same shell as the command (missing → copy from example).
+ENV_LOAD = set -a && . ./.env && set +a
 
-# Same as server, with verbose [debug] logs (C7D5A6L_DEBUG=1).
-dev:
-	C7D5A6L_DEBUG=1 go run ./cmd/server
+ensure-env:
+	@test -f .env || cp .env.example .env
+
+server: ensure-env
+	$(ENV_LOAD) && go run ./cmd/server
+
+# Same as server, with verbose [debug] logs (overrides C7D5A6L_DEBUG in .env).
+dev: ensure-env
+	$(ENV_LOAD) && C7D5A6L_DEBUG=1 go run ./cmd/server
 
 test:
 	go test ./...

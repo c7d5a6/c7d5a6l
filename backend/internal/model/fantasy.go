@@ -14,32 +14,32 @@ type FantasyLeague struct {
 
 // FantasyPlayerRow is a fantasy_player joined with tournament/player display fields.
 type FantasyPlayerRow struct {
-	ID                 int64   `json:"id"`
-	FantasyLeagueID    int64   `json:"fantasyLeagueId"`
-	TournamentPlayerID int64   `json:"tournamentPlayerId"`
-	Name               *string `json:"name"`
-	Link               *string `json:"link"`
-	Race               *string `json:"race"`
-	Cost               int     `json:"cost"`
-	PointsRo24         *int    `json:"pointsRo24"`
-	PointsRo16         *int    `json:"pointsRo16"`
-	PointsRo8          *int    `json:"pointsRo8"`
-	PointsRo4          *int    `json:"pointsRo4"`
-	PointsRo2          *int    `json:"pointsRo2"`
-	PointsEarned       int     `json:"pointsEarned"`
-	Defeated           bool    `json:"defeated"`
-	IsWinner           bool    `json:"isWinner"`
+	ID                 int64    `json:"id"`
+	FantasyLeagueID    int64    `json:"fantasyLeagueId"`
+	TournamentPlayerID int64    `json:"tournamentPlayerId"`
+	Name               *string  `json:"name"`
+	Link               *string  `json:"link"`
+	Race               *string  `json:"race"`
+	Cost               int      `json:"cost"`
+	PointsRo24         *int     `json:"pointsRo24"`
+	PointsRo16         *int     `json:"pointsRo16"`
+	PointsRo8          *int     `json:"pointsRo8"`
+	PointsRo4          *int     `json:"pointsRo4"`
+	PointsRo2          *int     `json:"pointsRo2"`
+	PointsEarned       int      `json:"pointsEarned"`
+	Defeated           bool     `json:"defeated"`
+	IsWinner           bool     `json:"isWinner"`
 	Elo                *float64 `json:"elo,omitempty"`
 }
 
 // FantasyPreviewPlayer is a tournament roster row with suggested fantasy cost.
 type FantasyPreviewPlayer struct {
-	TournamentPlayerID int64    `json:"tournamentPlayerId"`
-	Name               *string  `json:"name"`
-	Link               *string  `json:"link"`
-	Race               *string  `json:"race"`
-	Elo                float64  `json:"elo"`
-	Cost               int      `json:"cost"`
+	TournamentPlayerID int64   `json:"tournamentPlayerId"`
+	Name               *string `json:"name"`
+	Link               *string `json:"link"`
+	Race               *string `json:"race"`
+	Elo                float64 `json:"elo"`
+	Cost               int     `json:"cost"`
 }
 
 // FantasyTeamMemberRow is one roster slot on a fantasy team.
@@ -65,6 +65,7 @@ type FantasyTeamRow struct {
 	Points          int                    `json:"points"`
 	Cost            int                    `json:"cost"`
 	Members         []FantasyTeamMemberRow `json:"members"`
+	Titles          []UserTitle            `json:"titles"`
 }
 
 // FantasyPlayerCostOverride sets cost for a tournament player at create time.

@@ -9,10 +9,6 @@ export type PlayerLookupResult =
 const infoCache = new Map<string, PlayerLookupResult>()
 const infoInflight = new Map<string, Promise<PlayerLookupResult>>()
 
-/** object URL or API URL string, keyed by player link */
-const portraitURLCache = new Map<string, string>()
-const portraitInflight = new Map<string, Promise<string | null>>()
-
 function cacheKey(link: string): string {
   return link.trim()
 }
@@ -54,39 +50,11 @@ export function loadPlayerInfo(link: string): Promise<PlayerLookupResult> {
 }
 
 /**
- * One portrait fetch per link. Caches a blob object URL for instant re-show.
- * Returns null when no portrait is available.
+ * Portrait URL for <img src>. Do not fetch() this cross-origin — browsers block
+ * blob reads without CORS, while an image element does not need CORS to display.
  */
 export function loadPlayerPortrait(link: string, hasPortrait: boolean): Promise<string | null> {
-  const key = cacheKey(link)
-  if (!hasPortrait) return Promise.resolve(null)
-
-  const hit = portraitURLCache.get(key)
-  if (hit) return Promise.resolve(hit)
-
-  const pending = portraitInflight.get(key)
-  if (pending) return pending
-
-  const apiSrc = playerPortraitSrc({ link: key, hasPortrait: true })
-  if (!apiSrc) return Promise.resolve(null)
-
-  const req = (async (): Promise<string | null> => {
-    try {
-      const res = await fetch(apiSrc)
-      if (!res.ok) return null
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      portraitURLCache.set(key, url)
-      return url
-    } catch {
-      return null
-    } finally {
-      portraitInflight.delete(key)
-    }
-  })()
-
-  portraitInflight.set(key, req)
-  return req
+  return Promise.resolve(playerPortraitSrc({ link: cacheKey(link), hasPortrait }))
 }
 
 export function peekPlayerInfo(link: string): PlayerLookupResult | undefined {
@@ -94,7 +62,9 @@ export function peekPlayerInfo(link: string): PlayerLookupResult | undefined {
 }
 
 export function peekPlayerPortrait(link: string): string | undefined {
-  return portraitURLCache.get(cacheKey(link))
+  const info = infoCache.get(cacheKey(link))
+  if (!info || info.status !== 'ok' || !info.player.hasPortrait) return undefined
+  return playerPortraitSrc({ link: cacheKey(link), hasPortrait: true }) ?? undefined
 }
 
 /** Drop cached lookup so the next hover refetch includes updated race elos. */

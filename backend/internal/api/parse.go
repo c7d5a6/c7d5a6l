@@ -307,6 +307,9 @@ func (s *Server) GetPlayerPortrait(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// Public cacheable image: * so CDNs/browsers can reuse the response from any origin
+	// (hover used to fetch() this; img-only still benefits if anything reads the blob).
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.WriteHeader(http.StatusOK)

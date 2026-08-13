@@ -3844,16 +3844,51 @@ button.lamp-flash::after {
 }
 
 @media (max-width: 720px) {
+  .points-board {
+    overflow-x: hidden;
+  }
+
   .points-board__head,
   .points-board__row {
-    grid-template-columns:
-      minmax(6.5rem, 1fr)
-      4.25rem
-      minmax(9rem, 1.4fr)
-      3rem
-      4rem;
-    gap: 0.4rem;
-    padding: 0.45rem 0.5rem;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1.3fr) auto auto auto;
+    grid-template-areas:
+      "player total cost diff"
+      "stages stages stages stages";
+    gap: 0.4rem 0.55rem;
+    padding: 0.5rem 0.6rem;
+  }
+
+  .points-board__player {
+    grid-area: player;
+    min-width: 0;
+  }
+
+  .points-board__total {
+    grid-area: total;
+  }
+
+  .points-board__stages {
+    grid-area: stages;
+  }
+
+  .points-board__cost {
+    grid-area: cost;
+  }
+
+  .points-board__diff {
+    grid-area: diff;
+  }
+}
+
+@media (max-width: 420px) {
+  .points-board__head,
+  .points-board__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "player total"
+      "stages stages"
+      "cost   diff";
   }
 }
 

@@ -1,4 +1,4 @@
-.PHONY: server dev test
+.PHONY: server dev test build deploy
 
 server:
 	go run ./cmd/server
@@ -9,3 +9,10 @@ dev:
 
 test:
 	go test ./...
+
+build:
+	go build -o bin/server ./cmd/server
+
+# Cross-compile, rsync to foundry, PM2 restart. Working tree must be clean.
+deploy:
+	./scripts/deploy.sh

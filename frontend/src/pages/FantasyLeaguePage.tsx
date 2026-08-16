@@ -97,11 +97,6 @@ export function FantasyLeaguePage() {
     else setGroupsShell('off')
   }
 
-  function selectTab(id: TabId) {
-    if (id !== 'teams') setEditing(false)
-    setTab(id)
-  }
-
   return (
     <div
       classList={{
@@ -168,13 +163,24 @@ export function FantasyLeaguePage() {
                   </span>
                 </div>
 
+                <FantasyMyTeamDock
+                  league={active()}
+                  teams={teams() ?? []}
+                  players={pointPlayers() ?? []}
+                  editing={editingTeam()}
+                  onEditingChange={setEditing}
+                  onSaved={async () => {
+                    await Promise.all([refetchTeams(), refetchPlayers()])
+                  }}
+                />
+
                 <nav class="console__tabs" role="tablist" aria-label="Fantasy sections">
                   <button
                     type="button"
                     role="tab"
                     classList={{ tab: true, 'tab--active': tab() === 'points' }}
                     aria-selected={tab() === 'points'}
-                    onClick={() => selectTab('points')}
+                    onClick={() => setTab('points')}
                   >
                     Points
                   </button>
@@ -183,7 +189,7 @@ export function FantasyLeaguePage() {
                     role="tab"
                     classList={{ tab: true, 'tab--active': tab() === 'teams' }}
                     aria-selected={tab() === 'teams'}
-                    onClick={() => selectTab('teams')}
+                    onClick={() => setTab('teams')}
                   >
                     Teams
                   </button>
@@ -199,16 +205,9 @@ export function FantasyLeaguePage() {
                   </Match>
                   <Match when={tab() === 'teams'}>
                     <FantasyTeamsPanel
-                      league={active()}
                       loading={teams.loading}
                       error={teams.error}
                       teams={teams() ?? []}
-                      players={pointPlayers() ?? []}
-                      editing={editingTeam()}
-                      onEditingChange={setEditing}
-                      onSaved={async () => {
-                        await Promise.all([refetchTeams(), refetchPlayers()])
-                      }}
                     />
                   </Match>
                 </Switch>
@@ -381,10 +380,8 @@ function StageProgress(props: { row: FantasyPlayerRow }) {
   )
 }
 
-function FantasyTeamsPanel(props: {
+function FantasyMyTeamDock(props: {
   league: FantasyLeague
-  loading: boolean
-  error: unknown
   teams: FantasyTeamRow[]
   players: FantasyPlayerRow[]
   editing: boolean
@@ -437,45 +434,55 @@ function FantasyTeamsPanel(props: {
   }
 
   return (
-    <div class="telemetry__panel" role="tabpanel">
-      <Show when={canEdit()}>
-        <div class="fantasy-my-team">
-          <Show
-            when={props.editing}
-            fallback={
-              <button type="button" class="btn btn--primary" onClick={startEdit}>
-                {myTeam() ? 'Edit my team' : 'Create my team'}
-              </button>
-            }
-          >
-            <TeamEditor
-              players={sortByElo(props.players)}
-              selectedIds={selectedIds()}
-              maxPlayers={props.league.maxPlayers}
-              maxCost={props.league.maxCost}
+    <Show when={canEdit()}>
+      <div class="fantasy-my-team fantasy-my-team--dock">
+        <Show
+          when={props.editing}
+          fallback={
+            <button type="button" class="btn btn--primary" onClick={startEdit}>
+              {myTeam() ? 'Edit my team' : 'Create my team'}
+            </button>
+          }
+        >
+          <TeamEditor
+            players={sortByElo(props.players)}
+            selectedIds={selectedIds()}
+            maxPlayers={props.league.maxPlayers}
+            maxCost={props.league.maxCost}
+            disabled={busy()}
+            onChange={setSelectedIds}
+          />
+          <div class="actions">
+            <button type="button" class="btn btn--primary" disabled={busy()} onClick={() => void saveTeam()}>
+              {busy() ? 'Saving…' : 'Save team'}
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost"
               disabled={busy()}
-              onChange={setSelectedIds}
-            />
-            <div class="actions">
-              <button type="button" class="btn btn--primary" disabled={busy()} onClick={() => void saveTeam()}>
-                {busy() ? 'Saving…' : 'Save team'}
-              </button>
-              <button
-                type="button"
-                class="btn btn--ghost"
-                disabled={busy()}
-                onClick={() => props.onEditingChange(false)}
-              >
-                Cancel
-              </button>
-            </div>
-            <Show when={error()}>
-              <p class="status status--error">{error()}</p>
-            </Show>
+              onClick={() => props.onEditingChange(false)}
+            >
+              Cancel
+            </button>
+          </div>
+          <Show when={error()}>
+            <p class="status status--error">{error()}</p>
           </Show>
-        </div>
-      </Show>
+        </Show>
+      </div>
+    </Show>
+  )
+}
 
+function FantasyTeamsPanel(props: {
+  loading: boolean
+  error: unknown
+  teams: FantasyTeamRow[]
+}) {
+  const [hoverPlayerId, setHoverPlayerId] = createSignal<number | null>(null)
+
+  return (
+    <div class="telemetry__panel" role="tabpanel">
       <Switch>
         <Match when={props.loading}>
           <p class="status status--idle">Loading teams…</p>
@@ -534,6 +541,7 @@ function FantasyTeamsPanel(props: {
                           {(m) => (
                             <li class="fantasy-team__slot">
                               <RosterPlayerChip
+                                playerId={m.fantasyPlayerId}
                                 name={m.name}
                                 link={m.link}
                                 race={m.race}
@@ -541,6 +549,8 @@ function FantasyTeamsPanel(props: {
                                 points={m.pointsEarned}
                                 defeated={m.defeated}
                                 isWinner={m.isWinner}
+                                highlighted={hoverPlayerId() === m.fantasyPlayerId}
+                                onHighlight={setHoverPlayerId}
                               />
                             </li>
                           )}

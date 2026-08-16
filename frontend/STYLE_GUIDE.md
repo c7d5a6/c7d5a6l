@@ -175,7 +175,7 @@ Use sparingly: top rail of the console, **right rail on side consoles**, section
 
 Layer order (bottom → top):
 
-1. `.stage__art` — full-bleed page background (`cover`), dimmed (`brightness` ~0.48, slight desat). **Per-route asset** — see §3a.
+1. `.stage__art` — full-bleed photograph, **`position: fixed; inset: 0`** (browser window), mounted **outside** `.stage` so document/body growth cannot restretch `cover`. Dimmed (`brightness` ~0.48, slight desat). **Per-route asset** — see §3a. `.stage` background is transparent so the fixed art shows through.
 2. Art darken wash (gradient overlay).
 3. `.stage__grid` — animated green grid (masked).
 4. `.stage__crt` — horizontal scanlines.
@@ -309,7 +309,7 @@ Small living details sell the console — use them, but **never stack the same t
 | Telemetry | Glass belly, green header, hazard stripe rule, grey interior block separators |
 | Player | `Player` — race icon + race-colored profile link; excluded = strike + tag; hover dossier after ~360ms (shell first, then lookup + cached portrait) |
 | Fantasy scores | `TeamScoreMeta` — PTS phosphor green + glow; COST quiet hazard-dim metal |
-| Roster chip | `RosterPlayerChip` — pick-plate; race chrome; cost/pts; defeated muted |
+| Roster chip | `RosterPlayerChip` — pick-plate; race chrome; cost/pts; defeated muted; hover peer-lit with race color across teams |
 | Champion | `ChampionMark` — pulsing phosphor star; hot green rim on winner chip/row |
 | Interior separators | `.rule` — 1px `--color-rule` hairline inside glass; not red, not hazard |
 | Tabs | `.console__tabs` / `.tab` — mechanical chips; used in tournament telemetry |

@@ -76,60 +76,63 @@ function StageShell(props: RouteSectionProps): JSX.Element {
   }
 
   return (
-    <div class="stage">
+    <>
+      {/* Outside .stage so overflow/isolation cannot stretch cover to document height */}
       <StageArt />
-      <div class="stage__grid" aria-hidden="true" />
-      <div class="stage__crt" aria-hidden="true" />
-      <div class="stage__scan" aria-hidden="true" />
-      <div class="stage__vignette" aria-hidden="true" />
+      <div class="stage">
+        <div class="stage__grid" aria-hidden="true" />
+        <div class="stage__crt" aria-hidden="true" />
+        <div class="stage__scan" aria-hidden="true" />
+        <div class="stage__vignette" aria-hidden="true" />
 
-      <NavRail visible activeId={pathToNavId(location.pathname)} onSelect={onNavSelect} />
+        <NavRail visible activeId={pathToNavId(location.pathname)} onSelect={onNavSelect} />
 
-      <AuthDock />
+        <AuthDock />
 
-      <div class="stage__pages">
-        <For each={layers()}>
-          {(layer) => (
-            <PagePanels
-              exiting={layer.exiting}
-              staggered={layer.staggered}
-              onExitEnd={() => removeLayer(layer.key)}
-            >
-              <Switch>
-                <Match when={layer.path === NAV_PATHS.parser && isAdmin()}>
-                  <ParserPage />
-                </Match>
-                <Match when={layer.path === NAV_PATHS.players}>
-                  <PlayersPage />
-                </Match>
-                <Match when={layer.path === NAV_PATHS.fantasy}>
-                  <FantasyLeaguePage />
-                </Match>
-                <Match when={isFantasyManagePath(layer.path) && isAdmin()}>
-                  <Show
-                    when={fantasyManageLeagueId(layer.path)}
-                    fallback={<FantasyManagePage />}
-                  >
-                    {(id) => <FantasyManageDetailPage leagueId={id()} />}
-                  </Show>
-                </Match>
-                <Match when={layer.path === NAV_PATHS.users && isAdmin()}>
-                  <UsersPage />
-                </Match>
-                <Match when={layer.path === NAV_PATHS.titles && isAdmin()}>
-                  <TitlesPage />
-                </Match>
-                <Match when={layer.path === '/me'}>
-                  <MePage />
-                </Match>
-              </Switch>
-            </PagePanels>
-          )}
-        </For>
+        <div class="stage__pages">
+          <For each={layers()}>
+            {(layer) => (
+              <PagePanels
+                exiting={layer.exiting}
+                staggered={layer.staggered}
+                onExitEnd={() => removeLayer(layer.key)}
+              >
+                <Switch>
+                  <Match when={layer.path === NAV_PATHS.parser && isAdmin()}>
+                    <ParserPage />
+                  </Match>
+                  <Match when={layer.path === NAV_PATHS.players}>
+                    <PlayersPage />
+                  </Match>
+                  <Match when={layer.path === NAV_PATHS.fantasy}>
+                    <FantasyLeaguePage />
+                  </Match>
+                  <Match when={isFantasyManagePath(layer.path) && isAdmin()}>
+                    <Show
+                      when={fantasyManageLeagueId(layer.path)}
+                      fallback={<FantasyManagePage />}
+                    >
+                      {(id) => <FantasyManageDetailPage leagueId={id()} />}
+                    </Show>
+                  </Match>
+                  <Match when={layer.path === NAV_PATHS.users && isAdmin()}>
+                    <UsersPage />
+                  </Match>
+                  <Match when={layer.path === NAV_PATHS.titles && isAdmin()}>
+                    <TitlesPage />
+                  </Match>
+                  <Match when={layer.path === '/me'}>
+                    <MePage />
+                  </Match>
+                </Switch>
+              </PagePanels>
+            )}
+          </For>
+        </div>
+
+        <div hidden>{props.children}</div>
       </div>
-
-      <div hidden>{props.children}</div>
-    </div>
+    </>
   )
 }
 

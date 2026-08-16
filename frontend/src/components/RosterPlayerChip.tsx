@@ -12,6 +12,10 @@ export type RosterPlayerChipProps = {
   points: number
   defeated?: boolean
   isWinner?: boolean
+  /** Fantasy player id — used to peer-highlight the same pick across teams. */
+  playerId?: number
+  highlighted?: boolean
+  onHighlight?: (playerId: number | null) => void
 }
 
 /**
@@ -20,6 +24,7 @@ export type RosterPlayerChipProps = {
  */
 export function RosterPlayerChip(props: RosterPlayerChipProps): JSX.Element {
   const race = () => parseRaceId(props.race)
+  const canPeer = () => props.playerId != null && props.onHighlight != null
 
   return (
     <span
@@ -27,8 +32,14 @@ export function RosterPlayerChip(props: RosterPlayerChipProps): JSX.Element {
         'roster-chip': true,
         'roster-chip--defeated': Boolean(props.defeated),
         'roster-chip--winner': Boolean(props.isWinner),
+        'roster-chip--lit': Boolean(props.highlighted),
+        'roster-chip--peerable': canPeer(),
         [`roster-chip--${race() ?? 'unknown'}`]: true,
       }}
+      onPointerEnter={() => {
+        if (props.playerId != null) props.onHighlight?.(props.playerId)
+      }}
+      onPointerLeave={() => props.onHighlight?.(null)}
     >
       <Show when={props.isWinner}>
         <ChampionMark />

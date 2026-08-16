@@ -342,6 +342,7 @@ button.lamp-flash::after {
 
 .stage {
   position: relative;
+  z-index: 1;
   isolation: isolate;
   min-height: 100svh;
   /* clip both axes: no nested scrollbar, and abspos/transform overflow can't inflate <body> */
@@ -352,12 +353,14 @@ button.lamp-flash::after {
   padding: clamp(1.25rem, 4vw, 3rem);
   /* Room for fixed left NavRail on desktop */
   padding-left: calc(6.5rem + clamp(0.65rem, 2vw, 1.25rem) + 1rem);
-  background: var(--color-void);
+  /* Transparent so viewport-fixed StageArt shows through */
+  background: transparent;
 }
 
 .stage__art {
   pointer-events: none;
-  position: absolute;
+  /* Sibling of .stage — locked to the browser window, not document/body height */
+  position: fixed;
   inset: 0;
   z-index: 0;
   background-color: var(--color-void);
@@ -2998,6 +3001,51 @@ button.lamp-flash::after {
   background: rgba(0, 0, 0, 0.55);
 }
 
+.roster-chip--peerable {
+  cursor: default;
+}
+
+/* Peer highlight — same fantasy player across teams; race-tinted rim + wash */
+.roster-chip--lit.roster-chip--protoss {
+  border-color: var(--color-race-protoss-link);
+  background: color-mix(in srgb, var(--color-race-protoss-link) 18%, var(--color-race-protoss-bg));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-race-protoss-link) 55%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-race-protoss-link) 35%, transparent);
+}
+
+.roster-chip--lit.roster-chip--terran {
+  border-color: var(--color-race-terran-link);
+  background: color-mix(in srgb, var(--color-race-terran-link) 18%, var(--color-race-terran-bg));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-race-terran-link) 55%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-race-terran-link) 35%, transparent);
+}
+
+.roster-chip--lit.roster-chip--zerg {
+  border-color: var(--color-race-zerg-link);
+  background: color-mix(in srgb, var(--color-race-zerg-link) 18%, var(--color-race-zerg-bg));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-race-zerg-link) 55%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-race-zerg-link) 35%, transparent);
+}
+
+.roster-chip--lit.roster-chip--random {
+  border-color: var(--color-race-random-link);
+  background: color-mix(in srgb, var(--color-race-random-link) 18%, var(--color-race-random-bg));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-race-random-link) 55%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-race-random-link) 35%, transparent);
+}
+
+.roster-chip--lit.roster-chip--unknown {
+  border-color: var(--color-theme);
+  background: color-mix(in srgb, var(--color-theme) 12%, rgba(0, 0, 0, 0.55));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-theme) 45%, transparent),
+    0 0 12px var(--color-theme-glow);
+}
+
 .roster-chip--winner {
   position: relative;
   z-index: 1;
@@ -3440,9 +3488,35 @@ button.lamp-flash::after {
   display: grid;
   gap: 0.35rem;
   max-height: 22rem;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border: 1px solid var(--color-border);
   background: rgba(0, 0, 0, 0.35);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-theme-dim) var(--color-panel-raised);
+}
+
+.team-editor__list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.team-editor__list::-webkit-scrollbar-track {
+  background: var(--color-panel-raised);
+  border-left: 1px solid var(--color-rule);
+}
+
+.team-editor__list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-theme-dim) 85%, black);
+  border: 2px solid var(--color-panel-raised);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-theme) 35%, transparent);
+}
+
+.team-editor__list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-theme-dim);
 }
 
 .team-editor__label {
@@ -3573,6 +3647,10 @@ button.lamp-flash::after {
 
 .fantasy-my-team {
   margin-bottom: 1rem;
+}
+
+.fantasy-my-team--dock {
+  margin-bottom: 0.85rem;
 }
 
 .fantasy-groups {
@@ -4035,6 +4113,16 @@ button.lamp-flash::after {
 }
 
 @media (max-width: 720px) {
+  .team-editor__list {
+    /* Shorter viewport + always-on track so the nested list is obviously scrollable */
+    max-height: min(18rem, 42svh);
+    scrollbar-width: auto;
+  }
+
+  .team-editor__list::-webkit-scrollbar {
+    width: 12px;
+  }
+
   .points-board {
     overflow-x: hidden;
   }

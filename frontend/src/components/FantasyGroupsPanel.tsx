@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createMemo, type JSX } from 'solid-js'
+import { For, Match, Switch, createMemo, type JSX } from 'solid-js'
 import { ChannelHead, RailSection } from './ChannelChrome'
 import { GroupCard } from './GroupCard'
 import { groupsByPhase } from '../lib/groupsByPhase'

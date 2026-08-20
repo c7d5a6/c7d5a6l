@@ -1,6 +1,6 @@
 import bg002 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-002.webp'
+import bg004 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-004.webp'
 import bg008 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-008.webp'
-import bg009 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-009.webp'
 import bg010 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-010.webp'
 import bg015 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-015.webp'
 import terranArt from '../../assets/background/lemon-sky-studios-lemonsky-studio-terran-01.webp'
@@ -15,7 +15,7 @@ const STAGE_BACKGROUNDS: Record<string, string> = {
   '/players': bg008,
   '/fantasy-league': bg015,
   '/users': terranArt,
-  '/titles': bg009,
+  '/titles': bg004,
   '/me': bg010,
 }
 

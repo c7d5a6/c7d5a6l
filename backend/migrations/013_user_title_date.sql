@@ -1,0 +1,1 @@
+ALTER TABLE user_title ADD COLUMN date TEXT;

@@ -16,5 +16,6 @@ type UserTitle struct {
 	FantasyLeagueID   *int64  `json:"fantasyLeagueId"`
 	FantasyLeagueName *string `json:"fantasyLeagueName,omitempty"`
 	HasImage          bool    `json:"hasImage"`
+	Date              *string `json:"date"`
 	CreatedAt         string  `json:"createdAt"`
 }

@@ -118,7 +118,7 @@ function StageShell(props: RouteSectionProps): JSX.Element {
                   <Match when={layer.path === NAV_PATHS.users && isAdmin()}>
                     <UsersPage />
                   </Match>
-                  <Match when={layer.path === NAV_PATHS.titles && isAdmin()}>
+                  <Match when={layer.path === NAV_PATHS.titles}>
                     <TitlesPage />
                   </Match>
                   <Match when={layer.path === '/me'}>

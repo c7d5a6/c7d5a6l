@@ -1,7 +1,8 @@
-import fantasyArt from '../assets/background/fantasy.webp'
-import meArt from '../assets/background/me.webp'
-import parserArt from '../assets/background/parser.webp'
-import playersArt from '../assets/background/players.webp'
+import bg002 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-002.webp'
+import bg008 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-008.webp'
+import bg010 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-010.webp'
+import bg015 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-015.webp'
+import terranArt from '../../assets/background/lemon-sky-studios-lemonsky-studio-terran-01.webp'
 import { normalizePath } from './routes'
 
 /**
@@ -9,15 +10,15 @@ import { normalizePath } from './routes'
  * Distinct pages must not share the same file (even within one palette family).
  */
 const STAGE_BACKGROUNDS: Record<string, string> = {
-  '/parser': parserArt,
-  '/players': playersArt,
-  '/fantasy-league': fantasyArt,
-  '/users': meArt,
-  '/titles': meArt,
-  '/me': meArt,
+  '/parser': bg002,
+  '/players': bg008,
+  '/fantasy-league': bg015,
+  '/users': terranArt,
+  '/titles': terranArt,
+  '/me': bg010,
 }
 
-const DEFAULT_ART = fantasyArt
+const DEFAULT_ART = bg015
 
 export function stageBackgroundForPath(path: string): string {
   const p = normalizePath(path)

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/c7d5a6/c7d5a6l/internal/debuglog"
@@ -39,6 +40,7 @@ type TitleParams struct {
 	Kind            string
 	Name            string
 	FantasyLeagueID *int64
+	Date            *string
 	Image           []byte
 	ImageMime       string
 	ImageOp         int
@@ -121,6 +123,7 @@ func (s *Title) Create(ctx context.Context, p TitleParams) (model.UserTitle, err
 		Kind:            norm.Kind,
 		Name:            norm.Name,
 		FantasyLeagueID: norm.FantasyLeagueID,
+		Date:            norm.Date,
 	}, norm.Image, norm.ImageMime)
 	if err != nil {
 		return model.UserTitle{}, mapTitleErr(err)
@@ -155,6 +158,7 @@ func (s *Title) Update(ctx context.Context, id int64, p TitleParams) (model.User
 		Kind:            norm.Kind,
 		Name:            norm.Name,
 		FantasyLeagueID: norm.FantasyLeagueID,
+		Date:            norm.Date,
 	}, norm.Image, norm.ImageMime, p.ImageOp); err != nil {
 		return model.UserTitle{}, mapTitleErr(err)
 	}
@@ -191,6 +195,11 @@ func (s *Title) normalize(ctx context.Context, p TitleParams) (TitleParams, erro
 	if p.Name == "" || utf8.RuneCountInString(p.Name) > MaxTitleNameLen {
 		return TitleParams{}, fmt.Errorf("%w: name is required (max %d)", ErrTitleInvalid, MaxTitleNameLen)
 	}
+	date, err := normalizeTitleDate(p.Date)
+	if err != nil {
+		return TitleParams{}, err
+	}
+	p.Date = date
 	user, err := s.users.GetByID(ctx, s.db, p.UserID)
 	if err != nil {
 		return TitleParams{}, err
@@ -224,6 +233,20 @@ func (s *Title) normalize(ctx context.Context, p TitleParams) (TitleParams, erro
 		p.ImageMime = ""
 	}
 	return p, nil
+}
+
+func normalizeTitleDate(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	s := strings.TrimSpace(*raw)
+	if s == "" {
+		return nil, nil
+	}
+	if _, err := time.Parse("2006-01-02", s); err != nil {
+		return nil, fmt.Errorf("%w: date must be YYYY-MM-DD", ErrTitleInvalid)
+	}
+	return &s, nil
 }
 
 func validateTitleImage(data []byte, headerType string) (string, error) {

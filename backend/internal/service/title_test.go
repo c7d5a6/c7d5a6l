@@ -188,3 +188,71 @@ func TestTitleRejectsBadKindAndName(t *testing.T) {
 		t.Fatalf("name err=%v", err)
 	}
 }
+
+func TestTitleDateRoundTripAndSort(t *testing.T) {
+	ctx, _, svc, userID, _ := setupTitleSvc(t)
+	bad := "13/08/2026"
+	if _, err := svc.Create(ctx, service.TitleParams{
+		UserID: userID, Kind: model.TitleKindTournament, Name: "Bad", Date: &bad,
+	}); !errors.Is(err, service.ErrTitleInvalid) {
+		t.Fatalf("invalid date err=%v", err)
+	}
+
+	d1 := "2024-06-01"
+	d2 := "2025-01-15"
+	older, err := svc.Create(ctx, service.TitleParams{
+		UserID: userID, Kind: model.TitleKindTournament, Name: "Older", Date: &d1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if older.Date == nil || *older.Date != d1 {
+		t.Fatalf("older date=%v", older.Date)
+	}
+	newer, err := svc.Create(ctx, service.TitleParams{
+		UserID: userID, Kind: model.TitleKindTournament, Name: "Newer", Date: &d2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	undated, err := svc.Create(ctx, service.TitleParams{
+		UserID: userID, Kind: model.TitleKindTournament, Name: "Undated",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if undated.Date != nil {
+		t.Fatalf("undated want nil, got %v", *undated.Date)
+	}
+
+	empty := ""
+	cleared, err := svc.Update(ctx, newer.ID, service.TitleParams{
+		UserID: userID, Kind: model.TitleKindTournament, Name: "Newer", Date: &empty,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.Date != nil {
+		t.Fatalf("cleared date=%v", cleared.Date)
+	}
+	restored, err := svc.Update(ctx, newer.ID, service.TitleParams{
+		UserID: userID, Kind: model.TitleKindTournament, Name: "Newer", Date: &d2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.Date == nil || *restored.Date != d2 {
+		t.Fatalf("restored date=%v", restored.Date)
+	}
+
+	list, err := svc.ListByUserID(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 3 {
+		t.Fatalf("len=%d", len(list))
+	}
+	if list[0].ID != newer.ID || list[1].ID != older.ID || list[2].ID != undated.ID {
+		t.Fatalf("order=%s,%s,%s", list[0].Name, list[1].Name, list[2].Name)
+	}
+}

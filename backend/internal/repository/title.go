@@ -32,6 +32,7 @@ const titleSelectCols = `
 	ut.fantasy_league_id,
 	t.name,
 	CASE WHEN ut.image IS NOT NULL AND length(ut.image) > 0 THEN 1 ELSE 0 END,
+	ut.date,
 	ut.created_at
 `
 
@@ -46,7 +47,7 @@ const titleFrom = `
 func (r *Title) ListAll(ctx context.Context, q DBTX) ([]model.UserTitle, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT `+titleSelectCols+titleFrom+`
-		ORDER BY ut.created_at DESC, ut.id DESC
+		ORDER BY ut.date DESC, ut.created_at DESC, ut.id DESC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("list titles: %w", err)
@@ -60,7 +61,7 @@ func (r *Title) ListByUserID(ctx context.Context, q DBTX, userID int64) ([]model
 	rows, err := q.QueryContext(ctx, `
 		SELECT `+titleSelectCols+titleFrom+`
 		WHERE ut.user_id = ?
-		ORDER BY ut.created_at DESC, ut.id DESC
+		ORDER BY ut.date DESC, ut.created_at DESC, ut.id DESC
 	`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list titles by user: %w", err)
@@ -84,7 +85,7 @@ func (r *Title) ListByUserIDs(ctx context.Context, q DBTX, userIDs []int64) (map
 	rows, err := q.QueryContext(ctx, `
 		SELECT `+titleSelectCols+titleFrom+`
 		WHERE ut.user_id IN (`+strings.Join(placeholders, ",")+`)
-		ORDER BY ut.created_at DESC, ut.id DESC
+		ORDER BY ut.date DESC, ut.created_at DESC, ut.id DESC
 	`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list titles by users: %w", err)
@@ -116,9 +117,9 @@ func (r *Title) GetByID(ctx context.Context, q DBTX, id int64) (*model.UserTitle
 // Insert creates a title. image may be nil.
 func (r *Title) Insert(ctx context.Context, q DBTX, t model.UserTitle, image []byte, mime string) (int64, error) {
 	res, err := q.ExecContext(ctx, `
-		INSERT INTO user_title (user_id, kind, name, fantasy_league_id, image, image_mime)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, t.UserID, t.Kind, t.Name, nullableInt64(t.FantasyLeagueID), nullableBlob(image), nullableMime(mime))
+		INSERT INTO user_title (user_id, kind, name, fantasy_league_id, date, image, image_mime)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, t.UserID, t.Kind, t.Name, nullableInt64(t.FantasyLeagueID), nullableText(t.Date), nullableBlob(image), nullableMime(mime))
 	if err != nil {
 		return 0, fmt.Errorf("insert title: %w", err)
 	}
@@ -136,21 +137,21 @@ func (r *Title) Update(ctx context.Context, q DBTX, t model.UserTitle, image []b
 	case 1:
 		_, err = q.ExecContext(ctx, `
 			UPDATE user_title
-			SET user_id = ?, kind = ?, name = ?, fantasy_league_id = ?, image = ?, image_mime = ?
+			SET user_id = ?, kind = ?, name = ?, fantasy_league_id = ?, date = ?, image = ?, image_mime = ?
 			WHERE id = ?
-		`, t.UserID, t.Kind, t.Name, nullableInt64(t.FantasyLeagueID), image, nullableMime(mime), t.ID)
+		`, t.UserID, t.Kind, t.Name, nullableInt64(t.FantasyLeagueID), nullableText(t.Date), image, nullableMime(mime), t.ID)
 	case 2:
 		_, err = q.ExecContext(ctx, `
 			UPDATE user_title
-			SET user_id = ?, kind = ?, name = ?, fantasy_league_id = ?, image = NULL, image_mime = NULL
+			SET user_id = ?, kind = ?, name = ?, fantasy_league_id = ?, date = ?, image = NULL, image_mime = NULL
 			WHERE id = ?
-		`, t.UserID, t.Kind, t.Name, nullableInt64(t.FantasyLeagueID), t.ID)
+		`, t.UserID, t.Kind, t.Name, nullableInt64(t.FantasyLeagueID), nullableText(t.Date), t.ID)
 	default:
 		_, err = q.ExecContext(ctx, `
 			UPDATE user_title
-			SET user_id = ?, kind = ?, name = ?, fantasy_league_id = ?
+			SET user_id = ?, kind = ?, name = ?, fantasy_league_id = ?, date = ?
 			WHERE id = ?
-		`, t.UserID, t.Kind, t.Name, nullableInt64(t.FantasyLeagueID), t.ID)
+		`, t.UserID, t.Kind, t.Name, nullableInt64(t.FantasyLeagueID), nullableText(t.Date), t.ID)
 	}
 	if err != nil {
 		return fmt.Errorf("update title: %w", err)
@@ -215,6 +216,7 @@ func scanTitleRow(row titleScanner) (*model.UserTitle, error) {
 	var leagueID sql.NullInt64
 	var leagueName sql.NullString
 	var hasImage int
+	var date sql.NullString
 	err := row.Scan(
 		&t.ID,
 		&t.UserID,
@@ -224,6 +226,7 @@ func scanTitleRow(row titleScanner) (*model.UserTitle, error) {
 		&leagueID,
 		&leagueName,
 		&hasImage,
+		&date,
 		&t.CreatedAt,
 	)
 	if err != nil {
@@ -232,6 +235,7 @@ func scanTitleRow(row titleScanner) (*model.UserTitle, error) {
 	t.FantasyLeagueID = nullInt64ToPtr(leagueID)
 	t.FantasyLeagueName = nullToPtr(leagueName)
 	t.HasImage = hasImage == 1
+	t.Date = nullToPtr(date)
 	return &t, nil
 }
 

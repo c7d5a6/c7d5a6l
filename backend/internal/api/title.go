@@ -24,7 +24,7 @@ type titleResponse struct {
 	Title model.UserTitle `json:"title"`
 }
 
-// ListUserTitles returns all titles (admin).
+// ListUserTitles returns all titles (public).
 func (s *Server) ListUserTitles(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if s.Titles == nil {
@@ -153,6 +153,12 @@ func parseTitleForm(r *http.Request) (service.TitleParams, error) {
 		Kind:    r.FormValue("kind"),
 		Name:    r.FormValue("name"),
 		ImageOp: service.ImageUnchanged,
+	}
+	if raw := strings.TrimSpace(r.FormValue("date")); raw != "" {
+		params.Date = &raw
+	} else if _, ok := r.Form["date"]; ok {
+		empty := ""
+		params.Date = &empty
 	}
 	if raw := strings.TrimSpace(r.FormValue("fantasyLeagueId")); raw != "" {
 		n, err := strconv.ParseInt(raw, 10, 64)

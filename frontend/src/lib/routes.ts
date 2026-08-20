@@ -44,7 +44,7 @@ export function fantasyManageLeagueId(path: string): number | null {
 export function guardAdminPath(path: string): string | null {
   const p = normalizePath(path)
   if (
-    (p === NAV_PATHS.parser || p === NAV_PATHS.users || p === NAV_PATHS.titles || isFantasyManagePath(p)) &&
+    (p === NAV_PATHS.parser || p === NAV_PATHS.users || isFantasyManagePath(p)) &&
     !isAdmin()
   ) {
     return NAV_PATHS.fantasy

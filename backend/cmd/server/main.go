@@ -123,7 +123,7 @@ func main() {
 	mux.Handle("POST /api/auth/logout", requireAuth(http.HandlerFunc(apiServer.AuthLogout)))
 	mux.Handle("GET /api/users", requireAdmin(apiServer.ListUsers))
 	mux.Handle("POST /api/users", requireAdmin(apiServer.CreateUser))
-	mux.Handle("GET /api/user-titles", requireAdmin(apiServer.ListUserTitles))
+	mux.HandleFunc("GET /api/user-titles", apiServer.ListUserTitles)
 	mux.Handle("POST /api/user-titles", requireAdmin(apiServer.CreateUserTitle))
 	mux.HandleFunc("GET /api/user-titles/{id}/image", apiServer.GetUserTitleImage)
 	mux.Handle("PATCH /api/user-titles/{id}", requireAdmin(apiServer.UpdateUserTitle))

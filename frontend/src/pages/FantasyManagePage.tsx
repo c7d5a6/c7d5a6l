@@ -231,13 +231,13 @@ export function FantasyManagePage(): JSX.Element {
             <Match when={true}>
               <div class="roster roster--preview" role="table" aria-label="Cost preview">
                 <div class="roster__head" role="row">
-                  <span class="roster__cell" role="columnheader">
+                  <span class="roster__cell roster__player" role="columnheader">
                     Player
                   </span>
                   <span class="roster__cell roster__elo" role="columnheader">
                     Elo
                   </span>
-                  <span class="roster__cell roster__elo" role="columnheader">
+                  <span class="roster__cell roster__cost" role="columnheader">
                     Cost
                   </span>
                 </div>
@@ -250,7 +250,7 @@ export function FantasyManagePage(): JSX.Element {
                       <span class="roster__cell roster__elo" role="cell">
                         {row.elo.toFixed(0)}
                       </span>
-                      <span class="roster__cell" role="cell">
+                      <span class="roster__cell roster__cost" role="cell">
                         <input
                           class="field__input fantasy-cost-input"
                           type="number"
@@ -298,13 +298,13 @@ export function FantasyManagePage(): JSX.Element {
           {(rows) => (
             <div class="roster roster--leagues" role="table" aria-label="Fantasy leagues">
               <div class="roster__head" role="row">
-                <span class="roster__cell" role="columnheader">
+                <span class="roster__cell roster__league" role="columnheader">
                   League
                 </span>
-                <span class="roster__cell" role="columnheader">
+                <span class="roster__cell roster__status" role="columnheader">
                   Status
                 </span>
-                <span class="roster__cell roster__elo" role="columnheader">
+                <span class="roster__cell roster__caps" role="columnheader">
                   Caps
                 </span>
               </div>
@@ -318,10 +318,10 @@ export function FantasyManagePage(): JSX.Element {
                       role="row"
                       onClick={() => navigate(`/fantasy-manage/${l.id}`)}
                     >
-                      <span class="roster__cell" role="cell">
+                      <span class="roster__cell roster__league" role="cell">
                         {displayValue(l.tournamentName) || l.tournamentLink}
                       </span>
-                      <span class="roster__cell" role="cell">
+                      <span class="roster__cell roster__status" role="cell">
                         <span
                           classList={{
                             chip: true,
@@ -334,7 +334,7 @@ export function FantasyManagePage(): JSX.Element {
                           {st().label}
                         </span>
                       </span>
-                      <span class="roster__cell roster__elo" role="cell">
+                      <span class="roster__cell roster__caps" role="cell">
                         {l.maxPlayers}p / {l.maxCost}c
                       </span>
                     </button>

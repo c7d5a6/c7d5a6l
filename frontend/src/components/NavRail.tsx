@@ -17,7 +17,7 @@ const ALL_ITEMS: { id: NavRailId; lines: string[]; adminOnly?: boolean }[] = [
   { id: 'fantasy', lines: ['Fantasy', 'League'] },
   { id: 'leagues', lines: ['Leagues'], adminOnly: true },
   { id: 'users', lines: ['Users'], adminOnly: true },
-  { id: 'titles', lines: ['Titles'], adminOnly: true },
+  { id: 'titles', lines: ['Titles'] },
 ]
 
 /**

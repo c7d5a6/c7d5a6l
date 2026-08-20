@@ -13,6 +13,7 @@ export type UserTitle = {
   fantasyLeagueId: number | null
   fantasyLeagueName?: string | null
   hasImage: boolean
+  date: string | null
   createdAt: string
 }
 

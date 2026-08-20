@@ -2689,7 +2689,187 @@ button.lamp-flash::after {
 
 .roster--titles .roster__head,
 .roster--titles .roster__row {
-  grid-template-columns: 3.5rem minmax(0, 1.4fr) 7rem 6rem minmax(0, 1fr) auto;
+  grid-template-columns: 3.5rem minmax(0, 1.4fr) 7rem 7rem;
+}
+
+.roster--titles-admin .roster__head,
+.roster--titles-admin .roster__row {
+  grid-template-columns: 3.5rem minmax(0, 1.4fr) 7rem 7rem auto;
+}
+
+.roster__date {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.roster__caps {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .roster__head,
+  .roster__row {
+    align-items: center;
+    gap: 0.35rem 0.65rem;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .roster--players .roster__head,
+  .roster--players .roster__row {
+    grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank player player"
+      ". elo elo";
+  }
+
+  .roster--players-admin .roster__head,
+  .roster--players-admin .roster__row {
+    grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank player player"
+      ". elo actions";
+  }
+
+  .roster--players .roster__rank {
+    grid-area: rank;
+    align-self: start;
+    padding-top: 0.2rem;
+  }
+
+  .roster--players .roster__player {
+    grid-area: player;
+  }
+
+  .roster--players .roster__elo {
+    grid-area: elo;
+    text-align: left;
+  }
+
+  .roster--players .roster__actions {
+    grid-area: actions;
+  }
+
+  .roster--users .roster__head,
+  .roster--users .roster__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "alias role"
+      "tg handle";
+  }
+
+  .roster--users .roster__alias {
+    grid-area: alias;
+  }
+
+  .roster--users .roster__role {
+    grid-area: role;
+    text-align: right;
+  }
+
+  .roster--users .roster__tg-link {
+    grid-area: tg;
+  }
+
+  .roster--users .roster__telegram {
+    grid-area: handle;
+    text-align: right;
+  }
+
+  .roster--titles .roster__head,
+  .roster--titles .roster__row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "mark name name"
+      "operator operator date";
+  }
+
+  .roster--titles-admin .roster__head,
+  .roster--titles-admin .roster__row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "mark name name"
+      "operator operator date"
+      "actions actions actions";
+  }
+
+  .roster--titles .roster__mark {
+    grid-area: mark;
+  }
+
+  .roster--titles .roster__name {
+    grid-area: name;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .roster--titles .roster__operator {
+    grid-area: operator;
+    min-width: 0;
+    color: var(--color-text-dim);
+  }
+
+  .roster--titles .roster__date {
+    grid-area: date;
+    text-align: right;
+  }
+
+  .roster--titles .roster__actions {
+    grid-area: actions;
+    text-align: left;
+  }
+
+  .roster--titles .roster__elo-actions {
+    justify-content: flex-start;
+  }
+
+  .roster--preview .roster__head,
+  .roster--preview .roster__row {
+    grid-template-columns: minmax(0, 1fr) minmax(5rem, 7rem);
+    grid-template-areas:
+      "player player"
+      "elo cost";
+  }
+
+  .roster--preview .roster__player {
+    grid-area: player;
+  }
+
+  .roster--preview .roster__elo {
+    grid-area: elo;
+    text-align: left;
+  }
+
+  .roster--preview .roster__cost {
+    grid-area: cost;
+  }
+
+  .roster--leagues .roster__head,
+  .roster--leagues .roster__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "league league"
+      "status caps";
+  }
+
+  .roster--leagues .roster__league {
+    grid-area: league;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .roster--leagues .roster__status {
+    grid-area: status;
+  }
+
+  .roster--leagues .roster__caps {
+    grid-area: caps;
+  }
 }
 
 .user-titles {
@@ -4423,8 +4603,8 @@ button.lamp-flash::after {
     align-items: stretch;
   }
 
-  .btn,
-  .btn--ghost {
+  .btn:not(.btn--compact),
+  .btn--ghost:not(.btn--compact) {
     width: 100%;
   }
 }

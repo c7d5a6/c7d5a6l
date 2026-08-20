@@ -38,6 +38,9 @@ func Results(doc *goquery.Document) ([]model.Result, error) {
 	out := make([]model.Result, 0, len(raw))
 	for i, r := range raw {
 		res := r.result
+		if res.Stage != nil {
+			res.Phase, res.Round = StagePhaseRound(*res.Stage)
+		}
 		res.Order = i + 1
 		out = append(out, res)
 	}

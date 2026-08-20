@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { Accessor, JSX } from 'solid-js'
 import { Show } from 'solid-js'
 import { ChampionMark } from './ChampionMark'
 import { Player } from './Player'
@@ -14,8 +14,14 @@ export type RosterPlayerChipProps = {
   isWinner?: boolean
   /** Fantasy player id — used to peer-highlight the same pick across teams. */
   playerId?: number
-  highlighted?: boolean
+  /**
+   * Hover id accessor (not a boolean from the parent list). Reading the signal
+   * here keeps peer updates scoped to each chip instead of every list row.
+   */
+  hoverId?: Accessor<number | null>
   onHighlight?: (playerId: number | null) => void
+  /** @deprecated Prefer hoverId accessor — kept for call sites that still pass a bool. */
+  highlighted?: boolean
 }
 
 /**
@@ -25,6 +31,10 @@ export type RosterPlayerChipProps = {
 export function RosterPlayerChip(props: RosterPlayerChipProps): JSX.Element {
   const race = () => parseRaceId(props.race)
   const canPeer = () => props.playerId != null && props.onHighlight != null
+  const lit = () => {
+    if (props.hoverId && props.playerId != null) return props.hoverId() === props.playerId
+    return Boolean(props.highlighted)
+  }
 
   return (
     <span
@@ -32,7 +42,7 @@ export function RosterPlayerChip(props: RosterPlayerChipProps): JSX.Element {
         'roster-chip': true,
         'roster-chip--defeated': Boolean(props.defeated),
         'roster-chip--winner': Boolean(props.isWinner),
-        'roster-chip--lit': Boolean(props.highlighted),
+        'roster-chip--lit': lit(),
         'roster-chip--peerable': canPeer(),
         [`roster-chip--${race() ?? 'unknown'}`]: true,
       }}

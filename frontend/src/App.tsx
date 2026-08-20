@@ -1,26 +1,17 @@
-import { For, Match, Show, Switch, createEffect, createSignal, onMount, type JSX } from 'solid-js'
+import { For, createEffect, createSignal, onMount, type JSX } from 'solid-js'
 import { Navigate, Route, Router, useLocation, useNavigate, type RouteSectionProps } from '@solidjs/router'
 import { AuthDock } from './components/AuthDock'
 import { NavRail, type NavRailId } from './components/NavRail'
 import { PagePanels } from './components/PagePanels'
 import { StageArt } from './components/StageArt'
-import { authReady, bootAuthSession, homePath, isAdmin } from './lib/auth'
+import { authReady, bootAuthSession, homePath } from './lib/auth'
+import { LAYER_ROUTE_PATHS, PageLayerContent } from './lib/pageRegistry'
 import {
   NAV_PATHS,
-  fantasyManageLeagueId,
   guardAdminPath,
-  isFantasyManagePath,
   normalizePath,
   pathToNavId,
 } from './lib/routes'
-import { FantasyLeaguePage } from './pages/FantasyLeaguePage'
-import { FantasyManageDetailPage } from './pages/FantasyManageDetailPage'
-import { FantasyManagePage } from './pages/FantasyManagePage'
-import { MePage } from './pages/MePage'
-import { ParserPage } from './pages/ParserPage'
-import { PlayersPage } from './pages/PlayersPage'
-import { TitlesPage } from './pages/TitlesPage'
-import { UsersPage } from './pages/UsersPage'
 
 type PageLayer = {
   key: string
@@ -29,6 +20,10 @@ type PageLayer = {
   staggered?: boolean
 }
 
+/**
+ * Router owns the URL (null Routes). StageShell owns visible pages + slide layers.
+ * Path → page lives in `pageRegistry` so Routes and layer content stay in sync.
+ */
 function StageShell(props: RouteSectionProps): JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
@@ -97,34 +92,7 @@ function StageShell(props: RouteSectionProps): JSX.Element {
                 staggered={layer.staggered}
                 onExitEnd={() => removeLayer(layer.key)}
               >
-                <Switch>
-                  <Match when={layer.path === NAV_PATHS.parser && isAdmin()}>
-                    <ParserPage />
-                  </Match>
-                  <Match when={layer.path === NAV_PATHS.players}>
-                    <PlayersPage />
-                  </Match>
-                  <Match when={layer.path === NAV_PATHS.fantasy}>
-                    <FantasyLeaguePage />
-                  </Match>
-                  <Match when={isFantasyManagePath(layer.path) && isAdmin()}>
-                    <Show
-                      when={fantasyManageLeagueId(layer.path)}
-                      fallback={<FantasyManagePage />}
-                    >
-                      {(id) => <FantasyManageDetailPage leagueId={id()} />}
-                    </Show>
-                  </Match>
-                  <Match when={layer.path === NAV_PATHS.users && isAdmin()}>
-                    <UsersPage />
-                  </Match>
-                  <Match when={layer.path === NAV_PATHS.titles}>
-                    <TitlesPage />
-                  </Match>
-                  <Match when={layer.path === '/me'}>
-                    <MePage />
-                  </Match>
-                </Switch>
+                <PageLayerContent path={layer.path} ready={authReady()} />
               </PagePanels>
             )}
           </For>
@@ -144,14 +112,15 @@ function App() {
   return (
     <Router root={StageShell} base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <Route path="/" component={HomeRedirect} />
-      <Route path="/parser" component={() => null} />
-      <Route path="/players" component={() => null} />
-      <Route path="/fantasy-league" component={() => null} />
-      <Route path="/fantasy-manage" component={() => null} />
-      <Route path="/fantasy-manage/:id" component={() => null} />
-      <Route path="/users" component={() => null} />
-      <Route path="/titles" component={() => null} />
-      <Route path="/me" component={() => null} />
+      {/* Paths from LAYER_ROUTE_PATHS — keep in sync via pageRegistry */}
+      <Route path={LAYER_ROUTE_PATHS[0]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[1]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[2]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[3]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[4]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[5]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[6]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[7]} component={() => null} />
       <Route path="/tournaments" component={() => <Navigate href={NAV_PATHS.fantasy} />} />
       <Route path="*404" component={HomeRedirect} />
     </Router>

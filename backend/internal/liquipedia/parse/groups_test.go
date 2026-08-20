@@ -97,8 +97,8 @@ func TestGroups_EmptyTablesFallBackToStage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("groups=%d, want 2 (playoffs ignored): %+v", len(got), got)
+	if len(got) != 3 {
+		t.Fatalf("groups=%d, want 3 (2 pools + Semifinals): %+v", len(got), got)
 	}
 	if got[0].Phase != "Round of 24" || got[0].Name != "Group A" {
 		t.Fatalf("group0=%+v", got[0])
@@ -109,24 +109,27 @@ func TestGroups_EmptyTablesFallBackToStage(t *testing.T) {
 	if got[1].Name != "Group B" || len(got[1].Players) != 2 {
 		t.Fatalf("group1=%+v", got[1])
 	}
+	if got[2].Phase != "Playoffs" || got[2].Name != "Semifinals" {
+		t.Fatalf("playoff group=%+v", got[2])
+	}
 }
 
-func TestGroups_PlayoffsIgnoredWithoutGroupSegment(t *testing.T) {
+func TestGroups_PlayoffRoundsAsGroups(t *testing.T) {
 	t.Parallel()
 
 	results := []model.Result{
 		{
 			Stage:        strPtr("Playoffs / Grand Final"),
-			ParticipantA: &model.Participant{Name: strPtr("A")},
-			ParticipantB: &model.Participant{Name: strPtr("B")},
+			ParticipantA: &model.Participant{Name: strPtr("A"), Link: strPtr("https://liquipedia.net/starcraft/A")},
+			ParticipantB: &model.Participant{Name: strPtr("B"), Link: strPtr("https://liquipedia.net/starcraft/B")},
 		},
 	}
 	got, err := parse.Groups(documentFromHTML(t, `<html><body></body></html>`), results)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 0 {
-		t.Fatalf("want no groups, got %+v", got)
+	if len(got) != 1 || got[0].Phase != "Playoffs" || got[0].Name != "Grand Final" {
+		t.Fatalf("want Playoffs/Grand Final, got %+v", got)
 	}
 }
 

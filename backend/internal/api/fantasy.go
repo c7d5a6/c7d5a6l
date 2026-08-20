@@ -250,6 +250,26 @@ func (s *Server) ListFantasyGroups(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(listFantasyGroupsResponse{Groups: groups})
 }
 
+// GetFantasyMatchBoard returns groups + results for the Results tab.
+func (s *Server) GetFantasyMatchBoard(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.Fantasy == nil {
+		writeError(w, http.StatusInternalServerError, "fantasy service not configured")
+		return
+	}
+	id, ok := pathInt64(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid fantasy league id")
+		return
+	}
+	board, err := s.Fantasy.MatchBoard(r.Context(), id)
+	if err != nil {
+		writeFantasyErr(w, err)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(board)
+}
+
 // ListFantasyTeams returns fantasy teams for a league.
 func (s *Server) ListFantasyTeams(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
 
 	"github.com/c7d5a6/c7d5a6l/internal/debuglog"
 	"github.com/c7d5a6/c7d5a6l/internal/model"
@@ -33,12 +34,13 @@ const (
 
 // Fantasy orchestrates fantasy league reads and mutations.
 type Fantasy struct {
-	db   *sql.DB
-	repo *repository.Fantasy
+	db    *sql.DB
+	repo  *repository.Fantasy
+	tours *repository.Tournament
 }
 
-func NewFantasy(db *sql.DB, repo *repository.Fantasy) *Fantasy {
-	return &Fantasy{db: db, repo: repo}
+func NewFantasy(db *sql.DB, repo *repository.Fantasy, tours *repository.Tournament) *Fantasy {
+	return &Fantasy{db: db, repo: repo, tours: tours}
 }
 
 // ListLeagues returns all fantasy leagues.
@@ -94,6 +96,33 @@ func (s *Fantasy) ListGroups(ctx context.Context, leagueID int64) ([]model.Fanta
 		return nil, err
 	}
 	return s.repo.ListGroups(ctx, s.db, leagueID)
+}
+
+// MatchBoard returns groups + results for the fantasy Results UI.
+func (s *Fantasy) MatchBoard(ctx context.Context, leagueID int64) (model.FantasyMatchBoard, error) {
+	league, err := s.GetLeague(ctx, leagueID)
+	if err != nil {
+		return model.FantasyMatchBoard{}, err
+	}
+	groups, err := s.repo.ListGroups(ctx, s.db, leagueID)
+	if err != nil {
+		return model.FantasyMatchBoard{}, err
+	}
+	if groups == nil {
+		groups = []model.FantasyGroup{}
+	}
+	results, err := s.tours.ListResults(ctx, s.db, league.TournamentID)
+	if err != nil {
+		return model.FantasyMatchBoard{}, err
+	}
+	if results == nil {
+		results = []model.Result{}
+	}
+	return model.FantasyMatchBoard{
+		Groups:  groups,
+		Results: results,
+		Today:   time.Now().UTC().Format("2006-01-02"),
+	}, nil
 }
 
 // CreateParams configures fantasy league creation.

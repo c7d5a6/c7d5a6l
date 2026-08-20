@@ -79,10 +79,17 @@ export type FantasyGroupPlayer = {
 }
 
 export type FantasyGroup = {
+  id: number
   name: string
   phase: string
   sortOrder: number
   players: FantasyGroupPlayer[]
+}
+
+export type FantasyMatchBoard = {
+  groups: FantasyGroup[]
+  results: import('./tournament').Result[]
+  today: string
 }
 
 export const POINT_STAGES = ['Ro24', 'Ro16', 'Ro8', 'Ro4', 'Ro2'] as const

@@ -17,6 +17,7 @@ type TournamentPage struct {
 
 // TournamentGroup is a named pool of players within a tournament phase.
 type TournamentGroup struct {
+	ID        int64         `json:"id,omitempty"`
 	Name      string        `json:"name"`
 	Phase     string        `json:"phase"`
 	SortOrder int           `json:"sortOrder"`
@@ -48,6 +49,9 @@ type Result struct {
 	ParticipantB *Participant `json:"participantB"`
 	DateTime     *string      `json:"dateTime"`
 	Stage        *string      `json:"stage"`
+	Phase        string       `json:"phase"`
+	Round        string       `json:"round"`
+	GroupID      *int64       `json:"groupId,omitempty"`
 	Order        int          `json:"order"`
 }
 

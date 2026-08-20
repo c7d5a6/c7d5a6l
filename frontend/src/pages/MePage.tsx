@@ -9,13 +9,14 @@ export function MePage(): JSX.Element {
   const navigate = useNavigate()
   const [busy, setBusy] = createSignal(false)
   const [aliasDraft, setAliasDraft] = createSignal('')
+  const [aliasDirty, setAliasDirty] = createSignal(false)
   const [aliasBusy, setAliasBusy] = createSignal(false)
   const [aliasError, setAliasError] = createSignal<string | null>(null)
   const [aliasOk, setAliasOk] = createSignal(false)
 
   createEffect(() => {
     const u = authUser()
-    if (u) setAliasDraft(u.alias)
+    if (u && !aliasDirty()) setAliasDraft(u.alias)
   })
 
   async function onLogout() {
@@ -35,6 +36,7 @@ export function MePage(): JSX.Element {
     setAliasOk(false)
     try {
       await updateAlias(aliasDraft())
+      setAliasDirty(false)
       setAliasOk(true)
     } catch (err) {
       setAliasError(err instanceof Error ? err.message : 'Alias update failed')
@@ -79,6 +81,7 @@ export function MePage(): JSX.Element {
                           autocomplete="nickname"
                           disabled={aliasBusy()}
                           onInput={(e) => {
+                            setAliasDirty(true)
                             setAliasDraft(e.currentTarget.value)
                             setAliasOk(false)
                             setAliasError(null)

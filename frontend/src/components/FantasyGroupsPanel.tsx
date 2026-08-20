@@ -1,14 +1,7 @@
 import { For, Match, Show, Switch, createMemo, type JSX } from 'solid-js'
-import { Player } from './Player'
-import { authFetch } from '../lib/auth'
+import { GroupCard } from './GroupCard'
+import { groupsByPhase } from '../lib/groupsByPhase'
 import type { FantasyGroup } from '../types/fantasy'
-
-export async function fetchFantasyGroups(leagueId: number): Promise<FantasyGroup[]> {
-  const res = await authFetch(`/api/fantasy-leagues/${leagueId}/groups`)
-  if (!res.ok) throw new Error(`groups uplink failed (${res.status})`)
-  const data = (await res.json()) as { groups: FantasyGroup[] }
-  return data.groups ?? []
-}
 
 export type FantasyGroupsPanelProps = {
   groups: FantasyGroup[]
@@ -20,20 +13,12 @@ export type FantasyGroupsPanelProps = {
  * Parent mounts this after groups have loaded so the shell sizes to content.
  */
 export function FantasyGroupsPanel(props: FantasyGroupsPanelProps): JSX.Element {
-  const groupsByPhase = createMemo(() => {
-    const map = new Map<string, FantasyGroup[]>()
-    for (const g of props.groups) {
-      const list = map.get(g.phase) ?? []
-      list.push(g)
-      map.set(g.phase, list)
-    }
-    return [...map.entries()]
-  })
+  const byPhase = createMemo(() => groupsByPhase(props.groups))
 
   return (
     <div class="fantasy-groups">
       <header class="fantasy-groups__head">
-        <p class="brand__eyebrow atm-phosphor">Draft · Groups</p>
+        <p class="brand__eyebrow">Draft · Groups</p>
         <h2 class="fantasy-groups__title">Groups</h2>
       </header>
       <hr class="rule" />
@@ -48,7 +33,7 @@ export function FantasyGroupsPanel(props: FantasyGroupsPanelProps): JSX.Element 
           <p class="status status--idle">No groups parsed yet</p>
         </Match>
         <Match when={true}>
-          <For each={groupsByPhase()}>
+          <For each={byPhase()}>
             {([phase, phaseGroups]) => (
               <div class="telemetry__block">
                 <Show when={phase}>
@@ -56,26 +41,20 @@ export function FantasyGroupsPanel(props: FantasyGroupsPanelProps): JSX.Element 
                 </Show>
                 <For each={phaseGroups}>
                   {(g) => (
-                    <div class="fantasy-groups__card">
-                      <div class="telemetry__group-name">{g.name}</div>
-                      <ul class="telemetry__list telemetry__list--chips">
-                        <For each={g.players}>
-                          {(p) => (
-                            <li class="fantasy-groups__player">
-                              <Player
-                                name={p.name}
-                                link={p.link}
-                                race={p.race}
-                                excluded={p.excluded}
-                              />
-                              <span class="fantasy-groups__cost" title="Cost">
-                                {p.cost}
-                              </span>
-                            </li>
-                          )}
-                        </For>
-                      </ul>
-                    </div>
+                    <GroupCard
+                      name={g.name}
+                      players={g.players}
+                      playerExtra={(p) => {
+                        const fp = g.players.find(
+                          (x) => (x.link ?? '') === (p.link ?? '') && (x.name ?? '') === (p.name ?? ''),
+                        )
+                        return fp ? (
+                          <span class="fantasy-groups__cost" title="Cost">
+                            {fp.cost}
+                          </span>
+                        ) : null
+                      }}
+                    />
                   )}
                 </For>
               </div>

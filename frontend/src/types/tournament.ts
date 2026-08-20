@@ -16,11 +16,15 @@ export type Result = {
   participantB: Participant | null
   dateTime: string | null
   stage: string | null
+  phase?: string
+  round?: string
+  groupId?: number | null
   order: number
 }
 
 /** Named player pool within a tournament phase. */
 export type TournamentGroup = {
+  id?: number
   name: string
   phase: string
   sortOrder: number

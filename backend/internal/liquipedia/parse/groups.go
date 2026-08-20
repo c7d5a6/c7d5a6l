@@ -8,13 +8,14 @@ import (
 	"github.com/c7d5a6/c7d5a6l/internal/model"
 )
 
-// Groups extracts named player pools from standings tables, falling back to
-// Result.Stage paths that contain a "Group …" segment when no tables are found.
+// Groups extracts named player pools from standings tables and/or Result.Stage
+// paths, then always merges playoff bracket rounds as groups under phase Playoffs.
 func Groups(doc *goquery.Document, results []model.Result) ([]model.TournamentGroup, error) {
 	groups := groupsFromStandings(doc)
 	if len(groups) == 0 {
 		groups = groupsFromResults(results)
 	}
+	groups = mergeGroups(groups, playoffGroupsFromResults(results))
 	if groups == nil {
 		groups = []model.TournamentGroup{}
 	}
@@ -129,6 +130,14 @@ func playersFromGroupTable(table *goquery.Selection) []model.Participant {
 }
 
 func groupsFromResults(results []model.Result) []model.TournamentGroup {
+	return collectGroupsFromResults(results, true)
+}
+
+func playoffGroupsFromResults(results []model.Result) []model.TournamentGroup {
+	return collectGroupsFromResults(results, false)
+}
+
+func collectGroupsFromResults(results []model.Result, poolOnly bool) []model.TournamentGroup {
 	type bucket struct {
 		phase   string
 		name    string
@@ -169,7 +178,13 @@ func groupsFromResults(results []model.Result) []model.TournamentGroup {
 		if r.Stage == nil {
 			continue
 		}
-		phase, name, ok := parseGroupStage(*r.Stage)
+		var phase, name string
+		var ok bool
+		if poolOnly {
+			phase, name, ok = parseGroupStage(*r.Stage)
+		} else {
+			phase, name, ok = parsePlayoffStage(*r.Stage)
+		}
 		if !ok {
 			continue
 		}
@@ -193,17 +208,34 @@ func groupsFromResults(results []model.Result) []model.TournamentGroup {
 	return out
 }
 
+func mergeGroups(base, extra []model.TournamentGroup) []model.TournamentGroup {
+	seen := map[string]struct{}{}
+	out := make([]model.TournamentGroup, 0, len(base)+len(extra))
+	for _, g := range base {
+		key := groupKey(g.Phase, g.Name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		g.SortOrder = len(out)
+		out = append(out, g)
+	}
+	for _, g := range extra {
+		key := groupKey(g.Phase, g.Name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		g.SortOrder = len(out)
+		out = append(out, g)
+	}
+	return out
+}
+
 // parseGroupStage finds a segment starting with "Group" in a slash-separated stage path.
 // Phase is the first segment (e.g. "Round of 24"); name is the Group segment.
 func parseGroupStage(stage string) (phase, name string, ok bool) {
-	parts := strings.Split(stage, "/")
-	var cleaned []string
-	for _, p := range parts {
-		p = cleanText(p)
-		if p != "" {
-			cleaned = append(cleaned, p)
-		}
-	}
+	cleaned := stageSegments(stage)
 	if len(cleaned) == 0 {
 		return "", "", false
 	}
@@ -219,6 +251,74 @@ func parseGroupStage(stage string) (phase, name string, ok bool) {
 		return "", "", false
 	}
 	return cleaned[0], cleaned[groupIdx], true
+}
+
+// parsePlayoffStage maps bracket stages to phase Playoffs + round name.
+func parsePlayoffStage(stage string) (phase, name string, ok bool) {
+	if _, _, isGroup := parseGroupStage(stage); isGroup {
+		return "", "", false
+	}
+	cleaned := stageSegments(stage)
+	if len(cleaned) == 0 {
+		return "", "", false
+	}
+	if strings.Contains(strings.ToLower(cleaned[0]), "playoff") {
+		if len(cleaned) < 2 {
+			return "", "", false
+		}
+		return "Playoffs", cleaned[len(cleaned)-1], true
+	}
+	name = cleaned[len(cleaned)-1]
+	if isBracketRoundName(name) {
+		return "Playoffs", name, true
+	}
+	return "", "", false
+}
+
+func isBracketRoundName(s string) bool {
+	lower := strings.ToLower(cleanText(s))
+	for _, marker := range []string{
+		"grand final", "grand finals", "finals", "final",
+		"semifinals", "semifinal", "quarterfinals", "quarterfinal",
+		"round of 16", "round of 8", "third place", "3rd place",
+	} {
+		if lower == marker || strings.HasPrefix(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func stageSegments(stage string) []string {
+	var cleaned []string
+	for _, p := range strings.Split(stage, "/") {
+		p = cleanText(p)
+		if p != "" {
+			cleaned = append(cleaned, p)
+		}
+	}
+	return cleaned
+}
+
+// StagePhaseRound splits a Liquipedia stage path into phase + round for persistence.
+func StagePhaseRound(stage string) (phase, round string) {
+	if stage == "" {
+		return "", ""
+	}
+	if p, name, ok := parseGroupStage(stage); ok {
+		return p, name
+	}
+	if p, name, ok := parsePlayoffStage(stage); ok {
+		return p, name
+	}
+	cleaned := stageSegments(stage)
+	if len(cleaned) == 0 {
+		return "", ""
+	}
+	if len(cleaned) == 1 {
+		return cleaned[0], ""
+	}
+	return cleaned[0], cleaned[len(cleaned)-1]
 }
 
 func groupKey(phase, name string) string {

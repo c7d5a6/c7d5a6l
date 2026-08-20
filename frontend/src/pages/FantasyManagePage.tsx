@@ -1,21 +1,16 @@
 import { ConsoleCard } from '../components/ConsoleCard'
 import { Player } from '../components/Player'
-import { For, Match, Show, Switch, createMemo, createResource, createSignal, type JSX } from 'solid-js'
+import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, type JSX } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 import { authFetch } from '../lib/auth'
+import { fetchFantasyLeagues } from '../lib/api/fantasy'
+import { readApiError } from '../lib/api/http'
 import { displayValue } from '../types/tournament'
 import type { FantasyLeague, FantasyPreviewPlayer, TournamentSummary } from '../types/fantasy'
 
-async function fetchLeagues(): Promise<FantasyLeague[]> {
-  const res = await authFetch('/api/fantasy-leagues')
-  if (!res.ok) throw new Error(`leagues uplink failed (${res.status})`)
-  const data = (await res.json()) as { leagues: FantasyLeague[] }
-  return data.leagues ?? []
-}
-
 async function fetchUnused(): Promise<TournamentSummary[]> {
   const res = await authFetch('/api/tournaments/unused-for-fantasy')
-  if (!res.ok) throw new Error(`unused tournaments failed (${res.status})`)
+  if (!res.ok) throw new Error(await readApiError(res, `unused tournaments failed (${res.status})`))
   const data = (await res.json()) as { tournaments: TournamentSummary[] }
   return data.tournaments ?? []
 }
@@ -45,7 +40,7 @@ function leagueStatus(l: FantasyLeague): { label: string; kind: 'open' | 'live' 
 /** Admin fantasy league list + create wizard. */
 export function FantasyManagePage(): JSX.Element {
   const navigate = useNavigate()
-  const [leagues, { refetch: refetchLeagues }] = createResource(fetchLeagues)
+  const [leagues, { refetch: refetchLeagues }] = createResource(fetchFantasyLeagues)
   const [unused, { refetch: refetchUnused }] = createResource(fetchUnused)
 
   const [tournamentId, setTournamentId] = createSignal<number | null>(null)
@@ -53,8 +48,6 @@ export function FantasyManagePage(): JSX.Element {
   const [costMax, setCostMax] = createSignal(10)
   const [maxPlayers, setMaxPlayers] = createSignal(6)
   const [maxCost, setMaxCost] = createSignal(28)
-  /** Baseline costs from last preview; overrides layered on top. */
-  const [baseCosts, setBaseCosts] = createSignal<Record<number, number>>({})
   const [overrides, setOverrides] = createSignal<Record<number, number>>({})
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
@@ -65,13 +58,21 @@ export function FantasyManagePage(): JSX.Element {
     return { tid, costMin: costMin(), costMax: costMax() }
   })
 
-  const [preview] = createResource(previewKey, async (k) => {
-    const rows = await fetchPreview(k.tid, k.costMin, k.costMax)
+  // Pure fetcher — never mutate overrides/base here (late responses must not wipe edits).
+  const [preview] = createResource(previewKey, (k) => fetchPreview(k.tid, k.costMin, k.costMax))
+
+  const baseCosts = createMemo(() => {
     const next: Record<number, number> = {}
-    for (const r of rows) next[r.tournamentPlayerId] = r.cost
-    setBaseCosts(next)
-    setOverrides({})
-    return rows
+    for (const r of preview() ?? []) next[r.tournamentPlayerId] = r.cost
+    return next
+  })
+
+  // Clear cost overrides only when the preview key intentionally changes.
+  createEffect((prev: string | null | undefined) => {
+    const k = previewKey()
+    const id = k == null ? null : `${k.tid}:${k.costMin}:${k.costMax}`
+    if (prev !== undefined && id !== prev) setOverrides({})
+    return id
   })
 
   const displayRows = createMemo(() => {
@@ -107,20 +108,10 @@ export function FantasyManagePage(): JSX.Element {
           costs,
         }),
       })
-      if (!res.ok) {
-        let msg = `create failed (${res.status})`
-        try {
-          const data = (await res.json()) as { error?: string }
-          if (data.error) msg = data.error
-        } catch {
-          /* ignore */
-        }
-        throw new Error(msg)
-      }
+      if (!res.ok) throw new Error(await readApiError(res, `create failed (${res.status})`))
       const data = (await res.json()) as { league: FantasyLeague }
       setTournamentId(null)
       setOverrides({})
-      setBaseCosts({})
       await Promise.all([refetchLeagues(), refetchUnused()])
       navigate(`/fantasy-manage/${data.league.id}`)
     } catch (err) {

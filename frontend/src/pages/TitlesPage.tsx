@@ -2,35 +2,17 @@ import { ConsoleCard } from '../components/ConsoleCard'
 import { UserTitles } from '../components/UserTitles'
 import { For, Match, Show, Switch, createResource, createSignal, type JSX } from 'solid-js'
 import { authFetch, isAdmin } from '../lib/auth'
-import type { AuthUser, UserTitle, UserTitleKind } from '../types/user'
-import type { FantasyLeague } from '../types/fantasy'
+import { fetchFantasyLeagues } from '../lib/api/fantasy'
+import { readApiError } from '../lib/api/http'
+import { fetchUsers } from '../lib/api/users'
+import type { UserTitle, UserTitleKind } from '../types/user'
 import { displayValue } from '../types/tournament'
 
 async function fetchTitles(): Promise<UserTitle[]> {
   const res = await authFetch('/api/user-titles')
-  if (!res.ok) throw new Error(`titles uplink failed (${res.status})`)
+  if (!res.ok) throw new Error(await readApiError(res, `titles uplink failed (${res.status})`))
   const data = (await res.json()) as { titles: UserTitle[] }
   return data.titles ?? []
-}
-
-async function fetchUsers(): Promise<AuthUser[]> {
-  const res = await authFetch('/api/users')
-  if (!res.ok) throw new Error(`users uplink failed (${res.status})`)
-  const data = (await res.json()) as { users: AuthUser[] }
-  return data.users ?? []
-}
-
-async function fetchLeagues(): Promise<FantasyLeague[]> {
-  const res = await authFetch('/api/fantasy-leagues')
-  if (!res.ok) throw new Error(`leagues uplink failed (${res.status})`)
-  const data = (await res.json()) as { leagues: FantasyLeague[] }
-  return data.leagues ?? []
-}
-
-function formError(res: Response, body: unknown, fallback: string): string {
-  const data = body as { error?: string }
-  if (data?.error) return data.error
-  return `${fallback} (${res.status})`
 }
 
 /** Awards list; admins can create and edit titles. */
@@ -42,7 +24,7 @@ export function TitlesPage(): JSX.Element {
   })
   const [leagues] = createResource(() => isAdmin(), async (admin) => {
     if (!admin) return []
-    return fetchLeagues()
+    return fetchFantasyLeagues()
   })
 
   const [editingId, setEditingId] = createSignal<number | null>(null)
@@ -101,15 +83,7 @@ export function TitlesPage(): JSX.Element {
         method: id == null ? 'POST' : 'PATCH',
         body,
       })
-      if (!res.ok) {
-        let parsed: unknown = null
-        try {
-          parsed = await res.json()
-        } catch {
-          /* ignore */
-        }
-        throw new Error(formError(res, parsed, 'Save failed'))
-      }
+      if (!res.ok) throw new Error(await readApiError(res, `Save failed (${res.status})`))
       resetForm()
       await refetch()
     } catch (err) {

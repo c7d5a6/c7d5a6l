@@ -400,6 +400,7 @@ func (r *Fantasy) ListGroups(ctx context.Context, q DBTX, leagueID int64) ([]mod
 			return nil, err
 		}
 		out = append(out, model.FantasyGroup{
+			ID:        g.id,
 			Name:      g.name,
 			Phase:     g.phase,
 			SortOrder: g.sortOrder,

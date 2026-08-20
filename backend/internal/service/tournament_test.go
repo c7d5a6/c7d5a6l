@@ -275,5 +275,98 @@ func TestTournamentSaveGroupsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTournamentSaveResultsUpsert(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	playerRepo := repository.NewPlayer(sqlDB)
+	tourRepo := repository.NewTournament(sqlDB)
+	jaedongLink := "https://liquipedia.net/starcraft/Jaedong"
+	flashLink := "https://liquipedia.net/starcraft/Flash"
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+		jaedongLink: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
+		flashLink:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
+	}, nil)
+
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/results-test",
+		Name: str("Results Test"),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+		},
+		Groups: []model.TournamentGroup{
+			{Name: "Group A", Phase: "Round of 24", SortOrder: 0, Players: []model.Participant{
+				{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+				{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+			}},
+		},
+		Results: []model.Result{
+			{
+				Played: false, Phase: "Round of 24", Round: "Group A", Order: 1,
+				DateTime:     str("2026-08-20T12:00:00Z"),
+				ParticipantA: &model.Participant{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+				ParticipantB: &model.Participant{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+			},
+		},
+	}
+	saved, _, err := svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Results) != 1 || saved.Results[0].Played {
+		t.Fatalf("saved results=%+v", saved.Results)
+	}
+	if saved.Results[0].GroupID == nil {
+		t.Fatal("expected groupId on result")
+	}
+
+	page.Results[0].Played = true
+	page.Results[0].ScoreA = intPtr(2)
+	page.Results[0].ScoreB = intPtr(1)
+	saved, _, err = svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Results) != 1 {
+		t.Fatalf("upsert should not duplicate, got %d", len(saved.Results))
+	}
+	if !saved.Results[0].Played || saved.Results[0].ScoreA == nil || *saved.Results[0].ScoreA != 2 {
+		t.Fatalf("updated result=%+v", saved.Results[0])
+	}
+
+	// Same pair meets again (e.g. double round-robin) — both rows kept.
+	page.Results = append(page.Results, model.Result{
+		Played: true, Phase: "Round of 24", Round: "Group A", Order: 2,
+		DateTime:     str("2026-08-21T12:00:00Z"),
+		ScoreA:       intPtr(1),
+		ScoreB:       intPtr(2),
+		ParticipantA: &model.Participant{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+		ParticipantB: &model.Participant{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+	})
+	saved, _, err = svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Results) != 2 {
+		t.Fatalf("rematch should keep both meetings, got %d: %+v", len(saved.Results), saved.Results)
+	}
+
+	var n int
+	if err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM tournament_result`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("db rows=%d want 2", n)
+	}
+}
+
 func intPtr(n int) *int       { return &n }
 func boolPtr(b bool) *bool    { return &b }

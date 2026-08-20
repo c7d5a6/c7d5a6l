@@ -1,6 +1,8 @@
 import { ConsoleCard } from '../components/ConsoleCard'
 import { ChampionMark } from '../components/ChampionMark'
-import { FantasyGroupsPanel, fetchFantasyGroups } from '../components/FantasyGroupsPanel'
+import { FantasyGroupsPanel } from '../components/FantasyGroupsPanel'
+import { FantasyResultsPanel } from '../components/FantasyResultsPanel'
+import { FantasyTodayPanel } from '../components/FantasyTodayPanel'
 import { TeamScoreMeta } from '../components/FantasyScoreReadout'
 import { Player } from '../components/Player'
 import { RosterPlayerChip } from '../components/RosterPlayerChip'
@@ -17,6 +19,13 @@ import {
   createSignal,
 } from 'solid-js'
 import { authFetch, authUser } from '../lib/auth'
+import {
+  fetchActiveFantasyLeague,
+  fetchFantasyGroups,
+  fetchFantasyMatchBoard,
+  fetchFantasyPlayers,
+  fetchFantasyTeams,
+} from '../lib/api/fantasy'
 import { displayValue } from '../types/tournament'
 import {
   POINT_STAGES,
@@ -29,48 +38,30 @@ import {
   type PointStage,
 } from '../types/fantasy'
 
-type TabId = 'points' | 'teams'
+type TabId = 'points' | 'teams' | 'results'
 type GroupsShell = 'off' | 'in' | 'out'
+type TodayShell = 'off' | 'in' | 'out'
 
-async function fetchActiveLeague(): Promise<FantasyLeague | null> {
-  const res = await authFetch('/api/fantasy-leagues/active')
-  if (res.status === 404) return null
-  if (!res.ok) throw new Error(`fantasy league uplink failed (${res.status})`)
-  const data = (await res.json()) as { league: FantasyLeague }
-  return data.league ?? null
-}
-
-async function fetchPlayers(leagueId: number, sort: string): Promise<FantasyPlayerRow[]> {
-  const res = await authFetch(`/api/fantasy-leagues/${leagueId}/players?sort=${sort}`)
-  if (!res.ok) throw new Error(`fantasy players uplink failed (${res.status})`)
-  const data = (await res.json()) as { players: FantasyPlayerRow[] }
-  return data.players ?? []
-}
-
-async function fetchTeams(leagueId: number): Promise<FantasyTeamRow[]> {
-  const res = await authFetch(`/api/fantasy-leagues/${leagueId}/teams`)
-  if (!res.ok) throw new Error(`fantasy teams uplink failed (${res.status})`)
-  const data = (await res.json()) as { teams: FantasyTeamRow[] }
-  return data.teams ?? []
-}
-
-/** Fantasy league channel — points and teams for the active league. */
+/** Fantasy league channel — points, teams, and results for the active league. */
 export function FantasyLeaguePage() {
-  const [league] = createResource(fetchActiveLeague)
+  const [league] = createResource(fetchActiveFantasyLeague)
   const [tab, setTab] = createSignal<TabId>('points')
   const [editingTeam, setEditingTeam] = createSignal(false)
   const [groupsShell, setGroupsShell] = createSignal<GroupsShell>('off')
+  const [todayShell, setTodayShell] = createSignal<TodayShell>('off')
 
   const leagueId = createMemo(() => league()?.id ?? null)
   const groupsPanelLive = createMemo(() => groupsShell() !== 'off')
+  const todayPanelLive = createMemo(() => todayShell() !== 'off')
+  const sideLive = createMemo(() => groupsPanelLive() || todayPanelLive())
 
   const [pointPlayers, { refetch: refetchPlayers }] = createResource(
     () => leagueId(),
-    (id) => (id == null ? Promise.resolve([] as FantasyPlayerRow[]) : fetchPlayers(id, 'elo')),
+    (id) => (id == null ? Promise.resolve([] as FantasyPlayerRow[]) : fetchFantasyPlayers(id, 'elo')),
   )
   const [teams, { refetch: refetchTeams }] = createResource(
     () => leagueId(),
-    (id) => (id == null ? Promise.resolve([] as FantasyTeamRow[]) : fetchTeams(id)),
+    (id) => (id == null ? Promise.resolve([] as FantasyTeamRow[]) : fetchFantasyTeams(id)),
   )
 
   const groupsFetchKey = createMemo(() => {
@@ -78,6 +69,9 @@ export function FantasyLeaguePage() {
     return leagueId()
   })
   const [groups] = createResource(groupsFetchKey, (id) => fetchFantasyGroups(id))
+
+  const boardKey = createMemo(() => (tab() === 'results' ? leagueId() : null))
+  const [matchBoard] = createResource(boardKey, (id) => fetchFantasyMatchBoard(id))
 
   // Mount side panel only after groups load so height matches content.
   createEffect(() => {
@@ -87,9 +81,20 @@ export function FantasyLeaguePage() {
     if (groups.state === 'ready' || groups.error) setGroupsShell('in')
   })
 
+  createEffect(() => {
+    if (tab() !== 'results') {
+      if (todayShell() === 'in') setTodayShell('out')
+      return
+    }
+    if (matchBoard.loading) return
+    if (todayShell() !== 'off') return
+    if (matchBoard.state === 'ready' || matchBoard.error) setTodayShell('in')
+  })
+
   function setEditing(next: boolean) {
     if (next) {
       setEditingTeam(true)
+      if (todayShell() === 'in') setTodayShell('out')
       return
     }
     setEditingTeam(false)
@@ -97,11 +102,16 @@ export function FantasyLeaguePage() {
     else setGroupsShell('off')
   }
 
+  function setResultsTab() {
+    setTab('results')
+    if (editingTeam()) setEditing(false)
+  }
+
   return (
     <div
       classList={{
         'fantasy-league-layout': true,
-        'fantasy-league-layout--side': groupsPanelLive(),
+        'fantasy-league-layout--side': sideLive(),
       }}
     >
       <ConsoleCard class="console--wide">
@@ -193,6 +203,15 @@ export function FantasyLeaguePage() {
                   >
                     Teams
                   </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    classList={{ tab: true, 'tab--active': tab() === 'results' }}
+                    aria-selected={tab() === 'results'}
+                    onClick={() => setResultsTab()}
+                  >
+                    Results
+                  </button>
                 </nav>
 
                 <Switch>
@@ -208,6 +227,13 @@ export function FantasyLeaguePage() {
                       loading={teams.loading}
                       error={teams.error}
                       teams={teams() ?? []}
+                    />
+                  </Match>
+                  <Match when={tab() === 'results'}>
+                    <FantasyResultsPanel
+                      board={matchBoard()}
+                      loading={matchBoard.loading}
+                      error={matchBoard.error}
                     />
                   </Match>
                 </Switch>
@@ -227,6 +253,20 @@ export function FantasyLeaguePage() {
         >
           <FantasyGroupsPanel groups={groups() ?? []} error={groups.error} />
         </ConsoleCard>
+      </Show>
+
+      <Show when={todayPanelLive() && matchBoard()}>
+        {(board) => (
+          <ConsoleCard
+            class="console--side"
+            hazard="right"
+            drop
+            exiting={todayShell() === 'out'}
+            onExitEnd={() => setTodayShell('off')}
+          >
+            <FantasyTodayPanel board={board()} teams={teams() ?? []} />
+          </ConsoleCard>
+        )}
       </Show>
     </div>
   )
@@ -554,7 +594,7 @@ function FantasyTeamsPanel(props: {
                                 points={m.pointsEarned}
                                 defeated={m.defeated}
                                 isWinner={m.isWinner}
-                                highlighted={hoverPlayerId() === m.fantasyPlayerId}
+                                hoverId={hoverPlayerId}
                                 onHighlight={setHoverPlayerId}
                               />
                             </li>

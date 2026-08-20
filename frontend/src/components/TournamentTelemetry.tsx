@@ -1,12 +1,14 @@
 import { For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { RACE_META } from '../lib/races'
+import { groupsByPhase } from '../lib/groupsByPhase'
+import { resultsForGroup } from '../lib/matchBoard'
 import {
   displayChangeValue,
   displayValue,
-  type TournamentGroup,
   type TournamentPage,
   type TournamentSync,
 } from '../types/tournament'
+import { GroupCard, MatchRow } from './GroupCard'
 import { Player } from './Player'
 
 const RACE_STATS = ['protoss', 'terran', 'zerg'] as const
@@ -23,16 +25,7 @@ export function TournamentTelemetry(props: {
   const counts = () => t().playerCounts
   const groups = () => t().groups ?? []
 
-  const groupsByPhase = createMemo(() => {
-    const map = new Map<string, TournamentGroup[]>()
-    for (const g of groups()) {
-      const phase = g.phase || '—'
-      const list = map.get(phase) ?? []
-      list.push(g)
-      map.set(phase, list)
-    }
-    return [...map.entries()]
-  })
+  const byPhase = createMemo(() => groupsByPhase(groups()))
 
   const dbStatus = createMemo(() => {
     const s = sync()
@@ -224,29 +217,17 @@ export function TournamentTelemetry(props: {
               when={groups().length > 0}
               fallback={<p class="telemetry__val">No groups parsed yet</p>}
             >
-              <For each={groupsByPhase()}>
+              <For each={byPhase()}>
                 {([phase, phaseGroups]) => (
                   <div class="telemetry__block">
                     <div class="telemetry__block-head">{phase}</div>
                     <For each={phaseGroups}>
                       {(g) => (
-                        <div class="telemetry__group">
-                          <div class="telemetry__group-name">{g.name}</div>
-                          <ul class="telemetry__list telemetry__list--chips">
-                            <For each={g.players}>
-                              {(p) => (
-                                <li>
-                                  <Player
-                                    name={p.name}
-                                    link={p.link}
-                                    race={p.race}
-                                    excluded={p.excluded}
-                                  />
-                                </li>
-                              )}
-                            </For>
-                          </ul>
-                        </div>
+                        <GroupCard
+                          name={g.name}
+                          players={g.players}
+                          results={resultsForGroup(t().results ?? [], g.id, g.phase, g.name)}
+                        />
                       )}
                     </For>
                   </div>
@@ -265,64 +246,9 @@ export function TournamentTelemetry(props: {
               when={t().results.length > 0}
               fallback={<p class="telemetry__val">No results parsed yet</p>}
             >
-              <ul class="telemetry__matches">
-                <For each={t().results}>
-                  {(m) => (
-                    <li classList={{ telemetry__match: true, 'telemetry__match--pending': !m.played }}>
-                      <span class="telemetry__match-order">#{m.order}</span>
-                      <div class="telemetry__match-body">
-                        <div class="telemetry__match-meta">
-                          <span class="telemetry__match-stage">{displayValue(m.stage)}</span>
-                          <span class="telemetry__match-time">{displayValue(m.dateTime)}</span>
-                        </div>
-                        <div class="telemetry__match-line">
-                          <div class="telemetry__match-side telemetry__match-side--a">
-                            <Show when={m.participantA} fallback={<span class="telemetry__val">—</span>}>
-                              {(p) => (
-                                <Player
-                                  name={p().name}
-                                  link={p().link}
-                                  race={p().race}
-                                  excluded={p().excluded}
-                                  loser={
-                                    m.played &&
-                                    m.scoreA != null &&
-                                    m.scoreB != null &&
-                                    m.scoreA < m.scoreB
-                                  }
-                                />
-                              )}
-                            </Show>
-                          </div>
-                          <span class="telemetry__match-score">
-                            <Show when={m.played} fallback={<span class="telemetry__match-vs">vs</span>}>
-                              {displayValue(m.scoreA)}:{displayValue(m.scoreB)}
-                            </Show>
-                          </span>
-                          <div class="telemetry__match-side telemetry__match-side--b">
-                            <Show when={m.participantB} fallback={<span class="telemetry__val">—</span>}>
-                              {(p) => (
-                                <Player
-                                  name={p().name}
-                                  link={p().link}
-                                  race={p().race}
-                                  excluded={p().excluded}
-                                  loser={
-                                    m.played &&
-                                    m.scoreA != null &&
-                                    m.scoreB != null &&
-                                    m.scoreB < m.scoreA
-                                  }
-                                />
-                              )}
-                            </Show>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  )}
-                </For>
-              </ul>
+              <div class="group-card__matches telemetry__match-list">
+                <For each={t().results}>{(m) => <MatchRow result={m} />}</For>
+              </div>
             </Show>
           </div>
         </Match>

@@ -1,4 +1,5 @@
 import type { JSX } from 'solid-js'
+import { ActionPanel } from './ActionPanel'
 
 export type ActionDockProps = {
   okLabel?: string
@@ -49,33 +50,6 @@ export function ActionDock(props: ActionDockProps): JSX.Element {
         disabled={busy() || Boolean(props.exiting)}
         onClick={() => props.onCancel()}
       />
-    </div>
-  )
-}
-
-function ActionPanel(props: {
-  label: string
-  kind: 'ok' | 'cancel'
-  disabled?: boolean
-  onClick: () => void
-}) {
-  return (
-    <div class={`action-panel action-panel--${props.kind}`}>
-      <div class="action-panel__metal action-panel__metal--outer" aria-hidden="true" />
-      <div class="action-panel__hazard" aria-hidden="true" />
-      <div class="action-panel__metal action-panel__metal--mid" aria-hidden="true" />
-      <div class="action-panel__well">
-        <div class="action-panel__red">
-          <button
-            type="button"
-            class={`action-panel__btn action-panel__btn--${props.kind}`}
-            disabled={props.disabled}
-            onClick={() => props.onClick()}
-          >
-            {props.label}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

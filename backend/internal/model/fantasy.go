@@ -86,8 +86,16 @@ type FantasyGroupPlayer struct {
 
 // FantasyGroup is a tournament group with fantasy costs for drafting.
 type FantasyGroup struct {
+	ID        int64                `json:"id"`
 	Name      string               `json:"name"`
 	Phase     string               `json:"phase"`
 	SortOrder int                  `json:"sortOrder"`
 	Players   []FantasyGroupPlayer `json:"players"`
+}
+
+// FantasyMatchBoard is groups + results for the Results tab / today panel.
+type FantasyMatchBoard struct {
+	Groups  []FantasyGroup `json:"groups"`
+	Results []Result       `json:"results"`
+	Today   string         `json:"today"` // YYYY-MM-DD UTC
 }

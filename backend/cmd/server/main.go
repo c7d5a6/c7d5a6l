@@ -6,12 +6,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/c7d5a6/c7d5a6l/internal/api"
 	"github.com/c7d5a6/c7d5a6l/internal/db"
 	"github.com/c7d5a6/c7d5a6l/internal/debuglog"
+	"github.com/c7d5a6/c7d5a6l/internal/job"
 	"github.com/c7d5a6/c7d5a6l/internal/liquipedia"
 	"github.com/c7d5a6/c7d5a6l/internal/middleware"
 	"github.com/c7d5a6/c7d5a6l/internal/model"
@@ -50,7 +53,7 @@ func main() {
 		lpClient,
 	)
 	fantasyRepo := repository.NewFantasy(sqlDB)
-	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo)
+	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo, tournamentRepo)
 	userRepo := repository.NewUser(sqlDB)
 	titleRepo := repository.NewTitle(sqlDB)
 	titleSvc := service.NewTitle(sqlDB, titleRepo, userRepo, fantasyRepo)
@@ -109,6 +112,7 @@ func main() {
 	mux.HandleFunc("GET /api/fantasy-leagues/{id}/players", apiServer.ListFantasyPlayers)
 	mux.Handle("PATCH /api/fantasy-leagues/{id}/players/{playerId}", requireAdmin(apiServer.PatchFantasyPlayer))
 	mux.HandleFunc("GET /api/fantasy-leagues/{id}/groups", apiServer.ListFantasyGroups)
+	mux.HandleFunc("GET /api/fantasy-leagues/{id}/match-board", apiServer.GetFantasyMatchBoard)
 	mux.HandleFunc("GET /api/fantasy-leagues/{id}/teams", apiServer.ListFantasyTeams)
 	mux.Handle("POST /api/fantasy-leagues/{id}/teams", requireAdmin(apiServer.CreateFantasyTeam))
 	mux.Handle("PUT /api/fantasy-leagues/{id}/teams/{teamId}", requireAdmin(apiServer.UpdateFantasyTeam))
@@ -129,11 +133,27 @@ func main() {
 	mux.Handle("PATCH /api/user-titles/{id}", requireAdmin(apiServer.UpdateUserTitle))
 	mux.Handle("DELETE /api/user-titles/{id}", requireAdmin(apiServer.DeleteUserTitle))
 
+	sched := job.StartRefreshTournaments(tournamentSvc, lpClient)
+
 	addr := ":18765"
-	log.Printf("backend listening on %s", addr)
-	if err := http.ListenAndServe(addr, withCORS(mux)); err != nil {
-		log.Fatal(err)
-	}
+	srv := &http.Server{Addr: addr, Handler: withCORS(mux)}
+	go func() {
+		log.Printf("backend listening on %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigCh
+	log.Printf("shutdown signal=%v", sig)
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(shutdownCtx)
+	<-sched.Stop().Done()
+	log.Printf("shutdown complete")
 }
 
 func withCORS(next http.Handler) http.Handler {

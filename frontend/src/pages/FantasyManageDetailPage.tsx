@@ -6,14 +6,18 @@ import { TeamEditor } from '../components/TeamEditor'
 import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, type JSX } from 'solid-js'
 import { A } from '@solidjs/router'
 import { authFetch } from '../lib/auth'
+import {
+  fetchFantasyLeague,
+  fetchFantasyPlayers,
+  fetchFantasyTeams,
+} from '../lib/api/fantasy'
+import { readApiError } from '../lib/api/http'
+import { fetchUsers } from '../lib/api/users'
 import { displayValue } from '../types/tournament'
-import type { AuthUser } from '../types/user'
 import {
   POINT_STAGES,
   sortByElo,
-  type FantasyLeague,
   type FantasyPlayerRow,
-  type FantasyTeamRow,
   type PointStage,
 } from '../types/fantasy'
 
@@ -28,34 +32,6 @@ type PlayerDraft = {
   pointsRo2: number | null
   defeated: boolean
   isWinner: boolean
-}
-
-async function fetchLeague(id: number): Promise<FantasyLeague> {
-  const res = await authFetch(`/api/fantasy-leagues/${id}`)
-  if (!res.ok) throw new Error(`league failed (${res.status})`)
-  const data = (await res.json()) as { league: FantasyLeague }
-  return data.league
-}
-
-async function fetchPlayers(id: number): Promise<FantasyPlayerRow[]> {
-  const res = await authFetch(`/api/fantasy-leagues/${id}/players?sort=elo`)
-  if (!res.ok) throw new Error(`players failed (${res.status})`)
-  const data = (await res.json()) as { players: FantasyPlayerRow[] }
-  return data.players ?? []
-}
-
-async function fetchTeams(id: number): Promise<FantasyTeamRow[]> {
-  const res = await authFetch(`/api/fantasy-leagues/${id}/teams`)
-  if (!res.ok) throw new Error(`teams failed (${res.status})`)
-  const data = (await res.json()) as { teams: FantasyTeamRow[] }
-  return data.teams ?? []
-}
-
-async function fetchUsers(): Promise<AuthUser[]> {
-  const res = await authFetch('/api/users')
-  if (!res.ok) throw new Error(`users failed (${res.status})`)
-  const data = (await res.json()) as { users: AuthUser[] }
-  return data.users ?? []
 }
 
 function toDraft(p: FantasyPlayerRow): PlayerDraft {
@@ -88,27 +64,21 @@ function stageField(
   }
 }
 
-async function readErr(res: Response): Promise<string> {
-  try {
-    const data = (await res.json()) as { error?: string }
-    if (data.error) return data.error
-  } catch {
-    /* ignore */
-  }
-  return `request failed (${res.status})`
-}
-
 /** Admin detail for one fantasy league. */
 export function FantasyManageDetailPage(props: Props): JSX.Element {
   const leagueId = () => props.leagueId
-  const [league, { refetch: refetchLeague }] = createResource(leagueId, fetchLeague)
-  const [players, { refetch: refetchPlayers }] = createResource(leagueId, fetchPlayers)
-  const [teams, { refetch: refetchTeams }] = createResource(leagueId, fetchTeams)
+  const [league, { refetch: refetchLeague }] = createResource(leagueId, fetchFantasyLeague)
+  const [players, { refetch: refetchPlayers }] = createResource(leagueId, (id) =>
+    fetchFantasyPlayers(id),
+  )
+  const [teams, { refetch: refetchTeams }] = createResource(leagueId, fetchFantasyTeams)
   const [users] = createResource(fetchUsers)
 
   const [maxPlayers, setMaxPlayers] = createSignal(6)
   const [maxCost, setMaxCost] = createSignal(28)
+  const [capsDirty, setCapsDirty] = createSignal(false)
   const [drafts, setDrafts] = createSignal<Record<number, PlayerDraft>>({})
+  const [draftsDirty, setDraftsDirty] = createSignal(false)
   const [msg, setMsg] = createSignal<string | null>(null)
   const [err, setErr] = createSignal<string | null>(null)
   const [busy, setBusy] = createSignal(false)
@@ -127,22 +97,28 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
 
   createEffect(() => {
     const l = league()
-    if (l) {
-      setMaxPlayers(l.maxPlayers)
-      setMaxCost(l.maxCost)
-    }
+    if (!l || capsDirty()) return
+    setMaxPlayers(l.maxPlayers)
+    setMaxCost(l.maxCost)
   })
 
   createEffect(() => {
     const rows = players()
-    if (!rows) return
+    if (!rows || draftsDirty()) return
     const next: Record<number, PlayerDraft> = {}
     for (const p of rows) next[p.id] = toDraft(p)
     setDrafts(next)
   })
 
   function patchDraft(id: number, patch: Partial<PlayerDraft>) {
+    setDraftsDirty(true)
     setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+  }
+
+  function patchCaps(kind: 'players' | 'cost', value: number) {
+    setCapsDirty(true)
+    if (kind === 'players') setMaxPlayers(value)
+    else setMaxCost(value)
   }
 
   async function saveCaps() {
@@ -154,7 +130,8 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
         method: 'PATCH',
         body: JSON.stringify({ maxPlayers: maxPlayers(), maxCost: maxCost() }),
       })
-      if (!res.ok) throw new Error(await readErr(res))
+      if (!res.ok) throw new Error(await readApiError(res))
+      setCapsDirty(false)
       setMsg('Caps saved')
       await refetchLeague()
     } catch (e) {
@@ -169,7 +146,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
     setErr(null)
     try {
       const res = await authFetch(`/api/fantasy-leagues/${leagueId()}/start`, { method: 'POST' })
-      if (!res.ok) throw new Error(await readErr(res))
+      if (!res.ok) throw new Error(await readApiError(res))
       setMsg('League started')
       await refetchLeague()
     } catch (e) {
@@ -184,7 +161,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
     setErr(null)
     try {
       const res = await authFetch(`/api/fantasy-leagues/${leagueId()}/finish`, { method: 'POST' })
-      if (!res.ok) throw new Error(await readErr(res))
+      if (!res.ok) throw new Error(await readApiError(res))
       setMsg('League finished')
       await refetchLeague()
     } catch (e) {
@@ -217,9 +194,10 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
             isWinner: draft.isWinner,
           }),
         })
-        if (!res.ok) throw new Error(await readErr(res))
+        if (!res.ok) throw new Error(await readApiError(res))
       }
       setMsg('Players saved')
+      setDraftsDirty(false)
       await refetchPlayers()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Save players failed')
@@ -238,7 +216,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
         method: 'POST',
         body: JSON.stringify({ userId: uid, fantasyPlayerIds: addIds() }),
       })
-      if (!res.ok) throw new Error(await readErr(res))
+      if (!res.ok) throw new Error(await readApiError(res))
       setAddUserId(null)
       setAddIds([])
       setMsg('Team created')
@@ -260,7 +238,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
         method: 'PUT',
         body: JSON.stringify({ fantasyPlayerIds: editIds() }),
       })
-      if (!res.ok) throw new Error(await readErr(res))
+      if (!res.ok) throw new Error(await readApiError(res))
       setEditingTeamId(null)
       setEditIds([])
       setMsg('Team updated')
@@ -280,7 +258,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
       const res = await authFetch(`/api/fantasy-leagues/${leagueId()}/teams/${teamId}`, {
         method: 'DELETE',
       })
-      if (!res.ok) throw new Error(await readErr(res))
+      if (!res.ok) throw new Error(await readApiError(res))
       if (editingTeamId() === teamId) {
         setEditingTeamId(null)
         setEditIds([])
@@ -360,7 +338,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
                       type="number"
                       min={1}
                       value={maxPlayers()}
-                      onInput={(e) => setMaxPlayers(Number(e.currentTarget.value) || 1)}
+                      onInput={(e) => patchCaps('players', Number(e.currentTarget.value) || 1)}
                     />
                   </span>
                 </label>
@@ -372,7 +350,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
                       type="number"
                       min={1}
                       value={maxCost()}
-                      onInput={(e) => setMaxCost(Number(e.currentTarget.value) || 1)}
+                      onInput={(e) => patchCaps('cost', Number(e.currentTarget.value) || 1)}
                     />
                   </span>
                 </label>

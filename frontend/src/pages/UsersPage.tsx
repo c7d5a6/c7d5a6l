@@ -1,36 +1,16 @@
 import { ConsoleCard } from '../components/ConsoleCard'
 import { For, Match, Show, Switch, createResource, createSignal, type JSX } from 'solid-js'
 import { authFetch } from '../lib/auth'
+import { readApiError } from '../lib/api/http'
+import { fetchUsers } from '../lib/api/users'
 import type { AuthUser } from '../types/user'
-
-type ListUsersResponse = {
-  users: AuthUser[]
-}
-
-async function fetchUsers(): Promise<AuthUser[]> {
-  const res = await authFetch('/api/users')
-  if (!res.ok) {
-    throw new Error(`users uplink failed (${res.status})`)
-  }
-  const data = (await res.json()) as ListUsersResponse
-  return data.users ?? []
-}
 
 async function createUser(alias: string): Promise<AuthUser> {
   const res = await authFetch('/api/users', {
     method: 'POST',
     body: JSON.stringify({ alias }),
   })
-  if (!res.ok) {
-    let msg = `create user failed (${res.status})`
-    try {
-      const data = (await res.json()) as { error?: string }
-      if (data.error) msg = data.error
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg)
-  }
+  if (!res.ok) throw new Error(await readApiError(res, `create user failed (${res.status})`))
   const data = (await res.json()) as { user: AuthUser }
   return data.user
 }

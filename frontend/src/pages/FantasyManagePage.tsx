@@ -1,4 +1,5 @@
 import { ConsoleCard } from '../components/ConsoleCard'
+import { ChannelHead } from '../components/ChannelChrome'
 import { Player } from '../components/Player'
 import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, type JSX } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
@@ -130,6 +131,9 @@ export function FantasyManagePage(): JSX.Element {
         </h1>
       </header>
       <hr class="rule" />
+
+      <div class="channel-stack">
+        <ChannelHead tag="Admin" title="Create league" />
 
       <form class="fantasy-create" onSubmit={(e) => void onCreate(e)}>
         <label class="field">
@@ -273,7 +277,7 @@ export function FantasyManagePage(): JSX.Element {
         <p class="status status--error">{error()}</p>
       </Show>
 
-      <hr class="rule" />
+      <ChannelHead tag="Admin" title="Leagues" />
 
       <Switch>
         <Match when={leagues.loading}>
@@ -336,6 +340,7 @@ export function FantasyManagePage(): JSX.Element {
           )}
         </Match>
       </Switch>
+      </div>
     </ConsoleCard>
   )
 }

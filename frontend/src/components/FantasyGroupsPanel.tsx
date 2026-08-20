@@ -1,6 +1,8 @@
 import { For, Match, Show, Switch, createMemo, type JSX } from 'solid-js'
+import { ChannelHead, RailSection } from './ChannelChrome'
 import { GroupCard } from './GroupCard'
 import { groupsByPhase } from '../lib/groupsByPhase'
+import { isPlayoffsPhase } from '../lib/matchBoard'
 import type { FantasyGroup } from '../types/fantasy'
 
 export type FantasyGroupsPanelProps = {
@@ -16,12 +18,8 @@ export function FantasyGroupsPanel(props: FantasyGroupsPanelProps): JSX.Element 
   const byPhase = createMemo(() => groupsByPhase(props.groups))
 
   return (
-    <div class="fantasy-groups">
-      <header class="fantasy-groups__head">
-        <p class="brand__eyebrow">Draft · Groups</p>
-        <h2 class="fantasy-groups__title">Groups</h2>
-      </header>
-      <hr class="rule" />
+    <div class="fantasy-groups channel-stack">
+      <ChannelHead tag="Draft · Groups" title="Groups" compact />
 
       <Switch>
         <Match when={props.error}>
@@ -35,14 +33,16 @@ export function FantasyGroupsPanel(props: FantasyGroupsPanelProps): JSX.Element 
         <Match when={true}>
           <For each={byPhase()}>
             {([phase, phaseGroups]) => (
-              <div class="telemetry__block">
-                <Show when={phase}>
-                  <div class="telemetry__block-head">{phase}</div>
-                </Show>
+              <RailSection
+                label="Phase"
+                title={phase || '—'}
+                hazard={isPlayoffsPhase(phase)}
+              >
                 <For each={phaseGroups}>
                   {(g) => (
                     <GroupCard
                       name={g.name}
+                      playoff={isPlayoffsPhase(g.phase)}
                       players={g.players}
                       playerExtra={(p) => {
                         const fp = g.players.find(
@@ -57,7 +57,7 @@ export function FantasyGroupsPanel(props: FantasyGroupsPanelProps): JSX.Element 
                     />
                   )}
                 </For>
-              </div>
+              </RailSection>
             )}
           </For>
         </Match>

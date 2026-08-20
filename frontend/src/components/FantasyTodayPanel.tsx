@@ -1,4 +1,5 @@
 import { For, Show, createMemo, type JSX } from 'solid-js'
+import { ChannelHead, NestedPlate, RailSection } from './ChannelChrome'
 import { MatchRow } from './GroupCard'
 import { Player } from './Player'
 import { participantLinksInResults, pickDayMatches } from '../lib/matchBoard'
@@ -28,44 +29,41 @@ export function FantasyTodayPanel(props: FantasyTodayPanelProps): JSX.Element {
   })
 
   return (
-    <div class="fantasy-today">
-      <header class="fantasy-groups__head">
-        <p class="brand__eyebrow">Match day</p>
-        <h2 class="fantasy-groups__title">{day().label}</h2>
-      </header>
-      <hr class="rule" />
+    <div class="fantasy-today channel-stack">
+      <ChannelHead tag="Match day" title={day().label} compact />
 
       <Show
         when={day().matches.length > 0}
         fallback={<p class="status status--idle">No scheduled matches</p>}
       >
-        <div class="fantasy-today__matches">
-          <For each={day().matches}>{(m) => <MatchRow result={m} compact />}</For>
-        </div>
+        <NestedPlate class="nested-plate--flush">
+          <div class="fantasy-today__matches group-card__matches">
+            <For each={day().matches}>{(m) => <MatchRow result={m} compact />}</For>
+          </div>
+        </NestedPlate>
       </Show>
 
       <Show when={operators().length > 0}>
-        <div class="telemetry__block-head" style={{ 'margin-top': '0.85rem' }}>
-          Operators
-        </div>
-        <ul class="fantasy-today__ops">
-          <For each={operators()}>
-            {(row) => (
-              <li class="fantasy-today__op">
-                <span class="fantasy-today__alias">{row.team.userAlias}</span>
-                <ul class="telemetry__list telemetry__list--chips">
-                  <For each={row.members}>
-                    {(m) => (
-                      <li>
-                        <Player name={m.name} link={m.link} race={m.race} />
-                      </li>
-                    )}
-                  </For>
-                </ul>
-              </li>
-            )}
-          </For>
-        </ul>
+        <RailSection label="Channel" title="Operators">
+          <ul class="fantasy-today__ops">
+            <For each={operators()}>
+              {(row) => (
+                <li class="fantasy-today__op">
+                  <span class="fantasy-today__alias">{row.team.userAlias}</span>
+                  <ul class="telemetry__list telemetry__list--chips">
+                    <For each={row.members}>
+                      {(m) => (
+                        <li>
+                          <Player name={m.name} link={m.link} race={m.race} />
+                        </li>
+                      )}
+                    </For>
+                  </ul>
+                </li>
+              )}
+            </For>
+          </ul>
+        </RailSection>
       </Show>
     </div>
   )

@@ -1,4 +1,5 @@
 import { ConsoleCard } from '../components/ConsoleCard'
+import { ChannelHead, NestedPlate } from '../components/ChannelChrome'
 import { UserTitles } from '../components/UserTitles'
 import { For, Match, Show, Switch, createResource, createSignal, type JSX } from 'solid-js'
 import { authFetch, isAdmin } from '../lib/auth'
@@ -119,7 +120,10 @@ export function TitlesPage(): JSX.Element {
       </header>
       <hr class="rule" />
 
+      <div class="channel-stack">
       <Show when={isAdmin()}>
+        <ChannelHead tag="Admin" title={editingId() != null ? 'Edit title' : 'Create title'} />
+        <NestedPlate>
         <form class="titles-form" onSubmit={(e) => void onSave(e)}>
           <label class="field">
             <span class="field__label">Operator</span>
@@ -234,8 +238,10 @@ export function TitlesPage(): JSX.Element {
         <Show when={error()}>
           <p class="status status--error">{error()}</p>
         </Show>
+        </NestedPlate>
       </Show>
 
+      <ChannelHead tag="Awards" title="Titles" />
       <Switch>
         <Match when={titles.loading}>
           <p class="status status--idle">Locking titles uplink…</p>
@@ -316,6 +322,7 @@ export function TitlesPage(): JSX.Element {
           )}
         </Match>
       </Switch>
+      </div>
     </ConsoleCard>
   )
 }

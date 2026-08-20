@@ -1,4 +1,5 @@
 import { ConsoleCard } from '../components/ConsoleCard'
+import { ChannelHead, NestedPlate, RailSection } from '../components/ChannelChrome'
 import { TeamScoreMeta } from '../components/FantasyScoreReadout'
 import { Player } from '../components/Player'
 import { RosterPlayerChip } from '../components/RosterPlayerChip'
@@ -329,46 +330,51 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
             </div>
 
             <Show when={!l().started}>
-              <div class="fantasy-create__row">
-                <label class="field">
-                  <span class="field__label">Max players</span>
-                  <span class="field__shell">
-                    <input
-                      class="field__input"
-                      type="number"
-                      min={1}
-                      value={maxPlayers()}
-                      onInput={(e) => patchCaps('players', Number(e.currentTarget.value) || 1)}
-                    />
-                  </span>
-                </label>
-                <label class="field">
-                  <span class="field__label">Max cost</span>
-                  <span class="field__shell">
-                    <input
-                      class="field__input"
-                      type="number"
-                      min={1}
-                      value={maxCost()}
-                      onInput={(e) => patchCaps('cost', Number(e.currentTarget.value) || 1)}
-                    />
-                  </span>
-                </label>
-                <button type="button" class="btn btn--primary" disabled={busy()} onClick={() => void saveCaps()}>
-                  Save caps
-                </button>
-              </div>
+              <RailSection label="Config" title="Caps">
+                <div class="fantasy-create__row">
+                  <label class="field">
+                    <span class="field__label">Max players</span>
+                    <span class="field__shell">
+                      <input
+                        class="field__input"
+                        type="number"
+                        min={1}
+                        value={maxPlayers()}
+                        onInput={(e) => patchCaps('players', Number(e.currentTarget.value) || 1)}
+                      />
+                    </span>
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Max cost</span>
+                    <span class="field__shell">
+                      <input
+                        class="field__input"
+                        type="number"
+                        min={1}
+                        value={maxCost()}
+                        onInput={(e) => patchCaps('cost', Number(e.currentTarget.value) || 1)}
+                      />
+                    </span>
+                  </label>
+                  <button type="button" class="btn btn--primary" disabled={busy()} onClick={() => void saveCaps()}>
+                    Save caps
+                  </button>
+                </div>
+              </RailSection>
             </Show>
           </>
         )}
       </Show>
 
-      <div class="fantasy-section-head">
-        <h2 class="fantasy-section-title">Players</h2>
-        <button type="button" class="btn btn--primary" disabled={busy()} onClick={() => void savePlayers()}>
-          {busy() ? 'Saving…' : 'Save players'}
-        </button>
-      </div>
+      <ChannelHead
+        tag="Admin"
+        title="Players"
+        actions={
+          <button type="button" class="btn btn--primary" disabled={busy()} onClick={() => void savePlayers()}>
+            {busy() ? 'Saving…' : 'Save players'}
+          </button>
+        }
+      />
 
       <Switch>
         <Match when={players.loading}>
@@ -380,12 +386,18 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
               {(p) => {
                 const d = () => drafts()[p.id] ?? toDraft(p)
                 return (
-                  <div
-                    classList={{
-                      'fantasy-admin-player': true,
-                      'fantasy-admin-player--defeated': d().defeated,
-                      'fantasy-admin-player--winner': d().isWinner,
-                    }}
+                  <NestedPlate
+                    class={
+                      [
+                        'fantasy-admin-player',
+                        d().defeated ? 'fantasy-admin-player--defeated' : '',
+                        d().isWinner ? 'fantasy-admin-player--winner' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')
+                    }
+                    live={d().isWinner}
+                    hazard={d().defeated}
                   >
                     <div class="fantasy-admin-player__head">
                       <Player name={p.name} link={p.link} race={p.race} />
@@ -457,7 +469,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
                         {d().isWinner ? 'Clear champion' : 'Mark champion'}
                       </button>
                     </div>
-                  </div>
+                  </NestedPlate>
                 )
               }}
             </For>
@@ -465,7 +477,7 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
         </Match>
       </Switch>
 
-      <h2 class="fantasy-section-title">Teams</h2>
+      <ChannelHead tag="Admin" title="Teams" />
       <Show when={league()}>
         {(l) => (
           <div class="fantasy-admin-add-team">

@@ -1,4 +1,5 @@
 import { For, Match, Show, Switch, createMemo, type JSX } from 'solid-js'
+import { ChannelHead, RailSection } from './ChannelChrome'
 import { GroupCard } from './GroupCard'
 import { isPlayoffsPhase, partitionGroups, type GroupWithResults } from '../lib/matchBoard'
 import type { FantasyGroup, FantasyMatchBoard } from '../types/fantasy'
@@ -58,27 +59,15 @@ function ResultsSection(props: {
   return (
     <Show when={props.entries.length > 0}>
       <section class="fantasy-results__section">
-        <header class="fantasy-results__section-head">
-          <span class="fantasy-results__section-tag">Match board</span>
-          <h2 class="fantasy-results__section-title">{props.title}</h2>
-        </header>
+        <ChannelHead tag="Match board" title={props.title} />
 
         <For each={phases()}>
           {([phase, entries]) => (
-            <div
-              classList={{
-                'fantasy-results__phase': true,
-                'fantasy-results__phase--playoffs': isPlayoffsPhase(phase),
-              }}
+            <RailSection
+              label="Phase"
+              title={phase}
+              hazard={isPlayoffsPhase(phase)}
             >
-              <header class="fantasy-results__phase-head">
-                <span class="fantasy-results__phase-rail" aria-hidden="true" />
-                <div class="fantasy-results__phase-copy">
-                  <span class="fantasy-results__phase-label">Phase</span>
-                  <h3 class="fantasy-results__phase-title">{phase}</h3>
-                </div>
-              </header>
-
               <div
                 classList={{
                   'fantasy-results__grid': true,
@@ -97,7 +86,7 @@ function ResultsSection(props: {
                   )}
                 </For>
               </div>
-            </div>
+            </RailSection>
           )}
         </For>
       </section>

@@ -1,4 +1,5 @@
 import { ConsoleCard } from '../components/ConsoleCard'
+import { ChannelHead, NestedPlate } from '../components/ChannelChrome'
 import { UserTitles } from '../components/UserTitles'
 import { Show, createEffect, createSignal, type JSX } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
@@ -55,12 +56,14 @@ export function MePage(): JSX.Element {
       </header>
       <hr class="rule" />
 
+      <div class="channel-stack">
+        <ChannelHead tag="Identity" title="Profile" />
       <Show
         when={authUser()}
         fallback={<p class="status status--idle">No active session — use Login on the auth dock.</p>}
       >
         {(u) => (
-          <div class="me-profile">
+          <NestedPlate class="me-profile">
             <Show when={u().photoUrl}>
               {(src) => (
                 <img class="me-profile__photo" src={src()} alt="" width={96} height={96} referrerPolicy="no-referrer" />
@@ -136,9 +139,10 @@ export function MePage(): JSX.Element {
                 {busy() ? 'Signing out…' : 'Logout'}
               </button>
             </div>
-          </div>
+          </NestedPlate>
         )}
       </Show>
+      </div>
     </ConsoleCard>
   )
 }

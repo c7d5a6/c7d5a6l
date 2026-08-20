@@ -1,4 +1,5 @@
 import { ConsoleCard } from '../components/ConsoleCard'
+import { ChannelHead } from '../components/ChannelChrome'
 import { Player } from '../components/Player'
 import { For, Match, Show, Switch, createResource, createSignal } from 'solid-js'
 import { authFetch, isAdmin } from '../lib/auth'
@@ -85,6 +86,8 @@ export function PlayersPage() {
       </header>
       <hr class="rule" />
 
+      <div class="channel-stack">
+        <ChannelHead tag="Roster" title="Players" />
       <Switch>
         <Match when={roster.loading}>
           <p class="status status--idle">Locking roster uplink…</p>
@@ -214,6 +217,7 @@ export function PlayersPage() {
           )}
         </Match>
       </Switch>
+      </div>
     </ConsoleCard>
   )
 }

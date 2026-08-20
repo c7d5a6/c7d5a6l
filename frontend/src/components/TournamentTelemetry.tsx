@@ -1,13 +1,14 @@
 import { For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { RACE_META } from '../lib/races'
 import { groupsByPhase } from '../lib/groupsByPhase'
-import { resultsForGroup } from '../lib/matchBoard'
+import { isPlayoffsPhase, resultsForGroup } from '../lib/matchBoard'
 import {
   displayChangeValue,
   displayValue,
   type TournamentPage,
   type TournamentSync,
 } from '../types/tournament'
+import { ChannelHead, NestedPlate, RailSection } from './ChannelChrome'
 import { GroupCard, MatchRow } from './GroupCard'
 import { Player } from './Player'
 
@@ -85,7 +86,7 @@ export function TournamentTelemetry(props: {
 
       <Switch>
         <Match when={tab() === 'overview'}>
-          <div class="telemetry__panel" role="tabpanel">
+          <div class="telemetry__panel channel-stack" role="tabpanel">
             <div class="telemetry__grid">
               <div class="telemetry__row">
                 <span class="telemetry__key">DB status</span>
@@ -119,8 +120,7 @@ export function TournamentTelemetry(props: {
               </div>
             </div>
 
-            <div class="telemetry__block">
-              <div class="telemetry__block-head">Player counts</div>
+            <RailSection label="Telemetry" title="Player counts">
               <Show when={counts()} fallback={<p class="telemetry__val">—</p>}>
                 {(c) => (
                   <div class="telemetry__stats">
@@ -145,13 +145,10 @@ export function TournamentTelemetry(props: {
                   </div>
                 )}
               </Show>
-            </div>
+            </RailSection>
 
             <Show when={changes().length > 0}>
-              <div class="telemetry__block">
-                <div class="telemetry__block-head">
-                  Differences <span>({changes().length})</span>
-                </div>
+              <RailSection label="Sync" title={`Differences (${changes().length})`} hazard>
                 <div class="telemetry__grid">
                   <For each={changes()}>
                     {(change) => (
@@ -164,14 +161,11 @@ export function TournamentTelemetry(props: {
                     )}
                   </For>
                 </div>
-              </div>
+              </RailSection>
             </Show>
 
             <Show when={toImport().length > 0}>
-              <div class="telemetry__block">
-                <div class="telemetry__block-head">
-                  Players to import <span>({toImport().length})</span>
-                </div>
+              <RailSection label="Import" title={`Players to import (${toImport().length})`}>
                 <ul class="telemetry__list">
                   <For each={toImport()}>
                     {(p) => (
@@ -181,16 +175,14 @@ export function TournamentTelemetry(props: {
                     )}
                   </For>
                 </ul>
-              </div>
+              </RailSection>
             </Show>
           </div>
         </Match>
 
         <Match when={tab() === 'players'}>
-          <div class="telemetry__panel" role="tabpanel">
-            <div class="telemetry__block-head">
-              Participants <span>({t().participants.length})</span>
-            </div>
+          <div class="telemetry__panel channel-stack" role="tabpanel">
+            <ChannelHead tag="Parse" title={`Participants (${t().participants.length})`} compact />
             <Show
               when={t().participants.length > 0}
               fallback={<p class="telemetry__val">No participants parsed yet</p>}
@@ -209,28 +201,31 @@ export function TournamentTelemetry(props: {
         </Match>
 
         <Match when={tab() === 'groups'}>
-          <div class="telemetry__panel" role="tabpanel">
-            <div class="telemetry__block-head">
-              Groups <span>({groups().length})</span>
-            </div>
+          <div class="telemetry__panel channel-stack" role="tabpanel">
+            <ChannelHead tag="Parse" title={`Groups (${groups().length})`} compact />
             <Show
               when={groups().length > 0}
               fallback={<p class="telemetry__val">No groups parsed yet</p>}
             >
               <For each={byPhase()}>
                 {([phase, phaseGroups]) => (
-                  <div class="telemetry__block">
-                    <div class="telemetry__block-head">{phase}</div>
+                  <RailSection
+                    label="Phase"
+                    title={phase || '—'}
+                    hazard={isPlayoffsPhase(phase)}
+                  >
                     <For each={phaseGroups}>
                       {(g) => (
                         <GroupCard
                           name={g.name}
+                          playoff={isPlayoffsPhase(g.phase)}
                           players={g.players}
                           results={resultsForGroup(t().results ?? [], g.id, g.phase, g.name)}
+                          dense
                         />
                       )}
                     </For>
-                  </div>
+                  </RailSection>
                 )}
               </For>
             </Show>
@@ -238,17 +233,17 @@ export function TournamentTelemetry(props: {
         </Match>
 
         <Match when={tab() === 'results'}>
-          <div class="telemetry__panel" role="tabpanel">
-            <div class="telemetry__block-head">
-              Results <span>({t().results.length})</span>
-            </div>
+          <div class="telemetry__panel channel-stack" role="tabpanel">
+            <ChannelHead tag="Parse" title={`Results (${t().results.length})`} compact />
             <Show
               when={t().results.length > 0}
               fallback={<p class="telemetry__val">No results parsed yet</p>}
             >
-              <div class="group-card__matches telemetry__match-list">
-                <For each={t().results}>{(m) => <MatchRow result={m} />}</For>
-              </div>
+              <NestedPlate class="nested-plate--flush">
+                <div class="group-card__matches telemetry__match-list">
+                  <For each={t().results}>{(m) => <MatchRow result={m} />}</For>
+                </div>
+              </NestedPlate>
             </Show>
           </div>
         </Match>

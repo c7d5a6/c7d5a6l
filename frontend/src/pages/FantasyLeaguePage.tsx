@@ -70,8 +70,7 @@ export function FantasyLeaguePage() {
   })
   const [groups] = createResource(groupsFetchKey, (id) => fetchFantasyGroups(id))
 
-  const boardKey = createMemo(() => (tab() === 'results' ? leagueId() : null))
-  const [matchBoard] = createResource(boardKey, (id) => fetchFantasyMatchBoard(id))
+  const [matchBoard] = createResource(leagueId, (id) => fetchFantasyMatchBoard(id))
 
   // Mount side panel only after groups load so height matches content.
   createEffect(() => {
@@ -81,14 +80,18 @@ export function FantasyLeaguePage() {
     if (groups.state === 'ready' || groups.error) setGroupsShell('in')
   })
 
+  // Match Day stays on for the whole league page; draft Groups takes the side slot while editing.
   createEffect(() => {
-    if (tab() !== 'results') {
+    if (editingTeam()) {
       if (todayShell() === 'in') setTodayShell('out')
       return
     }
     if (matchBoard.loading) return
-    if (todayShell() !== 'off') return
-    if (matchBoard.state === 'ready' || matchBoard.error) setTodayShell('in')
+    if (!matchBoard()) {
+      if (todayShell() === 'in') setTodayShell('out')
+      return
+    }
+    if (todayShell() !== 'in') setTodayShell('in')
   })
 
   function setEditing(next: boolean) {
@@ -114,6 +117,20 @@ export function FantasyLeaguePage() {
         'fantasy-league-layout--side': sideLive(),
       }}
     >
+      <Show when={todayPanelLive() && matchBoard()}>
+        {(board) => (
+          <ConsoleCard
+            class="console--side console--side-left"
+            hazard="right"
+            drop
+            exiting={todayShell() === 'out'}
+            onExitEnd={() => setTodayShell('off')}
+          >
+            <FantasyTodayPanel board={board()} teams={teams() ?? []} />
+          </ConsoleCard>
+        )}
+      </Show>
+
       <ConsoleCard class="console--wide">
         <header class="brand">
           <p class="brand__eyebrow atm-phosphor">League · Command Protocol</p>
@@ -253,20 +270,6 @@ export function FantasyLeaguePage() {
         >
           <FantasyGroupsPanel groups={groups() ?? []} error={groups.error} />
         </ConsoleCard>
-      </Show>
-
-      <Show when={todayPanelLive() && matchBoard()}>
-        {(board) => (
-          <ConsoleCard
-            class="console--side"
-            hazard="right"
-            drop
-            exiting={todayShell() === 'out'}
-            onExitEnd={() => setTodayShell('off')}
-          >
-            <FantasyTodayPanel board={board()} teams={teams() ?? []} />
-          </ConsoleCard>
-        )}
       </Show>
     </div>
   )

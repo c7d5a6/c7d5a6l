@@ -452,8 +452,8 @@ button.lamp-flash::after {
 
 /*
  * Fantasy league layout: main console always fills the page-panels column
- * (same width + position). Groups side panel sits to the right without
- * shifting the main card.
+ * (same width + position). Side panels sit left (match day) or right (draft
+ * groups) without shifting the main card.
  */
 .fantasy-league-layout {
   position: relative;
@@ -467,8 +467,8 @@ button.lamp-flash::after {
 
 @media (min-width: 1260px) {
   /*
-   * Same grid cell as main: margin pushes the side panel right, while its
-   * in-flow height still grows the row — so a tall groups panel gets a
+   * Same grid cell as main: margin pushes the side panel out, while its
+   * in-flow height still grows the row — so a tall side panel gets a
    * document scrollbar (absolute did not).
    */
   .fantasy-league-layout--side {
@@ -489,12 +489,16 @@ button.lamp-flash::after {
     width: 20rem;
     z-index: 2;
   }
+
+  .fantasy-league-layout--side .console--side-left {
+    margin-left: calc(-20rem - 1rem);
+    margin-right: 0;
+  }
 }
 
 @media (max-width: 1259px) {
   /*
-   * Below the main card (in flow). Overlay covered the caps line
-   * ("N / max players · cost …"); stacking above pushed the edit button down.
+   * Stack in DOM order: match-day (left panel) above main, draft groups below.
    */
   .fantasy-league-layout--side {
     display: flex;
@@ -3797,9 +3801,8 @@ button.lamp-flash::after {
 }
 
 .fantasy-admin-player {
-  border: 1px solid var(--color-border);
+  /* plate chrome from .nested-plate; keep spacing hooks */
   padding: 0.65rem 0.75rem;
-  background: rgba(0, 0, 0, 0.35);
 }
 
 .fantasy-admin-player__head {
@@ -4060,130 +4063,6 @@ button.lamp-flash::after {
   gap: 1.25rem;
 }
 
-.fantasy-results__section-head {
-  display: grid;
-  gap: 0.2rem;
-  padding: 0.55rem 0.75rem 0.6rem;
-  border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-theme);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--color-theme) 10%, transparent), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 55%),
-    var(--color-panel);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.fantasy-results__section-tag {
-  font-family: var(--font-display);
-  font-size: 0.55rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-theme) 70%, var(--color-text-dim));
-}
-
-.fantasy-results__section-title {
-  margin: 0;
-  font-family: var(--font-title);
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-theme);
-  text-shadow: 0 0 14px var(--color-theme-glow);
-}
-
-.fantasy-results__phase {
-  display: grid;
-  gap: 0.75rem;
-  padding: 0.85rem 0 0.15rem 0.85rem;
-  border-left: 2px solid color-mix(in srgb, var(--color-border-hot) 55%, var(--color-rule));
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-border) 12%, transparent),
-    transparent 28%
-  );
-}
-
-.fantasy-results__phase + .fantasy-results__phase {
-  margin-top: 0.35rem;
-}
-
-.fantasy-results__phase--playoffs {
-  border-left-color: color-mix(in srgb, var(--color-hazard) 65%, var(--color-border));
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-hazard) 10%, transparent),
-    transparent 30%
-  );
-}
-
-.fantasy-results__phase-head {
-  display: flex;
-  align-items: stretch;
-  gap: 0.65rem;
-  min-width: 0;
-}
-
-.fantasy-results__phase-rail {
-  flex: 0 0 auto;
-  width: 0.28rem;
-  background:
-    repeating-linear-gradient(
-      180deg,
-      var(--color-hazard) 0 0.28rem,
-      #000 0.28rem 0.55rem
-    );
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-hazard) 25%, transparent);
-}
-
-.fantasy-results__phase--playoffs .fantasy-results__phase-rail {
-  background:
-    repeating-linear-gradient(
-      180deg,
-      var(--color-hazard) 0 0.28rem,
-      #000 0.28rem 0.55rem
-    );
-}
-
-.fantasy-results__phase:not(.fantasy-results__phase--playoffs) .fantasy-results__phase-rail {
-  background:
-    repeating-linear-gradient(
-      180deg,
-      var(--color-theme-dim) 0 0.28rem,
-      #000 0.28rem 0.55rem
-    );
-  box-shadow: 0 0 10px var(--color-theme-glow);
-}
-
-.fantasy-results__phase-copy {
-  display: grid;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
-.fantasy-results__phase-label {
-  font-family: var(--font-display);
-  font-size: 0.52rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--color-text-dim);
-}
-
-.fantasy-results__phase-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-theme-light);
-  text-shadow: 0 0 12px var(--color-theme-glow);
-}
-
-.fantasy-results__phase--playoffs .fantasy-results__phase-title {
-  color: var(--color-hazard);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--color-hazard) 35%, transparent);
-}
-
 .fantasy-results__grid {
   display: grid;
   gap: 0.85rem;
@@ -4195,25 +4074,218 @@ button.lamp-flash::after {
   padding-left: 0.35rem;
 }
 
-.fantasy-today {
+/* Shared channel / rail chrome (Results + telemetry + admin + tables) */
+.channel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem 0.85rem;
+  padding: 0.55rem 0.75rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-theme);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--color-theme) 10%, transparent), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 55%),
+    var(--color-panel);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.channel-head--hazard {
+  border-left-color: var(--color-hazard);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--color-hazard) 12%, transparent), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 55%),
+    var(--color-panel);
+}
+
+.channel-head--compact {
+  padding: 0.45rem 0.65rem 0.5rem;
+}
+
+.channel-head--compact .channel-head__title {
+  font-size: 1.05rem;
+}
+
+.channel-head__copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.channel-head__tag {
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-theme) 70%, var(--color-text-dim));
+}
+
+.channel-head--hazard .channel-head__tag {
+  color: color-mix(in srgb, var(--color-hazard) 75%, var(--color-text-dim));
+}
+
+.channel-head__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-theme);
+  text-shadow: 0 0 14px var(--color-theme-glow);
+}
+
+.channel-head--hazard .channel-head__title {
+  color: var(--color-hazard);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--color-hazard) 35%, transparent);
+}
+
+.channel-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.rail-section {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem 0 0.15rem 0.85rem;
+  border-left: 2px solid color-mix(in srgb, var(--color-border-hot) 55%, var(--color-rule));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-border) 12%, transparent),
+    transparent 28%
+  );
+}
+
+.rail-section + .rail-section {
+  margin-top: 0.35rem;
+}
+
+.rail-section--hazard {
+  border-left-color: color-mix(in srgb, var(--color-hazard) 65%, var(--color-border));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-hazard) 10%, transparent),
+    transparent 30%
+  );
+}
+
+.rail-section__head {
+  display: flex;
+  align-items: stretch;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.rail-section__rail {
+  flex: 0 0 auto;
+  width: 0.28rem;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      var(--color-theme-dim) 0 0.28rem,
+      #000 0.28rem 0.55rem
+    );
+  box-shadow: 0 0 10px var(--color-theme-glow);
+}
+
+.rail-section--hazard .rail-section__rail {
+  background:
+    repeating-linear-gradient(
+      180deg,
+      var(--color-hazard) 0 0.28rem,
+      #000 0.28rem 0.55rem
+    );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-hazard) 25%, transparent);
+}
+
+.rail-section__copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.rail-section__label {
+  font-family: var(--font-display);
+  font-size: 0.52rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+.rail-section__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-theme-light);
+  text-shadow: 0 0 12px var(--color-theme-glow);
+}
+
+.rail-section--hazard .rail-section__title {
+  color: var(--color-hazard);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--color-hazard) 35%, transparent);
+}
+
+.rail-section__body {
   display: grid;
   gap: 0.85rem;
+  padding-left: 0.15rem;
+  min-width: 0;
+}
+
+.nested-plate {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-theme) 4%, transparent), transparent 40%),
+    var(--color-panel-raised);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.55);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+}
+
+.nested-plate--hazard {
+  border-color: color-mix(in srgb, var(--color-hazard) 45%, var(--color-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-hazard) 10%, transparent), transparent 45%),
+    var(--color-panel-raised);
+}
+
+.nested-plate--live {
+  border-color: color-mix(in srgb, var(--color-theme) 45%, var(--color-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-theme) 18%, transparent),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.nested-plate--flush {
+  padding: 0;
+  gap: 0;
+}
+
+.channel-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.fantasy-today {
+  display: grid;
+  gap: 1rem;
   min-width: 0;
 }
 
 .fantasy-today__matches {
   display: grid;
   gap: 0;
-  border: 1px solid var(--color-border);
-  background: var(--color-panel-raised);
-}
-
-.fantasy-today__matches .match-row {
-  border-top: 1px solid color-mix(in srgb, var(--color-rule) 70%, transparent);
-}
-
-.fantasy-today__matches .match-row:first-child {
-  border-top: 0;
 }
 
 .fantasy-today__ops {
@@ -4227,9 +4299,10 @@ button.lamp-flash::after {
 .fantasy-today__op {
   display: grid;
   gap: 0.3rem;
-  padding: 0.4rem 0.45rem;
-  border: 1px solid var(--color-rule);
-  background: rgba(0, 0, 0, 0.18);
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel-raised);
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
 }
 
 .fantasy-today__alias {
@@ -4241,7 +4314,11 @@ button.lamp-flash::after {
 }
 
 .telemetry__match-list {
-  margin-top: 0.45rem;
+  margin-top: 0;
+}
+
+.telemetry__panel .channel-stack {
+  margin-top: 0.15rem;
 }
 
 .console--side .console__inner {

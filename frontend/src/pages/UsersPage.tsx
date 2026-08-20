@@ -1,4 +1,5 @@
 import { ConsoleCard } from '../components/ConsoleCard'
+import { ChannelHead, NestedPlate } from '../components/ChannelChrome'
 import { For, Match, Show, Switch, createResource, createSignal, type JSX } from 'solid-js'
 import { authFetch } from '../lib/auth'
 import { readApiError } from '../lib/api/http'
@@ -59,7 +60,10 @@ export function UsersPage(): JSX.Element {
       </header>
       <hr class="rule" />
 
-      <form class="users-create" onSubmit={(e) => void onCreate(e)}>
+      <div class="channel-stack">
+        <ChannelHead tag="Operators" title="Provision" />
+        <NestedPlate>
+          <form class="users-create" onSubmit={(e) => void onCreate(e)}>
         <label class="field users-create__field">
           <span class="field__label">New alias</span>
           <span class="field__shell">
@@ -85,7 +89,9 @@ export function UsersPage(): JSX.Element {
       <Show when={error()}>
         <p class="status status--error">{error()}</p>
       </Show>
+        </NestedPlate>
 
+      <ChannelHead tag="Roster" title="Users" />
       <Switch>
         <Match when={users.loading}>
           <p class="status status--idle">Locking users uplink…</p>
@@ -150,6 +156,7 @@ export function UsersPage(): JSX.Element {
           )}
         </Match>
       </Switch>
+      </div>
     </ConsoleCard>
   )
 }

@@ -291,7 +291,12 @@ function FantasyPointsBoard(props: {
                       <Show when={row.isWinner}>
                         <ChampionMark />
                       </Show>
-                      <Player name={row.name} link={row.link} race={row.race} />
+                      <Player
+                        name={row.name}
+                        link={row.link}
+                        race={row.race}
+                        loser={row.defeated && !row.isWinner}
+                      />
                     </span>
                     <span class="points-board__cell points-board__total" role="cell">
                       <span class="points-board__total-val">{row.pointsEarned}</span>

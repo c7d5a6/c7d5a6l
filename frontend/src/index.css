@@ -465,7 +465,7 @@ button.lamp-flash::after {
   width: 100%;
 }
 
-@media (min-width: 1260px) {
+@media (min-width: 1800px) {
   /*
    * Same grid cell as main: margin pushes the side panel out, while its
    * in-flow height still grows the row — so a tall side panel gets a
@@ -496,7 +496,7 @@ button.lamp-flash::after {
   }
 }
 
-@media (max-width: 1259px) {
+@media (max-width: 1799px) {
   /*
    * Stack in DOM order: match-day (left panel) above main, draft groups below.
    */

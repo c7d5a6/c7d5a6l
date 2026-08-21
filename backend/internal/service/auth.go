@@ -16,12 +16,28 @@ import (
 )
 
 var (
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
-	ErrAuthConfig   = errors.New("auth not configured")
-	ErrAliasTaken   = errors.New("alias taken")
-	ErrInvalidAlias = errors.New("invalid alias")
+	ErrUnauthorized      = errors.New("unauthorized")
+	ErrForbidden         = errors.New("forbidden")
+	ErrAuthConfig        = errors.New("auth not configured")
+	ErrAliasTaken        = errors.New("alias taken")
+	ErrInvalidAlias      = errors.New("invalid alias")
+	ErrInvalidRole       = errors.New("invalid role")
+	ErrInvalidUser       = errors.New("invalid user")
+	ErrUserNotFound      = errors.New("user not found")
+	ErrTelegramIDTaken   = errors.New("telegram id taken")
+	ErrInvalidTelegramID = errors.New("invalid telegram id")
 )
+
+// UserWrite is the admin create/update payload for profile fields.
+type UserWrite struct {
+	Alias            string
+	FirstName        string
+	LastName         *string
+	PhotoURL         *string
+	TelegramUsername *string
+	TelegramID       *int64
+	Role             string
+}
 
 const maxAliasLen = 64
 
@@ -247,11 +263,11 @@ func (s *Auth) ListUsers(ctx context.Context) ([]model.User, error) {
 	return s.repo.ListAll(ctx, s.db)
 }
 
-// CreateUser creates an alias-only USER account (no Telegram).
-func (s *Auth) CreateUser(ctx context.Context, alias string) (model.User, error) {
-	alias = strings.TrimSpace(alias)
-	if alias == "" || len(alias) > maxAliasLen {
-		return model.User{}, ErrInvalidAlias
+// CreateUser creates a user account (admin).
+func (s *Auth) CreateUser(ctx context.Context, in UserWrite) (model.User, error) {
+	u, err := s.normalizeUserWrite(in, true)
+	if err != nil {
+		return model.User{}, err
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -260,19 +276,11 @@ func (s *Auth) CreateUser(ctx context.Context, alias string) (model.User, error)
 	}
 	defer tx.Rollback()
 
-	taken, err := s.repo.AliasTaken(ctx, tx, alias, 0)
-	if err != nil {
+	if err := s.assertUserUniqueness(ctx, tx, u, 0); err != nil {
 		return model.User{}, err
 	}
-	if taken {
-		return model.User{}, ErrAliasTaken
-	}
 
-	id, err := s.repo.Insert(ctx, tx, model.User{
-		Alias:     alias,
-		FirstName: alias,
-		Role:      model.RoleUser,
-	})
+	id, err := s.repo.Insert(ctx, tx, u)
 	if err != nil {
 		return model.User{}, err
 	}
@@ -283,8 +291,120 @@ func (s *Auth) CreateUser(ctx context.Context, alias string) (model.User, error)
 	if err := tx.Commit(); err != nil {
 		return model.User{}, fmt.Errorf("commit: %w", err)
 	}
-	debuglog.Printf("auth.CreateUser userId=%d alias=%s", created.ID, created.Alias)
+	debuglog.Printf("auth.CreateUser userId=%d alias=%s role=%s", created.ID, created.Alias, created.Role)
 	return *created, nil
+}
+
+// UpdateUser replaces admin-editable fields for an existing user.
+func (s *Auth) UpdateUser(ctx context.Context, id int64, in UserWrite) (model.User, error) {
+	if id <= 0 {
+		return model.User{}, ErrUserNotFound
+	}
+	u, err := s.normalizeUserWrite(in, false)
+	if err != nil {
+		return model.User{}, err
+	}
+	u.ID = id
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return model.User{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	existing, err := s.repo.GetByID(ctx, tx, id)
+	if err != nil {
+		return model.User{}, err
+	}
+	if existing == nil {
+		return model.User{}, ErrUserNotFound
+	}
+
+	if err := s.assertUserUniqueness(ctx, tx, u, id); err != nil {
+		return model.User{}, err
+	}
+
+	if err := s.repo.Update(ctx, tx, u); err != nil {
+		return model.User{}, err
+	}
+	updated, err := s.repo.GetByID(ctx, tx, id)
+	if err != nil || updated == nil {
+		return model.User{}, fmt.Errorf("reload user after update: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return model.User{}, fmt.Errorf("commit: %w", err)
+	}
+	debuglog.Printf("auth.UpdateUser userId=%d alias=%s role=%s", updated.ID, updated.Alias, updated.Role)
+	return *updated, nil
+}
+
+func (s *Auth) normalizeUserWrite(in UserWrite, creating bool) (model.User, error) {
+	alias := strings.TrimSpace(in.Alias)
+	if alias == "" || len(alias) > maxAliasLen {
+		return model.User{}, ErrInvalidAlias
+	}
+
+	firstName := strings.TrimSpace(in.FirstName)
+	if firstName == "" {
+		if creating {
+			firstName = alias
+		} else {
+			return model.User{}, ErrInvalidUser
+		}
+	}
+
+	role := strings.TrimSpace(in.Role)
+	if role == "" {
+		role = model.RoleUser
+	}
+	if role != model.RoleAdmin && role != model.RoleUser {
+		return model.User{}, ErrInvalidRole
+	}
+
+	var telegramID *int64
+	if in.TelegramID != nil {
+		if *in.TelegramID <= 0 {
+			return model.User{}, ErrInvalidTelegramID
+		}
+		telegramID = in.TelegramID
+	}
+
+	return model.User{
+		Alias:            alias,
+		FirstName:        firstName,
+		LastName:         strPtrOrNil(derefStr(in.LastName)),
+		PhotoURL:         strPtrOrNil(derefStr(in.PhotoURL)),
+		TelegramUsername: strPtrOrNil(derefStr(in.TelegramUsername)),
+		TelegramID:       telegramID,
+		Role:             role,
+	}, nil
+}
+
+func (s *Auth) assertUserUniqueness(ctx context.Context, tx *sql.Tx, u model.User, excludeID int64) error {
+	taken, err := s.repo.AliasTaken(ctx, tx, u.Alias, excludeID)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return ErrAliasTaken
+	}
+	if u.TelegramID != nil {
+		tgTaken, err := s.repo.TelegramIDTaken(ctx, tx, *u.TelegramID, excludeID)
+		if err != nil {
+			return err
+		}
+		if tgTaken {
+			return ErrTelegramIDTaken
+		}
+	}
+	return nil
+}
+
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 // ParseAccessToken validates JWT and returns user id + role for middleware.

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -122,6 +123,7 @@ func setupAuth(t *testing.T) (*service.Auth, *sql.DB, http.Handler) {
 	mux.Handle("POST /api/auth/logout", requireAuth(http.HandlerFunc(srv.AuthLogout)))
 	mux.Handle("GET /api/users", requireAuth(middleware.RequireRole(model.RoleAdmin)(http.HandlerFunc(srv.ListUsers))))
 	mux.Handle("POST /api/users", requireAuth(middleware.RequireRole(model.RoleAdmin)(http.HandlerFunc(srv.CreateUser))))
+	mux.Handle("PATCH /api/users/{id}", requireAuth(middleware.RequireRole(model.RoleAdmin)(http.HandlerFunc(srv.UpdateUser))))
 	return auth, sqlDB, mux
 }
 
@@ -408,6 +410,65 @@ func TestCreateUserAliasOnly(t *testing.T) {
 	}
 }
 
+func TestUpdateUserAdminFields(t *testing.T) {
+	auth, _, mux := setupAuth(t)
+	ctx := context.Background()
+
+	adminTok, _, err := auth.LoginTelegram(ctx, validPayload(t, 99, "Admin", "admin_user"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	create := httptest.NewRequest(http.MethodPost, "/api/users", strings.NewReader(`{"alias":"Ghost"}`))
+	create.Header.Set("Authorization", "Bearer "+adminTok)
+	create.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	mux.ServeHTTP(createRec, create)
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", createRec.Code, createRec.Body.String())
+	}
+	var created struct {
+		User model.User `json:"user"`
+	}
+	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"alias":"Spectre","firstName":"Nova","lastName":"Terra","role":"ADMIN","telegramUsername":"nova","telegramId":555,"photoUrl":"https://example.com/n.png"}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/users/"+strconv.FormatInt(created.User.ID, 10), strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	out := rec.Body.String()
+	for _, want := range []string{`"alias":"Spectre"`, `"firstName":"Nova"`, `"lastName":"Terra"`, `"role":"ADMIN"`, `"telegramUsername":"nova"`, `"telegramId":555`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %s in body=%s", want, out)
+		}
+	}
+
+	badRole := httptest.NewRequest(http.MethodPatch, "/api/users/"+strconv.FormatInt(created.User.ID, 10), strings.NewReader(`{"alias":"Spectre","firstName":"Nova","role":"GOD"}`))
+	badRole.Header.Set("Authorization", "Bearer "+adminTok)
+	badRole.Header.Set("Content-Type", "application/json")
+	badRec := httptest.NewRecorder()
+	mux.ServeHTTP(badRec, badRole)
+	if badRec.Code != http.StatusBadRequest {
+		t.Fatalf("bad role status=%d body=%s", badRec.Code, badRec.Body.String())
+	}
+
+	missing := httptest.NewRequest(http.MethodPatch, "/api/users/99999", strings.NewReader(`{"alias":"X","firstName":"X","role":"USER"}`))
+	missing.Header.Set("Authorization", "Bearer "+adminTok)
+	missing.Header.Set("Content-Type", "application/json")
+	missRec := httptest.NewRecorder()
+	mux.ServeHTTP(missRec, missing)
+	if missRec.Code != http.StatusNotFound {
+		t.Fatalf("missing status=%d body=%s", missRec.Code, missRec.Body.String())
+	}
+}
+
 func TestAdminPOSTGates(t *testing.T) {
 	auth, _, _ := setupAuth(t)
 	ctx := context.Background()
@@ -464,4 +525,3 @@ func TestAdminPOSTGates(t *testing.T) {
 		}
 	}
 }
-

@@ -35,12 +35,30 @@ type listUsersResponse struct {
 	Users []model.User `json:"users"`
 }
 
-type createUserRequest struct {
-	Alias string `json:"alias"`
+type userWriteRequest struct {
+	Alias            string  `json:"alias"`
+	FirstName        string  `json:"firstName"`
+	LastName         *string `json:"lastName"`
+	PhotoURL         *string `json:"photoUrl"`
+	TelegramUsername *string `json:"telegramUsername"`
+	TelegramID       *int64  `json:"telegramId"`
+	Role             string  `json:"role"`
 }
 
-type createUserResponse struct {
+type userResponse struct {
 	User model.User `json:"user"`
+}
+
+func (req userWriteRequest) toService() service.UserWrite {
+	return service.UserWrite{
+		Alias:            req.Alias,
+		FirstName:        req.FirstName,
+		LastName:         req.LastName,
+		PhotoURL:         req.PhotoURL,
+		TelegramUsername: req.TelegramUsername,
+		TelegramID:       req.TelegramID,
+		Role:             req.Role,
+	}
 }
 
 // AuthConfig returns public Telegram Login settings (never the token).
@@ -188,35 +206,74 @@ func (s *Server) ListUsers(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(listUsersResponse{Users: users})
 }
 
-// CreateUser creates an alias-only user (admin only).
+// CreateUser creates a user (admin only).
 func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if s.Auth == nil {
 		writeError(w, http.StatusInternalServerError, "auth service not configured")
 		return
 	}
-	var req createUserRequest
+	var req userWriteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
-	user, err := s.Auth.CreateUser(r.Context(), req.Alias)
+	user, err := s.Auth.CreateUser(r.Context(), req.toService())
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidAlias) {
-			writeError(w, http.StatusBadRequest, "invalid alias")
-			return
-		}
-		if errors.Is(err, service.ErrAliasTaken) {
-			writeError(w, http.StatusConflict, "alias taken")
-			return
-		}
-		log.Printf("create user: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to create user")
+		writeUserWriteError(w, err, "failed to create user")
 		return
 	}
 	debuglog.Printf("CreateUser userId=%d alias=%s", user.ID, user.Alias)
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(createUserResponse{User: user})
+	_ = json.NewEncoder(w).Encode(userResponse{User: user})
+}
+
+// UpdateUser updates an existing user (admin only).
+func (s *Server) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.Auth == nil {
+		writeError(w, http.StatusInternalServerError, "auth service not configured")
+		return
+	}
+	id, ok := pathInt64(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var req userWriteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	user, err := s.Auth.UpdateUser(r.Context(), id, req.toService())
+	if err != nil {
+		writeUserWriteError(w, err, "failed to update user")
+		return
+	}
+	debuglog.Printf("UpdateUser userId=%d alias=%s", user.ID, user.Alias)
+	_ = json.NewEncoder(w).Encode(userResponse{User: user})
+}
+
+func writeUserWriteError(w http.ResponseWriter, err error, fallback string) {
+	switch {
+	case errors.Is(err, service.ErrInvalidAlias):
+		writeError(w, http.StatusBadRequest, "invalid alias")
+	case errors.Is(err, service.ErrInvalidRole):
+		writeError(w, http.StatusBadRequest, "invalid role")
+	case errors.Is(err, service.ErrInvalidUser):
+		writeError(w, http.StatusBadRequest, "invalid user")
+	case errors.Is(err, service.ErrInvalidTelegramID):
+		writeError(w, http.StatusBadRequest, "invalid telegram id")
+	case errors.Is(err, service.ErrAliasTaken):
+		writeError(w, http.StatusConflict, "alias taken")
+	case errors.Is(err, service.ErrTelegramIDTaken):
+		writeError(w, http.StatusConflict, "telegram id taken")
+	case errors.Is(err, service.ErrUserNotFound):
+		writeError(w, http.StatusNotFound, "user not found")
+	default:
+		log.Printf("user write: %v", err)
+		writeError(w, http.StatusInternalServerError, fallback)
+	}
 }
 
 func (s *Server) userWithTitles(ctx context.Context, user model.User) (model.User, error) {

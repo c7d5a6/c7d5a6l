@@ -57,6 +57,18 @@ func (r *User) AliasTaken(ctx context.Context, q DBTX, alias string, excludeID i
 	return n > 0, nil
 }
 
+// TelegramIDTaken reports whether telegram_id is used by another user (excludeID 0 = none).
+func (r *User) TelegramIDTaken(ctx context.Context, q DBTX, telegramID int64, excludeID int64) (bool, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM user WHERE telegram_id = ? AND id != ?
+	`, telegramID, excludeID).Scan(&n)
+	if err != nil {
+		return false, fmt.Errorf("telegram id taken: %w", err)
+	}
+	return n > 0, nil
+}
+
 // Insert creates a new user.
 func (r *User) Insert(ctx context.Context, q DBTX, u model.User) (int64, error) {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
@@ -134,6 +146,37 @@ func (r *User) UpdateAlias(ctx context.Context, q DBTX, id int64, alias string) 
 	`, alias, now, id)
 	if err != nil {
 		return fmt.Errorf("update alias: %w", err)
+	}
+	return nil
+}
+
+// Update replaces admin-editable profile fields (does not touch last_login_at).
+func (r *User) Update(ctx context.Context, q DBTX, u model.User) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := q.ExecContext(ctx, `
+		UPDATE user SET
+			alias = ?,
+			telegram_id = ?,
+			telegram_username = ?,
+			first_name = ?,
+			last_name = ?,
+			photo_url = ?,
+			role = ?,
+			updated_at = ?
+		WHERE id = ?
+	`,
+		u.Alias,
+		nullableInt64(u.TelegramID),
+		nullableText(u.TelegramUsername),
+		u.FirstName,
+		nullableText(u.LastName),
+		nullableText(u.PhotoURL),
+		u.Role,
+		now,
+		u.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update user: %w", err)
 	}
 	return nil
 }

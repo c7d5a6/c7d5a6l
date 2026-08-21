@@ -2643,6 +2643,11 @@ button.lamp-flash::after {
   grid-template-columns: minmax(0, 1.2fr) 5.5rem minmax(0, 1fr) 5rem;
 }
 
+.roster--users-admin .roster__head,
+.roster--users-admin .roster__row {
+  grid-template-columns: minmax(0, 1.2fr) 5.5rem minmax(0, 1fr) 5rem auto;
+}
+
 .roster__alias,
 .roster__telegram,
 .roster__role,
@@ -2675,18 +2680,16 @@ button.lamp-flash::after {
   color: var(--color-theme);
 }
 
-.users-create {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem 0.85rem;
-  align-items: end;
-  margin-bottom: 0.85rem;
+.users-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
-.users-create__field {
-  margin: 0;
-  flex: 1 1 14rem;
-  min-width: min(16rem, 100%);
+.users-form__photo,
+.users-form .actions {
+  grid-column: 1 / -1;
 }
 
 .titles-form {
@@ -2780,6 +2783,15 @@ button.lamp-flash::after {
       "tg handle";
   }
 
+  .roster--users-admin .roster__head,
+  .roster--users-admin .roster__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "alias role"
+      "tg handle"
+      "actions actions";
+  }
+
   .roster--users .roster__alias {
     grid-area: alias;
   }
@@ -2796,6 +2808,14 @@ button.lamp-flash::after {
   .roster--users .roster__telegram {
     grid-area: handle;
     text-align: right;
+  }
+
+  .roster--users-admin .roster__actions {
+    grid-area: actions;
+  }
+
+  .users-form {
+    grid-template-columns: 1fr;
   }
 
   .roster--titles .roster__head,

@@ -121,7 +121,11 @@ func TestParticipants_AllFixtures(t *testing.T) {
 					if p.Link == nil || !stringsHasSuffix(*p.Link, sample.linkSuffix) {
 						t.Fatalf("%q link=%v, want suffix %q", name, p.Link, sample.linkSuffix)
 					}
-					if !stringsHasPrefix(*p.Link, "https://liquipedia.net/") {
+					if sample.localLink {
+						if !stringsHasPrefix(*p.Link, "local://") {
+							t.Fatalf("%q link should be local://, got %q", name, *p.Link)
+						}
+					} else if !stringsHasPrefix(*p.Link, "https://liquipedia.net/") {
 						t.Fatalf("%q link should be absolute liquipedia URL, got %q", name, *p.Link)
 					}
 				}
@@ -130,10 +134,40 @@ func TestParticipants_AllFixtures(t *testing.T) {
 	}
 }
 
+func TestParticipants_VANTMissingPages(t *testing.T) {
+	t.Parallel()
+	fx := loadFixturesNamed(t, map[string]struct{}{
+		"starcraft/VANT36.5_National_Starleague.html": {},
+	})[0]
+	got, err := parse.Participants(documentFromHTML(t, fx.html))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) < 30 {
+		t.Fatalf("count=%d, want >= 30", len(got))
+	}
+	byName := map[string]model.Participant{}
+	for _, p := range got {
+		if p.Name != nil {
+			byName[*p.Name] = p
+		}
+	}
+	for _, name := range []string{"Jeco", "Ever)P(NaBi"} {
+		p, ok := byName[name]
+		if !ok {
+			t.Fatalf("missing redlink participant %q", name)
+		}
+		if p.Link == nil || !stringsHasPrefix(*p.Link, "local://starcraft/player/") {
+			t.Fatalf("%q link=%v, want local://starcraft/player/…", name, p.Link)
+		}
+	}
+}
+
 type sampleParticipant struct {
-	race      string
+	race       string
 	linkSuffix string
-	excluded  bool
+	excluded   bool
+	localLink  bool
 }
 
 func stringsHasSuffix(s, suffix string) bool {

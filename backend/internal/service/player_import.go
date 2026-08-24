@@ -57,6 +57,10 @@ func (s *PlayerImporter) ProcessNext(ctx context.Context) (string, error) {
 }
 
 func (s *PlayerImporter) enrich(ctx context.Context, link string) error {
+	if liquipedia.IsLocalPlayerURL(link) {
+		debuglog.Printf("PlayerImporter.enrich skip local link=%s", link)
+		return nil
+	}
 	if s.fetcher == nil {
 		return fmt.Errorf("player fetcher not configured")
 	}

@@ -125,12 +125,16 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 	defer tx.Rollback()
 
 	byLink := participantByLink(page.Participants)
+	var toEnqueue []string
 	for _, link := range toImport {
-		canonical, err := liquipedia.ValidateURL(link)
+		canonical, err := liquipedia.NormalizePlayerLink(link)
 		if err != nil {
 			return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("player link %s: %w", link, err)
 		}
 		part := byLink[strings.ToLower(canonical)]
+		if part.Link == nil {
+			part = byLink[strings.ToLower(link)]
+		}
 		stub := model.NewPlayerPage(canonical)
 		if part.Name != nil {
 			stub.Name = part.Name
@@ -142,9 +146,12 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 		if err := s.players.Upsert(ctx, tx, stub, nil); err != nil {
 			return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("stub player: %w", err)
 		}
+		if !liquipedia.IsLocalPlayerURL(canonical) {
+			toEnqueue = append(toEnqueue, canonical)
+		}
 	}
-	if len(toImport) > 0 {
-		if err := s.imports.Enqueue(ctx, tx, toImport); err != nil {
+	if len(toEnqueue) > 0 {
+		if err := s.imports.Enqueue(ctx, tx, toEnqueue); err != nil {
 			return model.TournamentPage{}, model.TournamentSync{}, 0, err
 		}
 	}
@@ -206,7 +213,7 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 	sync := CompareTournament(out, &out, out.Participants, playerStatuses)
-	return out, sync, len(toImport), nil
+	return out, sync, len(toEnqueue), nil
 }
 
 // ListDueRefresh returns tournaments with past-due unplayed matches today (UTC).

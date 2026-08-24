@@ -146,19 +146,25 @@ func participantFromLegacyCell(cell *goquery.Selection, race string) (model.Part
 	}
 
 	link := player.Find("a[href]").First()
-	if link.Length() == 0 {
+	name := ""
+	var profile *string
+	if link.Length() > 0 {
+		name = cleanText(link.Text())
+		href, _ := link.Attr("href")
+		profile = profileURL(href)
+		if profile != nil && isRaceProfileLink(*profile) {
+			return model.Participant{}, false
+		}
+	}
+	if name == "" {
+		name = cleanText(player.Text())
+	}
+	if name == "" || strings.EqualFold(name, "TBD") || name == "—" || name == "-" || name == "–" {
 		return model.Participant{}, false
 	}
-
-	name := cleanText(link.Text())
-	if name == "" || strings.EqualFold(name, "TBD") {
-		return model.Participant{}, false
-	}
-
-	href, _ := link.Attr("href")
-	profile := profileURL(href)
-	if profile != nil && isRaceProfileLink(*profile) {
-		return model.Participant{}, false
+	if profile == nil {
+		local := liquipedia.LocalPlayerURL("starcraft", name)
+		profile = &local
 	}
 
 	p := model.Participant{
@@ -197,13 +203,23 @@ func participantsFromRaceTeams(doc *goquery.Document) []model.Participant {
 			if link.Length() == 0 {
 				link = player.Find("a[href]").First()
 			}
-			if link.Length() == 0 {
-				return
-			}
 
-			name := cleanText(link.Text())
+			name := ""
+			var profile *string
+			if link.Length() > 0 {
+				name = cleanText(link.Text())
+				href, _ := link.Attr("href")
+				profile = profileURL(href)
+			}
+			if name == "" {
+				name = cleanText(player.Find(".name").First().Text())
+			}
 			if name == "" || strings.EqualFold(name, "TBD") {
 				return
+			}
+			if profile == nil {
+				local := liquipedia.LocalPlayerURL("starcraft", name)
+				profile = &local
 			}
 
 			memberRace := race
@@ -214,10 +230,9 @@ func participantsFromRaceTeams(doc *goquery.Document) []model.Participant {
 			role := cleanText(member.Find(".team-participant-card__member-role-right").First().Text())
 			excluded := strings.EqualFold(role, "DNP")
 
-			href, _ := link.Attr("href")
 			p := model.Participant{
 				Name:     &name,
-				Link:     profileURL(href),
+				Link:     profile,
 				Excluded: excluded,
 			}
 			if memberRace != "" {
@@ -248,22 +263,31 @@ func participantFromBlock(scope *goquery.Selection, race string) (model.Particip
 	if link.Length() == 0 {
 		link = player.Find("a[href]").First()
 	}
-	if link.Length() == 0 {
-		return model.Participant{}, false
-	}
 
-	name := cleanText(link.Text())
+	name := ""
+	var profile *string
+	if link.Length() > 0 {
+		name = cleanText(link.Text())
+		href, _ := link.Attr("href")
+		profile = profileURL(href)
+	}
+	if name == "" {
+		name = cleanText(player.Find("s.name, span.name, .name").First().Text())
+	}
 	if name == "" {
 		name = cleanText(scope.AttrOr("aria-label", ""))
 	}
 	if name == "" || strings.EqualFold(name, "TBD") {
 		return model.Participant{}, false
 	}
+	if profile == nil {
+		local := liquipedia.LocalPlayerURL("starcraft", name)
+		profile = &local
+	}
 
-	href, _ := link.Attr("href")
 	p := model.Participant{
 		Name:     &name,
-		Link:     profileURL(href),
+		Link:     profile,
 		Excluded: excluded,
 	}
 	if race != "" {
@@ -327,11 +351,40 @@ func profileURL(href string) *string {
 		return nil
 	}
 
+	if local := localPlayerURLFromMissingPage(raw); local != "" {
+		return &local
+	}
+
 	canonical, err := liquipedia.ValidateURL(raw)
 	if err != nil {
 		return nil
 	}
 	return &canonical
+}
+
+// Redlinks (class=new / action=edit&redlink=1) have no real Liquipedia page.
+// Map them to a stable local:// identity so they can still be rostered.
+func localPlayerURLFromMissingPage(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	q := u.Query()
+	title := strings.TrimSpace(q.Get("title"))
+	if title == "" {
+		return ""
+	}
+	isRedlink := q.Get("redlink") == "1"
+	isEditIndex := strings.Contains(u.Path, "index.php") && q.Get("action") == "edit"
+	if !isRedlink && !isEditIndex {
+		return ""
+	}
+	wiki := "starcraft"
+	path := strings.Trim(u.EscapedPath(), "/")
+	if parts := strings.Split(path, "/"); len(parts) > 0 && parts[0] != "" && parts[0] != "index.php" {
+		wiki = parts[0]
+	}
+	return liquipedia.LocalPlayerURL(wiki, title)
 }
 
 func isRaceProfileLink(link string) bool {

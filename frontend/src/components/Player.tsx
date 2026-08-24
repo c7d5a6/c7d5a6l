@@ -229,7 +229,7 @@ export function Player(props: PlayerProps): JSX.Element {
 
   function openHint(el: HTMLElement) {
     const link = props.link
-    if (!link) return
+    if (!link || link.startsWith('local://')) return
     window.clearTimeout(hideTimer)
     window.clearTimeout(showTimer)
     showTimer = window.setTimeout(() => {
@@ -265,7 +265,7 @@ export function Player(props: PlayerProps): JSX.Element {
       </Show>
 
       <Show
-        when={props.link}
+        when={props.link && !props.link.startsWith('local://')}
         fallback={<span class="player__name">{displayValue(props.name)}</span>}
       >
         {(href) => (

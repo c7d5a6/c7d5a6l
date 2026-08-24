@@ -9,6 +9,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
+	"github.com/c7d5a6/c7d5a6l/internal/liquipedia"
 	"github.com/c7d5a6/c7d5a6l/internal/model"
 )
 
@@ -204,6 +205,10 @@ func matchSideFromMatchlist(opp, popup *goquery.Selection, left bool) *model.Par
 		n := "TBD"
 		return &model.Participant{Name: &n}
 	}
+	if link == nil {
+		local := liquipedia.LocalPlayerURL("starcraft", name)
+		link = &local
+	}
 
 	p := &model.Participant{Name: &name, Link: link}
 	if race != "" {
@@ -248,6 +253,10 @@ func matchSideFromBracket(entry, popup *goquery.Selection, left bool) *model.Par
 		}
 		n := "TBD"
 		return &model.Participant{Name: &n}
+	}
+	if link == nil {
+		local := liquipedia.LocalPlayerURL("starcraft", name)
+		link = &local
 	}
 
 	p := &model.Participant{Name: &name, Link: link}

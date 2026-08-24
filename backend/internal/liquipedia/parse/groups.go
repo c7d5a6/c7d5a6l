@@ -16,6 +16,7 @@ func Groups(doc *goquery.Document, results []model.Result) ([]model.TournamentGr
 		groups = groupsFromResults(results)
 	}
 	groups = mergeGroups(groups, playoffGroupsFromResults(results))
+	applyAdvancingFromResults(groups, results)
 	if groups == nil {
 		groups = []model.TournamentGroup{}
 	}
@@ -112,7 +113,7 @@ func applyGroupWinners(rows []standingPlayer, fromStandings bool) []model.Partic
 func isAdvancingClass(class string) bool {
 	for _, part := range strings.Fields(strings.ToLower(class)) {
 		switch part {
-		case "bg-up", "bg-uptodate", "bg-safe":
+		case "bg-up", "bg-u", "bg-proceed", "bg-win", "bg-uptodate", "bg-safe":
 			return true
 		}
 	}
@@ -311,6 +312,83 @@ func collectGroupsFromResults(results []model.Result, poolOnly bool) []model.Tou
 		})
 	}
 	return out
+}
+
+// applyAdvancingFromResults marks dual-tournament advancers (Winner's Match + Final Match)
+// on existing pool groups. Standings CSS remains the primary signal; this fills gaps
+// when tables omit bg-up / bg-proceed.
+func applyAdvancingFromResults(groups []model.TournamentGroup, results []model.Result) {
+	if len(groups) == 0 || len(results) == 0 {
+		return
+	}
+	for i := range groups {
+		g := &groups[i]
+		if strings.Contains(strings.ToLower(g.Phase), "playoff") {
+			continue
+		}
+		adv := dualTournamentAdvancers(results, g.Phase, g.Name)
+		if len(adv) == 0 {
+			continue
+		}
+		for j := range g.Players {
+			if adv[participantKey(g.Players[j])] {
+				g.Players[j].IsWinner = true
+			}
+		}
+	}
+}
+
+func dualTournamentAdvancers(results []model.Result, phase, name string) map[string]bool {
+	out := map[string]bool{}
+	for _, r := range results {
+		if !r.Played || r.Stage == nil {
+			continue
+		}
+		p, n, ok := parseGroupStage(*r.Stage)
+		if !ok || !strings.EqualFold(p, phase) || !strings.EqualFold(n, name) {
+			continue
+		}
+		if !isDualAdvanceRound(*r.Stage) {
+			continue
+		}
+		w := playedMatchWinner(r)
+		if w == nil {
+			continue
+		}
+		if key := participantKey(*w); key != "" {
+			out[key] = true
+		}
+	}
+	return out
+}
+
+func isDualAdvanceRound(stage string) bool {
+	segs := stageSegments(stage)
+	if len(segs) == 0 {
+		return false
+	}
+	round := strings.ToLower(cleanText(segs[len(segs)-1]))
+	if strings.Contains(round, "loser") || strings.Contains(round, "grand") {
+		return false
+	}
+	if strings.Contains(round, "winner") && strings.Contains(round, "match") {
+		return true
+	}
+	return round == "final match" || round == "finals match"
+}
+
+func playedMatchWinner(r model.Result) *model.Participant {
+	if r.ScoreA == nil || r.ScoreB == nil {
+		return nil
+	}
+	switch {
+	case *r.ScoreA > *r.ScoreB:
+		return r.ParticipantA
+	case *r.ScoreB > *r.ScoreA:
+		return r.ParticipantB
+	default:
+		return nil
+	}
 }
 
 func mergeGroups(base, extra []model.TournamentGroup) []model.TournamentGroup {

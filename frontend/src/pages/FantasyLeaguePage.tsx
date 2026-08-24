@@ -27,6 +27,7 @@ import {
   fetchFantasyTeams,
 } from '../lib/api/fantasy'
 import { displayValue } from '../types/tournament'
+import { defeatedPlayerLinks } from '../lib/matchBoard'
 import {
   POINT_STAGES,
   sortByElo,
@@ -71,6 +72,8 @@ export function FantasyLeaguePage() {
   const [groups] = createResource(groupsFetchKey, (id) => fetchFantasyGroups(id))
 
   const [matchBoard] = createResource(leagueId, (id) => fetchFantasyMatchBoard(id))
+
+  const defeatedLinks = createMemo(() => defeatedPlayerLinks(pointPlayers() ?? []))
 
   // Mount side panel only after groups load so height matches content.
   createEffect(() => {
@@ -126,7 +129,11 @@ export function FantasyLeaguePage() {
             exiting={todayShell() === 'out'}
             onExitEnd={() => setTodayShell('off')}
           >
-            <FantasyTodayPanel board={board()} teams={teams() ?? []} />
+            <FantasyTodayPanel
+              board={board()}
+              teams={teams() ?? []}
+              defeatedLinks={defeatedLinks()}
+            />
           </ConsoleCard>
         )}
       </Show>
@@ -251,6 +258,7 @@ export function FantasyLeaguePage() {
                       board={matchBoard()}
                       loading={matchBoard.loading}
                       error={matchBoard.error}
+                      defeatedLinks={defeatedLinks()}
                     />
                   </Match>
                 </Switch>
@@ -268,7 +276,11 @@ export function FantasyLeaguePage() {
           exiting={groupsShell() === 'out'}
           onExitEnd={() => setGroupsShell('off')}
         >
-          <FantasyGroupsPanel groups={groups() ?? []} error={groups.error} />
+          <FantasyGroupsPanel
+            groups={groups() ?? []}
+            error={groups.error}
+            defeatedLinks={defeatedLinks()}
+          />
         </ConsoleCard>
       </Show>
     </div>

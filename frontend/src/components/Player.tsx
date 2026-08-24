@@ -200,6 +200,8 @@ export type PlayerProps = {
   race?: string | null
   excluded?: boolean
   loser?: boolean
+  /** Match winner — bold name (not fantasy champion). */
+  winner?: boolean
   /** When known (e.g. roster), portrait fetch can start with the shell. */
   hasPortrait?: boolean
   class?: string
@@ -253,6 +255,7 @@ export function Player(props: PlayerProps): JSX.Element {
         player: true,
         'player--excluded': Boolean(props.excluded),
         'player--loser': Boolean(props.loser),
+        'player--winner': Boolean(props.winner) && !props.loser,
         [meta()?.playerClass ?? '']: Boolean(meta()),
         [props.class ?? '']: Boolean(props.class),
       }}

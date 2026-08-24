@@ -489,7 +489,18 @@ func buildGroupEntries(groups []model.TournamentGroup) []repository.GroupEntry {
 func groupSummaries(groups []model.TournamentGroup) []string {
 	out := make([]string, 0, len(groups))
 	for _, g := range groups {
-		out = append(out, strings.ToLower(strings.TrimSpace(g.Phase))+"|"+strings.ToLower(strings.TrimSpace(g.Name)))
+		parts := []string{
+			strings.ToLower(strings.TrimSpace(g.Phase)),
+			strings.ToLower(strings.TrimSpace(g.Name)),
+		}
+		for _, p := range g.Players {
+			flag := "0"
+			if p.IsWinner {
+				flag = "1"
+			}
+			parts = append(parts, strings.ToLower(strings.TrimSpace(nullStr(p.Link)))+"="+flag)
+		}
+		out = append(out, strings.Join(parts, "|"))
 	}
 	sort.Strings(out)
 	return out

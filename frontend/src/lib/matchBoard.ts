@@ -1,5 +1,165 @@
 import type { Result } from '../types/tournament'
 
+/** Normalize a Liquipedia (or other) player link for set lookups. */
+export function normPlayerLink(link: string | null | undefined): string | null {
+  const t = link?.trim().toLowerCase()
+  return t || null
+}
+
+/** Fantasy players marked defeated (not champion). */
+export function defeatedPlayerLinks(
+  players: { link: string | null; defeated: boolean; isWinner: boolean }[],
+): Set<string> {
+  const links = new Set<string>()
+  for (const p of players) {
+    if (!p.defeated || p.isWinner) continue
+    const link = normPlayerLink(p.link)
+    if (link) links.add(link)
+  }
+  return links
+}
+
+/** Group winners for groups that have at least one match on the given day slate. */
+export function groupWinnerLinksForDay(
+  groups: {
+    id: number
+    name: string
+    phase: string
+    players: {
+      name: string | null
+      link: string | null
+      race: string | null
+      isGroupWinner: boolean
+    }[]
+  }[],
+  matches: Result[],
+): Set<string> {
+  const links = new Set<string>()
+  for (const p of groupWinnersForDay(groups, matches)) {
+    const n = normPlayerLink(p.link)
+    if (n) links.add(n)
+  }
+  return links
+}
+
+export type DayGroupWinner = {
+  groupId: number
+  groupName: string
+  phase: string
+  name: string | null
+  link: string | null
+  race: string | null
+}
+
+/** Group-winner players for groups that appear on the day slate (deduped by link). */
+export function groupWinnersForDay(
+  groups: {
+    id: number
+    name: string
+    phase: string
+    players: {
+      name: string | null
+      link: string | null
+      race: string | null
+      isGroupWinner: boolean
+    }[]
+  }[],
+  matches: Result[],
+): DayGroupWinner[] {
+  const groupIds = new Set<number>()
+  for (const m of matches) {
+    if (m.groupId != null) groupIds.add(m.groupId)
+  }
+  const dayLinks =
+    groupIds.size === 0 ? participantLinksInResults(matches) : null
+
+  const out: DayGroupWinner[] = []
+  const seen = new Set<string>()
+  for (const g of groups) {
+    if (groupIds.size > 0 && !groupIds.has(g.id)) continue
+    for (const p of g.players) {
+      if (!p.isGroupWinner) continue
+      const link = normPlayerLink(p.link)
+      if (!link) continue
+      if (dayLinks && !dayLinks.has(link)) continue
+      if (seen.has(link)) continue
+      seen.add(link)
+      out.push({
+        groupId: g.id,
+        groupName: g.name,
+        phase: g.phase,
+        name: p.name,
+        link: p.link,
+        race: p.race,
+      })
+    }
+  }
+  return out
+}
+
+function timedMatches(matches: Result[]): { r: Result; t: number }[] {
+  return matches
+    .filter((r) => r.dateTime)
+    .map((r) => ({ r, t: new Date(r.dateTime!).getTime() }))
+    .filter((x) => !Number.isNaN(x.t))
+    .sort((a, b) => a.t - b.t || a.r.order - b.r.order)
+}
+
+function formatHintTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
+function formatHintDayTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/**
+ * Caption beside Match day header: next unplayed time today, or the next
+ * future match after today's slate is done; for a future day, first match time.
+ */
+export function nextMatchHint(
+  results: Result[],
+  today: string,
+  now: Date = new Date(),
+): string | null {
+  const day = pickDayMatches(results, today)
+  const nowMs = now.getTime()
+
+  if (day.label === 'Today' && day.day === today) {
+    const upcomingToday = timedMatches(day.matches.filter((r) => !r.played)).filter(
+      (x) => x.t >= nowMs,
+    )
+    if (upcomingToday.length > 0) {
+      return `Next ${formatHintTime(upcomingToday[0].r.dateTime!)}`
+    }
+    const future = timedMatches(
+      results.filter((r) => {
+        const d = utcDay(r.dateTime)
+        return d != null && d > today
+      }),
+    )
+    if (future.length > 0) {
+      return `Next ${formatHintDayTime(future[0].r.dateTime!)}`
+    }
+    return null
+  }
+
+  const first = timedMatches(day.matches)
+  if (first.length > 0) {
+    return `First ${formatHintTime(first[0].r.dateTime!)}`
+  }
+  return null
+}
+
 /** Calendar day YYYY-MM-DD in UTC from an RFC3339 timestamp. */
 export function utcDay(iso: string | null | undefined): string | null {
   if (!iso) return null

@@ -4039,6 +4039,18 @@ button.lamp-flash::after {
   font-weight: 700;
 }
 
+.match-row__n--lose {
+  color: color-mix(in srgb, var(--color-alert) 78%, var(--color-text-dim));
+  font-weight: 500;
+}
+
+.match-row__player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
 .match-row__sep {
   color: var(--color-text-dim);
   font-weight: 400;
@@ -4318,6 +4330,47 @@ button.lamp-flash::after {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-theme);
+}
+
+.fantasy-today__next {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.fantasy-today__op-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.fantasy-today__winners {
+  padding: 0.15rem 0;
+}
+
+.group-winner-mark {
+  flex: 0 0 auto;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--color-theme);
+  box-shadow: 0 0 8px var(--color-theme-glow);
+  animation: group-winner-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes group-winner-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
 }
 
 .telemetry__match-list {
@@ -4840,6 +4893,11 @@ button.lamp-flash::after {
 .player--loser .player__link:hover {
   color: var(--color-text-dim);
   font-weight: 400;
+}
+
+.player--winner .player__name,
+.player--winner .player__link {
+  font-weight: 700;
 }
 
 .player__tag {

@@ -1,11 +1,14 @@
 import { For, Show, type JSX } from 'solid-js'
 import { Player } from './Player'
+import { normPlayerLink } from '../lib/matchBoard'
 import type { Participant, Result } from '../types/tournament'
 import { displayValue } from '../types/tournament'
 
 export type MatchRowProps = {
   result: Result
   compact?: boolean
+  /** Fantasy defeated links (lowercase). */
+  defeatedLinks?: Set<string>
 }
 
 /** Two sides + score/vs + optional time. */
@@ -19,28 +22,48 @@ export function MatchRow(props: MatchRowProps): JSX.Element {
   const loserB = () => played() && (r().scoreB as number) < (r().scoreA as number)
   const winA = () => played() && (r().scoreA as number) > (r().scoreB as number)
   const winB = () => played() && (r().scoreB as number) > (r().scoreA as number)
+  const defeated = (p: Participant | null | undefined) => {
+    const link = normPlayerLink(p?.link)
+    return Boolean(link && props.defeatedLinks?.has(link))
+  }
 
   return (
     <div classList={{ 'match-row': true, 'match-row--compact': Boolean(props.compact) }}>
       <div class="match-row__side match-row__side--a">
         <Show when={a()} fallback={<span class="telemetry__val">—</span>}>
-          {(p) => <SidePlayer p={p()} loser={Boolean(loserA())} />}
+          {(p) => (
+            <SidePlayer p={p()} loser={defeated(p())} winner={Boolean(winA())} />
+          )}
         </Show>
       </div>
       <span class="match-row__score">
         <Show when={r().played} fallback={<span class="match-row__vs">vs</span>}>
-          <span classList={{ 'match-row__n': true, 'match-row__n--win': Boolean(winA()) }}>
+          <span
+            classList={{
+              'match-row__n': true,
+              'match-row__n--win': Boolean(winA()),
+              'match-row__n--lose': Boolean(loserA()),
+            }}
+          >
             {displayValue(r().scoreA)}
           </span>
           <span class="match-row__sep">:</span>
-          <span classList={{ 'match-row__n': true, 'match-row__n--win': Boolean(winB()) }}>
+          <span
+            classList={{
+              'match-row__n': true,
+              'match-row__n--win': Boolean(winB()),
+              'match-row__n--lose': Boolean(loserB()),
+            }}
+          >
             {displayValue(r().scoreB)}
           </span>
         </Show>
       </span>
       <div class="match-row__side match-row__side--b">
         <Show when={b()} fallback={<span class="telemetry__val">—</span>}>
-          {(p) => <SidePlayer p={p()} loser={Boolean(loserB())} />}
+          {(p) => (
+            <SidePlayer p={p()} loser={defeated(p())} winner={Boolean(winB())} />
+          )}
         </Show>
       </div>
       <Show when={r().dateTime}>
@@ -50,7 +73,11 @@ export function MatchRow(props: MatchRowProps): JSX.Element {
   )
 }
 
-function SidePlayer(props: { p: Participant; loser: boolean }): JSX.Element {
+function SidePlayer(props: {
+  p: Participant
+  loser: boolean
+  winner: boolean
+}): JSX.Element {
   return (
     <Player
       name={props.p.name}
@@ -58,6 +85,7 @@ function SidePlayer(props: { p: Participant; loser: boolean }): JSX.Element {
       race={props.p.race}
       excluded={props.p.excluded}
       loser={props.loser}
+      winner={props.winner}
     />
   )
 }
@@ -82,12 +110,19 @@ export type GroupCardProps = {
   dense?: boolean
   players?: Participant[]
   results?: Result[]
+  /** Fantasy defeated links (lowercase). */
+  defeatedLinks?: Set<string>
   /** Optional trailing chips (e.g. fantasy cost). */
   playerExtra?: (p: Participant, i: number) => JSX.Element
 }
 
 function isGroupWinner(p: Participant): boolean {
   return Boolean(p.isWinner)
+}
+
+function participantDefeated(p: Participant, defeatedLinks?: Set<string>): boolean {
+  const link = normPlayerLink(p.link)
+  return Boolean(link && defeatedLinks?.has(link))
 }
 
 /** Bordered group shell with optional player chips and match list. */
@@ -126,7 +161,13 @@ export function GroupCard(props: GroupCardProps): JSX.Element {
                   'group-card__player--winner': isGroupWinner(p),
                 }}
               >
-                <Player name={p.name} link={p.link} race={p.race} excluded={p.excluded} />
+                <Player
+                  name={p.name}
+                  link={p.link}
+                  race={p.race}
+                  excluded={p.excluded}
+                  loser={participantDefeated(p, props.defeatedLinks)}
+                />
                 {props.playerExtra?.(p, i())}
               </li>
             )}
@@ -135,7 +176,11 @@ export function GroupCard(props: GroupCardProps): JSX.Element {
       </Show>
       <Show when={hasResults()}>
         <div class="group-card__matches">
-          <For each={props.results}>{(m) => <MatchRow result={m} compact />}</For>
+          <For each={props.results}>
+            {(m) => (
+              <MatchRow result={m} compact defeatedLinks={props.defeatedLinks} />
+            )}
+          </For>
         </div>
       </Show>
       <Show when={!hasResults() && !showPlayers()}>

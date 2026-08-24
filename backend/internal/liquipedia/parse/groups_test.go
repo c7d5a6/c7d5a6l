@@ -299,6 +299,63 @@ func TestGroups_AdvancingMarkersAndFallback(t *testing.T) {
 	if len(got) == 0 || got[0].Players[0].IsWinner || got[0].Players[1].IsWinner {
 		t.Fatalf("result-only groups should have no winners, got %+v", got)
 	}
+
+	intPtr := func(n int) *int { return &n }
+	shuttle := "https://liquipedia.net/starcraft/Shuttle"
+	rush := "https://liquipedia.net/starcraft/Rush"
+	bisu := "https://liquipedia.net/starcraft/Bisu"
+	hm := "https://liquipedia.net/starcraft/Hm"
+	dual := []model.Result{
+		{
+			Played: true, ScoreA: intPtr(1), ScoreB: intPtr(0),
+			Stage:        strPtr("Round of 24 / Group A / Winner's Match"),
+			ParticipantA: &model.Participant{Name: strPtr("Shuttle"), Link: strPtr(shuttle)},
+			ParticipantB: &model.Participant{Name: strPtr("Rush"), Link: strPtr(rush)},
+		},
+		{
+			Played: true, ScoreA: intPtr(1), ScoreB: intPtr(0),
+			Stage:        strPtr("Round of 24 / Group A / Loser's Match"),
+			ParticipantA: &model.Participant{Name: strPtr("Bisu"), Link: strPtr(bisu)},
+			ParticipantB: &model.Participant{Name: strPtr("Hm"), Link: strPtr(hm)},
+		},
+		{
+			Played: true, ScoreA: intPtr(1), ScoreB: intPtr(0),
+			Stage:        strPtr("Round of 24 / Group A / Final Match"),
+			ParticipantA: &model.Participant{Name: strPtr("Rush"), Link: strPtr(rush)},
+			ParticipantB: &model.Participant{Name: strPtr("Bisu"), Link: strPtr(bisu)},
+		},
+	}
+	got, err = parse.Groups(documentFromHTML(t, `<html><body></body></html>`), dual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || len(got[0].Players) != 4 {
+		t.Fatalf("dual group=%+v", got)
+	}
+	flags := map[string]bool{}
+	for _, p := range got[0].Players {
+		flags[nullName(p)] = p.IsWinner
+	}
+	if !flags["Shuttle"] || !flags["Rush"] || flags["Bisu"] || flags["Hm"] {
+		t.Fatalf("dual advancers=%+v", flags)
+	}
+
+	proceed := `
+<html><body>
+<h3>Round of 24</h3>
+<h4>Group A</h4>
+<table class="wikitable grouptable">
+  <tr class="bg-proceed"><td><div class="block-player"><span class="name"><a href="/starcraft/A">A</a></span></div></td></tr>
+  <tr><td><div class="block-player"><span class="name"><a href="/starcraft/B">B</a></span></div></td></tr>
+</table>
+</body></html>`
+	got, err = parse.Groups(documentFromHTML(t, proceed), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got[0].Players[0].IsWinner || got[0].Players[1].IsWinner {
+		t.Fatalf("bg-proceed winners=%+v", winnerFlags(got[0].Players))
+	}
 }
 
 func nullName(p model.Participant) string {

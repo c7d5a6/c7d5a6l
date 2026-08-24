@@ -493,6 +493,25 @@ func TestTournamentSaveGroupWinners(t *testing.T) {
 	if !saved.Groups[0].Players[0].IsWinner || saved.Groups[0].Players[1].IsWinner {
 		t.Fatalf("winners=%+v", saved.Groups[0].Players)
 	}
+
+	noWinners := page
+	noWinners.Groups = []model.TournamentGroup{{
+		Name: "Group A", Phase: "Round of 24",
+		Players: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+		},
+	}}
+	if _, _, err := svc.Save(ctx, noWinners); err != nil {
+		t.Fatal(err)
+	}
+	sync, err := svc.SyncStatus(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sync.Same || sync.Action != model.TournamentActionUpdate {
+		t.Fatalf("winner-only parse should update, got same=%v action=%s changes=%v", sync.Same, sync.Action, sync.Changes)
+	}
 }
 
 func intPtr(n int) *int       { return &n }

@@ -8,6 +8,8 @@ export type FantasyResultsPanelProps = {
   board: FantasyMatchBoard | undefined
   loading: boolean
   error: unknown
+  /** Fantasy defeated links (lowercase). */
+  defeatedLinks?: Set<string>
 }
 
 /** Upcoming / completed tournament groups with match scores. */
@@ -33,8 +35,16 @@ export function FantasyResultsPanel(props: FantasyResultsPanelProps): JSX.Elemen
           <p class="status status--idle">No groups or results yet</p>
         </Match>
         <Match when={true}>
-          <ResultsSection title="Upcoming" entries={parts().upcoming} />
-          <ResultsSection title="Completed" entries={parts().completed} />
+          <ResultsSection
+            title="Upcoming"
+            entries={parts().upcoming}
+            defeatedLinks={props.defeatedLinks}
+          />
+          <ResultsSection
+            title="Completed"
+            entries={parts().completed}
+            defeatedLinks={props.defeatedLinks}
+          />
         </Match>
       </Switch>
     </div>
@@ -44,6 +54,7 @@ export function FantasyResultsPanel(props: FantasyResultsPanelProps): JSX.Elemen
 function ResultsSection(props: {
   title: string
   entries: GroupWithResults<FantasyGroup>[]
+  defeatedLinks?: Set<string>
 }): JSX.Element {
   const phases = createMemo(() => {
     const map = new Map<string, GroupWithResults<FantasyGroup>[]>()
@@ -81,6 +92,7 @@ function ResultsSection(props: {
                       playoff={isPlayoffsPhase(e.group.phase)}
                       players={e.group.players.map((p) => ({ ...p, isWinner: p.isGroupWinner }))}
                       results={e.results}
+                      defeatedLinks={props.defeatedLinks}
                       dense
                     />
                   )}

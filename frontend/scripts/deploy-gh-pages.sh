@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Build the frontend and publish dist/ to origin/gh-pages, then tag HEAD as v$VERSION.
+# Build the frontend and commit dist/ onto origin/gh-pages (incremental diff),
+# then tag HEAD as v$VERSION.
 #
 # Working tree must be clean. Version is read from frontend/package.json.
+# Unchanged blobs are retained; only added/removed/changed files appear in the commit.
 #
 # Production:
 #   https://league.c7d5a6.com          (GitHub Pages custom domain)
@@ -76,19 +78,40 @@ touch dist/.nojekyll
 printf '%s\n' "$PROD_PAGES_HOST" > dist/CNAME
 
 SHA="$(git -C "$REPO" rev-parse --short HEAD)"
-ORIGIN="$(git -C "$REPO" remote get-url origin)"
 TMP="$(mktemp -d)"
-cleanup() { rm -rf "$TMP"; }
+cleanup() {
+  git -C "$REPO" worktree remove --force "$TMP" 2>/dev/null || true
+  rm -rf "$TMP"
+}
 trap cleanup EXIT
 
-echo "==> Push dist to origin/gh-pages"
-cp -a "$FRONTEND/dist/." "$TMP/"
-git -C "$TMP" init
-git -C "$TMP" checkout -B gh-pages
+echo "==> Fetch origin/gh-pages"
+git fetch origin gh-pages:refs/remotes/origin/gh-pages 2>/dev/null || true
+
+echo "==> Update gh-pages (incremental commit, retain unchanged files)"
+if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+  git worktree add -B gh-pages "$TMP" origin/gh-pages
+else
+  # First publish: orphan branch, then later deploys commit diffs on top.
+  git worktree add --detach "$TMP" HEAD
+  git -C "$TMP" checkout --orphan gh-pages
+  git -C "$TMP" rm -rf . >/dev/null 2>&1 || true
+fi
+
+# Sync build into the worktree. --delete drops stale hashed assets;
+# git still keeps blob history for files whose content did not change.
+rsync -a --delete \
+  --exclude '.git' \
+  "$FRONTEND/dist/" "$TMP/"
+
 git -C "$TMP" add -A
-git -C "$TMP" -c core.hooksPath=/dev/null -c commit.gpgsign=false commit -m "Deploy frontend ${TAG} (${SHA})"
-git -C "$TMP" remote add origin "$ORIGIN"
-git -C "$TMP" push --force origin gh-pages
+if git -C "$TMP" diff --cached --quiet; then
+  echo "==> No site content changes; skip gh-pages commit"
+else
+  git -C "$TMP" -c core.hooksPath=/dev/null -c commit.gpgsign=false \
+    commit -m "Deploy frontend ${TAG} (${SHA})"
+  git -C "$TMP" push origin HEAD:gh-pages
+fi
 
 echo "==> Tag ${TAG} on ${SHA}"
 git -C "$REPO" tag -a "$TAG" -m "Frontend ${VERSION}"

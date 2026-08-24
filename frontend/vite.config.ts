@@ -24,8 +24,15 @@ function pagesBase(): string {
   return raw.endsWith('/') ? raw : `${raw}/`
 }
 
+const appVersion = (
+  JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as { version: string }
+).version
+
 export default defineConfig({
   base: pagesBase(),
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+  },
   plugins: [solid(), tailwindcss()],
   server: useLocalHttps
     ? {

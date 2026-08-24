@@ -4,6 +4,7 @@ import { UserTitles } from '../components/UserTitles'
 import { Show, createEffect, createSignal, type JSX } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 import { authUser, homePath, logout, updateAlias } from '../lib/auth'
+import { APP_VERSION } from '../lib/version'
 
 /** Profile channel — Telegram identity + logout. */
 export function MePage(): JSX.Element {
@@ -142,6 +143,9 @@ export function MePage(): JSX.Element {
           </NestedPlate>
         )}
       </Show>
+        <p class="me-profile__version atm-phosphor" aria-label={`App version ${APP_VERSION}`}>
+          v{APP_VERSION}
+        </p>
       </div>
     </ConsoleCard>
   )

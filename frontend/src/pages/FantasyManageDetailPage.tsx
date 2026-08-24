@@ -48,6 +48,13 @@ function toDraft(p: FantasyPlayerRow): PlayerDraft {
   }
 }
 
+function draftPointsTotal(d: PlayerDraft): number {
+  return [d.pointsRo24, d.pointsRo16, d.pointsRo8, d.pointsRo4, d.pointsRo2].reduce(
+    (sum, v) => sum + (v ?? 0),
+    0,
+  )
+}
+
 function stageField(
   stage: PointStage,
 ): 'pointsRo24' | 'pointsRo16' | 'pointsRo8' | 'pointsRo4' | 'pointsRo2' {
@@ -88,6 +95,8 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
   const [addIds, setAddIds] = createSignal<number[]>([])
   const [editingTeamId, setEditingTeamId] = createSignal<number | null>(null)
   const [editIds, setEditIds] = createSignal<number[]>([])
+  /** Expanded admin player cards — all collapsed by default. */
+  const [expandedPlayerIds, setExpandedPlayerIds] = createSignal<ReadonlySet<number>>(new Set())
 
   const orderedPlayers = createMemo(() => sortByElo(players() ?? []))
 
@@ -95,6 +104,19 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
     const taken = new Set((teams() ?? []).map((t) => t.userId))
     return (users() ?? []).filter((u) => !taken.has(u.id))
   })
+
+  function isPlayerExpanded(id: number) {
+    return expandedPlayerIds().has(id)
+  }
+
+  function togglePlayerExpanded(id: number) {
+    setExpandedPlayerIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   createEffect(() => {
     const l = league()
@@ -385,11 +407,13 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
             <For each={orderedPlayers()}>
               {(p) => {
                 const d = () => drafts()[p.id] ?? toDraft(p)
+                const open = () => isPlayerExpanded(p.id)
                 return (
                   <NestedPlate
                     class={
                       [
                         'fantasy-admin-player',
+                        open() ? 'fantasy-admin-player--open' : 'fantasy-admin-player--collapsed',
                         d().defeated ? 'fantasy-admin-player--defeated' : '',
                         d().isWinner ? 'fantasy-admin-player--winner' : '',
                       ]
@@ -399,7 +423,22 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
                     live={d().isWinner}
                     hazard={d().defeated}
                   >
-                    <div class="fantasy-admin-player__head">
+                    <div
+                      class="fantasy-admin-player__head"
+                      role="button"
+                      tabindex="0"
+                      aria-expanded={open()}
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest('a,button')) return
+                        togglePlayerExpanded(p.id)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter' && e.key !== ' ') return
+                        if ((e.target as HTMLElement).closest('a,button')) return
+                        e.preventDefault()
+                        togglePlayerExpanded(p.id)
+                      }}
+                    >
                       <Player name={p.name} link={p.link} race={p.race} />
                       <div class="fantasy-admin-player__flags">
                         <Show when={d().isWinner}>
@@ -409,66 +448,79 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
                           <span class="chip chip--alert fantasy-chip">Defeated</span>
                         </Show>
                         <span class="fantasy-admin-player__meta">
+                          <span class="fantasy-admin-player__pts" title="Points total">
+                            {draftPointsTotal(d())} pts
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          cost {d().cost}
+                          <span aria-hidden="true">·</span>
                           elo {(p.elo ?? 0).toFixed(0)}
+                        </span>
+                        <span class="fantasy-admin-player__chevron" aria-hidden="true">
+                          {open() ? '▾' : '▸'}
                         </span>
                       </div>
                     </div>
-                    <div class="fantasy-create__row">
-                      <label class="field">
-                        <span class="field__label">Cost</span>
-                        <span class="field__shell">
-                          <input
-                            class="field__input"
-                            type="number"
-                            min={0}
-                            value={d().cost}
-                            onInput={(e) =>
-                              patchDraft(p.id, { cost: Number(e.currentTarget.value) || 0 })
-                            }
-                          />
-                        </span>
-                      </label>
-                      <For each={[...POINT_STAGES]}>
-                        {(stage) => {
-                          const key = stageField(stage)
-                          return (
-                            <label class="field">
-                              <span class="field__label">{stage}</span>
-                              <span class="field__shell">
-                                <input
-                                  class="field__input"
-                                  type="number"
-                                  value={d()[key] ?? ''}
-                                  placeholder="—"
-                                  onInput={(e) => {
-                                    const raw = e.currentTarget.value.trim()
-                                    patchDraft(p.id, {
-                                      [key]: raw === '' ? null : Number(raw),
-                                    } as Partial<PlayerDraft>)
-                                  }}
-                                />
-                              </span>
-                            </label>
-                          )
-                        }}
-                      </For>
-                    </div>
-                    <div class="actions">
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        onClick={() => patchDraft(p.id, { defeated: !d().defeated })}
-                      >
-                        {d().defeated ? 'Clear defeated' : 'Mark defeated'}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        onClick={() => patchDraft(p.id, { isWinner: !d().isWinner })}
-                      >
-                        {d().isWinner ? 'Clear champion' : 'Mark champion'}
-                      </button>
-                    </div>
+                    <Show when={open()}>
+                      <div class="fantasy-admin-player__body">
+                        <div class="fantasy-create__row">
+                          <label class="field">
+                            <span class="field__label">Cost</span>
+                            <span class="field__shell">
+                              <input
+                                class="field__input"
+                                type="number"
+                                min={0}
+                                value={d().cost}
+                                onInput={(e) =>
+                                  patchDraft(p.id, { cost: Number(e.currentTarget.value) || 0 })
+                                }
+                              />
+                            </span>
+                          </label>
+                          <For each={[...POINT_STAGES]}>
+                            {(stage) => {
+                              const key = stageField(stage)
+                              return (
+                                <label class="field">
+                                  <span class="field__label">{stage}</span>
+                                  <span class="field__shell">
+                                    <input
+                                      class="field__input"
+                                      type="number"
+                                      value={d()[key] ?? ''}
+                                      placeholder="—"
+                                      onInput={(e) => {
+                                        const raw = e.currentTarget.value.trim()
+                                        patchDraft(p.id, {
+                                          [key]: raw === '' ? null : Number(raw),
+                                        } as Partial<PlayerDraft>)
+                                      }}
+                                    />
+                                  </span>
+                                </label>
+                              )
+                            }}
+                          </For>
+                        </div>
+                        <div class="actions">
+                          <button
+                            type="button"
+                            class="btn btn--ghost"
+                            onClick={() => patchDraft(p.id, { defeated: !d().defeated })}
+                          >
+                            {d().defeated ? 'Clear defeated' : 'Mark defeated'}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn--ghost"
+                            onClick={() => patchDraft(p.id, { isWinner: !d().isWinner })}
+                          >
+                            {d().isWinner ? 'Clear champion' : 'Mark champion'}
+                          </button>
+                        </div>
+                      </div>
+                    </Show>
                   </NestedPlate>
                 )
               }}

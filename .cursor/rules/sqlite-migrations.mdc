@@ -1,0 +1,46 @@
+---
+description: Safe SQLite migration rules — avoid CASCADE wipes and FK traps
+globs: backend/migrations/**/*.sql
+alwaysApply: false
+---
+
+# SQLite migrations (backend/migrations)
+
+Migrations run **inside a transaction** with **foreign_keys ON** (see `internal/db/migrate.go` + `db.Open`). Write SQL accordingly.
+
+## Hard rules
+
+1. **Never `DROP TABLE` a table that is referenced with `ON DELETE CASCADE`** (e.g. `player`, `player_race`, `tournament`, `tournament_player`, `fantasy_*`) unless you have explicitly rebuilt **all** dependents in the same migration and verified no data loss.
+2. **`PRAGMA foreign_keys = OFF` is a no-op inside a migration transaction** — do not rely on it to make DROP/rebuild “safe”.
+3. Prefer **additive** changes: `CREATE TABLE`, `CREATE INDEX`, `ALTER TABLE … ADD COLUMN`.
+4. Changing a column DEFAULT only: **do not rebuild the table**. App code / `INSERT` defaults are enough for new rows; leave existing rows alone unless a deliberate data backfill is required.
+5. If a table rebuild is unavoidable:
+   - Copy rows with **explicit `id` columns** preserved
+   - Recreate every dependent FK target with matching IDs before re-enabling reliance on FKs
+   - Prefer a **new migration file** that only adds a parallel table + backfill + cutover, never a casual DROP of a hot parent table
+6. **Do not edit already-applied migrations** on shared/prod DBs. Fix forward with a new numbered file. Editing is OK only if you are sure the version was never applied anywhere that matters.
+7. Name files `NNN_snake_case.sql` (next integer after the latest). Bump `migrate_test.go` expected version when adding a file.
+8. Comment **why** a risky step is safe (or that it is intentionally additive-only).
+
+## Examples
+
+```sql
+-- ✅ additive
+CREATE TABLE player_import_queue (…);
+ALTER TABLE user_title ADD COLUMN date TEXT;
+
+-- ❌ wipes tournament_player / fantasy via ON DELETE CASCADE when FKs are on
+DROP TABLE player_race;
+```
+
+```sql
+-- ❌ useless inside migrate tx — FK still enforced
+PRAGMA foreign_keys = OFF;
+DROP TABLE player_race;
+```
+
+## Checklist before finishing
+
+- [ ] No `DROP`/`TRUNCATE` of parent tables with CASCADE children unless data-preserving rebuild is proven
+- [ ] No dependence on `PRAGMA foreign_keys = OFF` inside the migration
+- [ ] Fresh migrate test still passes (`go test ./internal/db/`)

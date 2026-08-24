@@ -1,4 +1,4 @@
-import { onCleanup, onMount, Show, type JSX, type ParentProps } from 'solid-js'
+import { Show, type JSX, type ParentProps } from 'solid-js'
 
 export type ConsoleCardProps = ParentProps<{
   /** Optional top chrome inside the red frame (nav, tabs, toolbar). */
@@ -25,9 +25,10 @@ export type ConsoleCardProps = ParentProps<{
 }>
 
 /**
- * Terran metal rim + hazard stripe + red inner border + glass belly.
+ * Terran metal rim + hazard stripe + red inner border + HUD belly.
  * Put page content in `children`; optional `top` for nav / bars above the glass.
- * Content size changes animate shell height (shorter than slide).
+ * Shell height follows content — no animated `height` (clips clip-path plates
+ * and flickers on tab swaps, especially on mobile).
  */
 export function ConsoleCard(props: ConsoleCardProps) {
   const motion = () => {
@@ -37,74 +38,6 @@ export function ConsoleCard(props: ConsoleCardProps) {
   }
 
   const hazardRight = () => (props.hazard ?? 'top') === 'right'
-
-  let shell!: HTMLDivElement
-  let body!: HTMLDivElement
-
-  onMount(() => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    let lastHeight = shell.getBoundingClientRect().height
-    let animating = false
-    let endTimer = 0
-
-    const clearInline = () => {
-      shell.style.height = ''
-      shell.style.transition = ''
-      shell.style.overflow = ''
-    }
-
-    const finish = () => {
-      clearInline()
-      lastHeight = shell.getBoundingClientRect().height
-      animating = false
-    }
-
-    const animateTo = (from: number, to: number) => {
-      if (reduceMotion || Math.abs(from - to) < 2) {
-        lastHeight = to
-        return
-      }
-
-      animating = true
-      window.clearTimeout(endTimer)
-      shell.style.overflow = 'hidden'
-      shell.style.transition = 'none'
-      shell.style.height = `${from}px`
-      void shell.offsetHeight
-      shell.style.transition = `height var(--motion-resize-duration) var(--motion-slide-ease)`
-      shell.style.height = `${to}px`
-
-      const onEnd = (e: TransitionEvent) => {
-        if (e.target !== shell || e.propertyName !== 'height') return
-        shell.removeEventListener('transitionend', onEnd)
-        window.clearTimeout(endTimer)
-        finish()
-      }
-      shell.addEventListener('transitionend', onEnd)
-      endTimer = window.setTimeout(() => {
-        shell.removeEventListener('transitionend', onEnd)
-        finish()
-      }, 400)
-    }
-
-    const ro = new ResizeObserver(() => {
-      if (animating) return
-      clearInline()
-      const natural = shell.getBoundingClientRect().height
-      const from = lastHeight
-      if (Math.abs(from - natural) < 2) {
-        lastHeight = natural
-        return
-      }
-      animateTo(from, natural)
-    })
-
-    ro.observe(body)
-    onCleanup(() => {
-      ro.disconnect()
-      window.clearTimeout(endTimer)
-    })
-  })
 
   function onAnimationEnd(e: AnimationEvent) {
     if (e.target !== e.currentTarget) return
@@ -130,7 +63,7 @@ export function ConsoleCard(props: ConsoleCardProps) {
 
   return (
     <div class={className()} onAnimationEnd={onAnimationEnd}>
-      <div class="console__shell" ref={shell}>
+      <div class="console__shell">
         <div class="console__metal console__metal--outer" aria-hidden="true" />
         <Show
           when={hazardRight()}
@@ -151,7 +84,7 @@ export function ConsoleCard(props: ConsoleCardProps) {
         </Show>
         <div class="console__metal console__metal--mid" aria-hidden="true" />
         <div class="console__well">
-          <div class="console__red" ref={body}>
+          <div class="console__red">
             <Show when={props.top}>{(top) => <div class="console__header">{top()}</div>}</Show>
             <div class="console__inner">{props.children}</div>
           </div>

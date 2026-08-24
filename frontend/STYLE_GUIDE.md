@@ -138,13 +138,14 @@ Used by `ConsoleCard` (main card):
    - Mid plate with **thin right/bottom** rails and thicker corner blocks
    - Dark well (`.console__well`) then **red inner border** (`.console__red`) with padding — no L-corner brackets
    - Optional **top chrome** (`.console__header`) for nav / bars above the glass
-2. **Belly (glass)** — `.console__inner` / `.telemetry`:
+2. **Belly (opaque HUD)** — `.console__inner` / `.telemetry`:
 
 ```css
-background: rgba(0, 0, 0, 0.52);
-backdrop-filter: blur(2px);
+background: rgba(0, 0, 0, 0.74);
 /* few-pixel edge vignette via ::before inset shadow + soft radial */
 ```
+
+Do **not** use `backdrop-filter`. Blur over the moving scan/CRT/art stack is a Firefox-on-macOS compositor trap (full-viewport re-blur every frame). Opacity does the frosting; the photograph still reads around the card.
 
 ```tsx
 <ConsoleCard top={<nav>…</nav>}>
@@ -175,11 +176,11 @@ Use sparingly: top rail of the console, **right rail on side consoles**, section
 
 Layer order (bottom → top):
 
-1. `.stage__art` — full-bleed photograph, **`position: fixed; inset: 0`** (browser window), mounted **outside** `.stage` so document/body growth cannot restretch `cover`. Dimmed (`brightness` ~0.48, slight desat). **Per-route asset** — see §3a. `.stage` background is transparent so the fixed art shows through.
-2. Art darken wash (gradient overlay).
-3. `.stage__grid` — animated green grid (masked).
-4. `.stage__crt` — horizontal scanlines.
-5. `.stage__scan` — drifting green band.
+1. `.stage__art` — full-bleed photograph, **`position: fixed; inset: 0`** (browser window), mounted **outside** `.stage` so document/body growth cannot restretch `cover`. **Per-route asset** — see §3a. `.stage` background is transparent so the fixed art shows through. Dim with the `::after` wash only — never `filter` on the bitmap (Firefox/macOS).
+2. Art darken wash (gradient overlay on `::after`; src-over, ~brightness 0.48 equivalent).
+3. `.stage__grid` — static green grid (masked).
+4. `.stage__crt` — **static** horizontal scanlines (`src-over`, no `mix-blend-mode`, no opacity flicker).
+5. `.stage__scan` — drifting green band (`transform` only).
 6. `.stage__vignette` — edge crush.
 7. `.console` — metal rim + glass belly.
 
@@ -197,7 +198,7 @@ Every routed channel gets its **own** stage art. Do not reuse one global `home.j
 2. **Similar pages → similar palettes** — group by tone family from `BACKGROUND.md`, not by filename order. Nested or sibling views that feel like the same channel (e.g. player detail under Players) stay in that family’s palette even if the exact file differs.
 3. **Main pages → best tone/content fit** — choose the catalog entry whose **atmosphere + content** match the channel’s job (console work, roster/people, epic league), not merely a pretty frame. Prefer the “Strong fits” rows in `BACKGROUND.md`.
 4. **Fade through black** — on route change, art does **not** cross-dissolve image→image. Sequence: current art → fade to void black → new art fades in. Keep CRT/grid/scan/vignette mounted; only the art layer opacity (or a black scrim over art) animates. Duration should feel deliberate but shorter than card slide (`--motion-slide-duration`); reuse a shared token (e.g. `--motion-bg-fade-duration`) rather than one-offs.
-5. **Legibility first** — catalog notes on bright beams / logo bands still apply; glass belly + darken wash stay. Do not pick a busier hero just because it is “more epic” if UI contrast dies.
+5. **Legibility first** — catalog notes on bright beams / logo bands still apply; opaque HUD belly + darken wash stay. Do not pick a busier hero just because it is “more epic” if UI contrast dies.
 6. **UI chrome unchanged** — green/red/metal tokens stay global. Background palette informs *which art* to pick, not a second HUD color system (no cyan Protoss panels, no purple marketing washes on chrome).
 
 #### Palette families (from catalog)
@@ -336,7 +337,6 @@ Applies to `ConsoleCard`, future metal-bordered navigation items, and any panel 
 | `--motion-slide-duration` | `600ms` | **Fixed** — same time for every slide, whether the travel is a short nudge or full off-screen |
 | `--motion-slide-ease` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | Ease-out: faster start, **slows at the end** (enter and exit) |
 | `--motion-slide-stagger` | `220ms` | Delay before route enter so exit clears the stage without a long empty gap |
-| `--motion-resize-duration` | `280ms` | Console shell height when content grows/shrinks — **shorter** than slide |
 | `--motion-drop-duration` | `900ms` | **Exit only** — longer than slide (tall panels travel farther) |
 | `--motion-drop-ease` | `cubic-bezier(0.55, 0.05, 0.9, 0.2)` | **Exit only** — ease-in: slow start, accelerates toward the end |
 | `.motion-slide-in` | `translateX(100vw → 0)` | Enter from off-screen **right** |
@@ -353,7 +353,7 @@ Rules:
 2. **Same curve in and out** — slide enter/exit both use `--motion-slide-ease`. Drop **enter** keeps slide timing; drop **exit** uses `--motion-drop-duration` / `--motion-drop-ease`.
 3. **Exit reverses enter** — same axis and timing; play the enter path backwards (e.g. in from right → out to right). No fade for this family.
 4. **Shared classes** — prefer `.motion-slide-in` / `.motion-slide-out` (or `PagePanels` `exiting`) instead of one-off keyframes.
-5. **Resize ≠ slide** — panel height changes (telemetry appear/dismiss) use `--motion-resize-duration`, not slide duration.
+5. **No height tween** — console shell size follows content. Do not animate `height`/`overflow` on the metal plate (clips the clip-path silhouette and flickers on tab swaps).
 6. **Route handoff stagger** — exit starts immediately; enter waits `--motion-slide-stagger` so panels don’t share the stage, without a long empty beat.
 7. **Exit out of flow** — `.page-panels.motion-slide-out` is `position: absolute` so a tall outgoing page does not keep document height alive (avoids centering jump when the stage shrinks). Scroll resets to top on route change.
 
@@ -377,8 +377,7 @@ Coordinate with panel slide: art may start fading as soon as the route changes; 
 4. **Live beacon** — slow green blink on `.chip--live`.
 5. **Alert beacon** — faster red blink on `.chip--alert`.
 6. **Phosphor breath** — slow opacity on `.atm-phosphor` (one line max nearby).
-7. **Console resize** — `ConsoleCard` shell height eases when inner content size changes.
-8. **Stage art fade** — through black on route background change (§3a).
+7. **Stage art fade** — through black on route background change (§3a).
 
 No bounce, no purple glow, no soft shadow stacks.
 

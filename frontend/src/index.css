@@ -12,8 +12,6 @@
   --motion-slide-ease: cubic-bezier(0.05, 0.7, 0.1, 1);
   /* Enter starts after this — short enough to avoid an empty stage */
   --motion-slide-stagger: 220ms;
-  /* Console content grow/shrink — shorter than slide */
-  --motion-resize-duration: 280ms;
   /* Top drop exit only — longer; slow start → fast finish (enter keeps slide timing) */
   --motion-drop-duration: 900ms;
   --motion-drop-ease: cubic-bezier(0.55, 0.05, 0.9, 0.2);

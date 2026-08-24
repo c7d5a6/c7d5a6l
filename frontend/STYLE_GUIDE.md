@@ -337,7 +337,6 @@ Applies to `ConsoleCard`, future metal-bordered navigation items, and any panel 
 | `--motion-slide-duration` | `600ms` | **Fixed** — same time for every slide, whether the travel is a short nudge or full off-screen |
 | `--motion-slide-ease` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | Ease-out: faster start, **slows at the end** (enter and exit) |
 | `--motion-slide-stagger` | `220ms` | Delay before route enter so exit clears the stage without a long empty gap |
-| `--motion-resize-duration` | `280ms` | Console shell height when content grows/shrinks — **shorter** than slide |
 | `--motion-drop-duration` | `900ms` | **Exit only** — longer than slide (tall panels travel farther) |
 | `--motion-drop-ease` | `cubic-bezier(0.55, 0.05, 0.9, 0.2)` | **Exit only** — ease-in: slow start, accelerates toward the end |
 | `.motion-slide-in` | `translateX(100vw → 0)` | Enter from off-screen **right** |
@@ -354,7 +353,7 @@ Rules:
 2. **Same curve in and out** — slide enter/exit both use `--motion-slide-ease`. Drop **enter** keeps slide timing; drop **exit** uses `--motion-drop-duration` / `--motion-drop-ease`.
 3. **Exit reverses enter** — same axis and timing; play the enter path backwards (e.g. in from right → out to right). No fade for this family.
 4. **Shared classes** — prefer `.motion-slide-in` / `.motion-slide-out` (or `PagePanels` `exiting`) instead of one-off keyframes.
-5. **Resize ≠ slide** — panel height changes (telemetry appear/dismiss) use `--motion-resize-duration`, not slide duration.
+5. **No height tween** — console shell size follows content. Do not animate `height`/`overflow` on the metal plate (clips the clip-path silhouette and flickers on tab swaps).
 6. **Route handoff stagger** — exit starts immediately; enter waits `--motion-slide-stagger` so panels don’t share the stage, without a long empty beat.
 7. **Exit out of flow** — `.page-panels.motion-slide-out` is `position: absolute` so a tall outgoing page does not keep document height alive (avoids centering jump when the stage shrinks). Scroll resets to top on route change.
 
@@ -378,8 +377,7 @@ Coordinate with panel slide: art may start fading as soon as the route changes; 
 4. **Live beacon** — slow green blink on `.chip--live`.
 5. **Alert beacon** — faster red blink on `.chip--alert`.
 6. **Phosphor breath** — slow opacity on `.atm-phosphor` (one line max nearby).
-7. **Console resize** — `ConsoleCard` shell height eases when inner content size changes.
-8. **Stage art fade** — through black on route background change (§3a).
+7. **Stage art fade** — through black on route background change (§3a).
 
 No bounce, no purple glow, no soft shadow stacks.
 

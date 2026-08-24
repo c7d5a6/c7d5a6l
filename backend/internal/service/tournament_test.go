@@ -368,5 +368,132 @@ func TestTournamentSaveResultsUpsert(t *testing.T) {
 	}
 }
 
+func TestTournamentSaveTBDResultsReplace(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	jaedongLink := "https://liquipedia.net/starcraft/Jaedong"
+	flashLink := "https://liquipedia.net/starcraft/Flash"
+	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), stubPlayerFetcher{
+		jaedongLink: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
+		flashLink:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
+	}, nil)
+
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/tbd-test",
+		Name: str("TBD Test"),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+		},
+		Results: []model.Result{{
+			Played: false, Phase: "Playoffs", Round: "Semifinals", Order: 1,
+			DateTime:     str("2026-08-20T12:00:00Z"),
+			ParticipantA: &model.Participant{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+			ParticipantB: &model.Participant{Name: str("TBD")},
+		}},
+	}
+	saved, _, err := svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Results) != 1 {
+		t.Fatalf("saved TBD results=%+v", saved.Results)
+	}
+	b := saved.Results[0].ParticipantB
+	if b == nil || b.Name == nil || *b.Name != "TBD" || b.Link != nil {
+		t.Fatalf("want TBD side, got %+v", b)
+	}
+
+	page.Results[0].ParticipantB = &model.Participant{Name: str("Flash"), Link: str(flashLink), Race: str("terran")}
+	page.Results[0].Played = true
+	page.Results[0].ScoreA = intPtr(2)
+	page.Results[0].ScoreB = intPtr(1)
+	saved, _, err = svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Results) != 1 {
+		t.Fatalf("TBD should be replaced by real match, got %d: %+v", len(saved.Results), saved.Results)
+	}
+	if !saved.Results[0].Played || saved.Results[0].ParticipantB == nil || saved.Results[0].ParticipantB.Link == nil {
+		t.Fatalf("want resolved match, got %+v", saved.Results[0])
+	}
+
+	page.Results = append(page.Results, model.Result{
+		Played: false, Phase: "Playoffs", Round: "Grand Final", Order: 2,
+		ParticipantA: &model.Participant{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+		ParticipantB: &model.Participant{Name: str("TBD")},
+	})
+	saved, _, err = svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Results) != 2 {
+		t.Fatalf("want real + TBD, got %d: %+v", len(saved.Results), saved.Results)
+	}
+
+	page.Results = page.Results[:1]
+	saved, _, err = svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Results) != 1 {
+		t.Fatalf("vanished TBD should be deleted, got %d: %+v", len(saved.Results), saved.Results)
+	}
+}
+
+func TestTournamentSaveGroupWinners(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	jaedongLink := "https://liquipedia.net/starcraft/Jaedong"
+	flashLink := "https://liquipedia.net/starcraft/Flash"
+	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), stubPlayerFetcher{
+		jaedongLink: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
+		flashLink:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
+	}, nil)
+
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/winners-test",
+		Name: str("Winners"),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+		},
+		Groups: []model.TournamentGroup{{
+			Name: "Group A", Phase: "Round of 24",
+			Players: []model.Participant{
+				{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg"), IsWinner: true},
+				{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
+			},
+		}},
+	}
+	saved, _, err := svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Groups) != 1 || len(saved.Groups[0].Players) != 2 {
+		t.Fatalf("groups=%+v", saved.Groups)
+	}
+	if !saved.Groups[0].Players[0].IsWinner || saved.Groups[0].Players[1].IsWinner {
+		t.Fatalf("winners=%+v", saved.Groups[0].Players)
+	}
+}
+
 func intPtr(n int) *int       { return &n }
 func boolPtr(b bool) *bool    { return &b }

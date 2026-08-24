@@ -159,11 +159,17 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 		return model.TournamentPage{}, model.TournamentSync{}, err
 	}
 
-	resultEntries, err := s.buildResultEntries(ctx, tx, tournamentID, page.Results)
+	resultEntries, tbdEntries, err := s.buildResultEntries(ctx, tx, tournamentID, page.Results)
 	if err != nil {
 		return model.TournamentPage{}, model.TournamentSync{}, err
 	}
 	if err := s.tours.UpsertResults(ctx, tx, tournamentID, resultEntries); err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, err
+	}
+	if err := s.tours.DeleteTBDResults(ctx, tx, tournamentID); err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, err
+	}
+	if err := s.tours.InsertTBDResults(ctx, tx, tournamentID, tbdEntries); err != nil {
 		return model.TournamentPage{}, model.TournamentSync{}, err
 	}
 
@@ -198,6 +204,16 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 // ListDueRefresh returns tournaments with past-due unplayed matches today (UTC).
 func (s *Tournament) ListDueRefresh(ctx context.Context, nowUTC time.Time) ([]repository.TournamentDueRefresh, error) {
 	return s.tours.ListTournamentsDueRefresh(ctx, s.db, nowUTC)
+}
+
+// ListInProgressRefresh returns tournaments with unplayed matches whose start is already past.
+func (s *Tournament) ListInProgressRefresh(ctx context.Context, nowUTC time.Time) ([]repository.TournamentDueRefresh, error) {
+	return s.tours.ListTournamentsInProgress(ctx, s.db, nowUTC)
+}
+
+// ListUnfinished returns stored tournaments that are not finished.
+func (s *Tournament) ListUnfinished(ctx context.Context) ([]repository.TournamentDueRefresh, error) {
+	return s.tours.ListUnfinishedTournaments(ctx, s.db)
 }
 
 // RefreshFromHTML parses tournament HTML and saves (roster/groups/results upsert).
@@ -450,16 +466,20 @@ func buildGroupEntries(groups []model.TournamentGroup) []repository.GroupEntry {
 			sortOrder = i
 		}
 		entry := repository.GroupEntry{
-			Name:        g.Name,
-			Phase:       g.Phase,
-			SortOrder:   sortOrder,
-			PlayerLinks: make([]string, 0, len(g.Players)),
+			Name:      g.Name,
+			Phase:     g.Phase,
+			SortOrder: sortOrder,
+			Players:   make([]repository.GroupPlayerEntry, 0, len(g.Players)),
 		}
 		for _, p := range g.Players {
 			link := strings.TrimSpace(nullStr(p.Link))
-			if link != "" {
-				entry.PlayerLinks = append(entry.PlayerLinks, link)
+			if link == "" {
+				continue
 			}
+			entry.Players = append(entry.Players, repository.GroupPlayerEntry{
+				Link:     link,
+				IsWinner: p.IsWinner,
+			})
 		}
 		out = append(out, entry)
 	}
@@ -489,32 +509,28 @@ func groupsEqual(a, b []model.TournamentGroup) bool {
 	return true
 }
 
-func (s *Tournament) buildResultEntries(ctx context.Context, q repository.DBTX, tournamentID int64, results []model.Result) ([]repository.ResultEntry, error) {
+func (s *Tournament) buildResultEntries(ctx context.Context, q repository.DBTX, tournamentID int64, results []model.Result) (resolved, tbd []repository.ResultEntry, err error) {
 	groupIDs, err := s.tours.GroupIDByPhaseName(ctx, q, tournamentID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	out := make([]repository.ResultEntry, 0, len(results))
+	resolved = make([]repository.ResultEntry, 0, len(results))
+	tbd = make([]repository.ResultEntry, 0)
 	pairSeen := make(map[[2]int64]int)
 	for _, r := range results {
-		if r.ParticipantA == nil || r.ParticipantB == nil {
-			continue
-		}
-		linkA := strings.TrimSpace(nullStr(r.ParticipantA.Link))
-		linkB := strings.TrimSpace(nullStr(r.ParticipantB.Link))
-		if linkA == "" || linkB == "" {
-			continue
-		}
-		idA, err := s.tours.TournamentPlayerIDByLink(ctx, q, tournamentID, linkA)
+		idA, tbdA, err := s.resultPlayerID(ctx, q, tournamentID, r.ParticipantA)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		idB, err := s.tours.TournamentPlayerIDByLink(ctx, q, tournamentID, linkB)
+		idB, tbdB, err := s.resultPlayerID(ctx, q, tournamentID, r.ParticipantB)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if idA == 0 || idB == 0 {
-			debuglog.Printf("UpsertResults skip unresolved players a=%s b=%s", linkA, linkB)
+		if (tbdA && tbdB) || (!tbdA && idA == 0) || (!tbdB && idB == 0) {
+			if idA == 0 || idB == 0 {
+				debuglog.Printf("UpsertResults skip unresolved players a=%s b=%s",
+					nullStr(ptrLink(r.ParticipantA)), nullStr(ptrLink(r.ParticipantB)))
+			}
 			continue
 		}
 		phase, round := r.Phase, r.Round
@@ -533,7 +549,7 @@ func (s *Tournament) buildResultEntries(ctx context.Context, q repository.DBTX, 
 		pairKey := [2]int64{lo, hi}
 		pairIndex := pairSeen[pairKey]
 		pairSeen[pairKey] = pairIndex + 1
-		out = append(out, repository.ResultEntry{
+		entry := repository.ResultEntry{
 			Phase:               phase,
 			Round:               round,
 			TournamentGroupID:   groupID,
@@ -545,9 +561,29 @@ func (s *Tournament) buildResultEntries(ctx context.Context, q repository.DBTX, 
 			Played:              r.Played,
 			PlayedAt:            r.DateTime,
 			SortOrder:           r.Order,
-		})
+		}
+		if tbdA || tbdB {
+			tbd = append(tbd, entry)
+			continue
+		}
+		resolved = append(resolved, entry)
 	}
-	return out, nil
+	return resolved, tbd, nil
+}
+
+func (s *Tournament) resultPlayerID(ctx context.Context, q repository.DBTX, tournamentID int64, p *model.Participant) (id int64, isTBD bool, err error) {
+	if p == nil {
+		return 0, true, nil
+	}
+	link := strings.TrimSpace(nullStr(p.Link))
+	if link == "" {
+		return 0, true, nil
+	}
+	id, err = s.tours.TournamentPlayerIDByLink(ctx, q, tournamentID, link)
+	if err != nil {
+		return 0, false, err
+	}
+	return id, false, nil
 }
 
 func resultsSummaries(results []model.Result) []string {

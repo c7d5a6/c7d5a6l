@@ -86,12 +86,20 @@ export type GroupCardProps = {
   playerExtra?: (p: Participant, i: number) => JSX.Element
 }
 
+function isGroupWinner(p: Participant): boolean {
+  return Boolean(p.isWinner)
+}
+
 /** Bordered group shell with optional player chips and match list. */
 export function GroupCard(props: GroupCardProps): JSX.Element {
   const hasResults = () => (props.results?.length ?? 0) > 0
-  // Dense Results board: roster only as fallback when the group has no matches yet.
-  const showPlayers = () =>
-    (props.players?.length ?? 0) > 0 && (!props.dense || !hasResults())
+  const displayPlayers = () => {
+    const all = props.players ?? []
+    if (all.length === 0) return []
+    if (!props.dense || !hasResults()) return all
+    return all.filter(isGroupWinner)
+  }
+  const showPlayers = () => displayPlayers().length > 0
 
   return (
     <article
@@ -110,9 +118,14 @@ export function GroupCard(props: GroupCardProps): JSX.Element {
       </header>
       <Show when={showPlayers()}>
         <ul class="telemetry__list telemetry__list--chips group-card__players">
-          <For each={props.players}>
+          <For each={displayPlayers()}>
             {(p, i) => (
-              <li class="group-card__player">
+              <li
+                classList={{
+                  'group-card__player': true,
+                  'group-card__player--winner': isGroupWinner(p),
+                }}
+              >
                 <Player name={p.name} link={p.link} race={p.race} excluded={p.excluded} />
                 {props.playerExtra?.(p, i())}
               </li>

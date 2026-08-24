@@ -86,3 +86,81 @@ func TestListTournamentsDueRefresh(t *testing.T) {
 		t.Fatalf("want none after played, got %+v", due)
 	}
 }
+
+func TestListUnfinishedAndInProgress(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	jaedong := "https://liquipedia.net/starcraft/Jaedong"
+	flash := "https://liquipedia.net/starcraft/Flash"
+	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), stubFetcher{
+		jaedong: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
+		flash:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
+	}, nil)
+
+	now := time.Date(2026, 8, 20, 15, 0, 0, 0, time.UTC)
+	yesterday := now.Add(-26 * time.Hour).Format(time.RFC3339)
+	open := model.TournamentPage{
+		Link:     "https://liquipedia.net/starcraft/ASL/open",
+		Name:     str("Open"),
+		Finished: boolPtr(false),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+		},
+		Results: []model.Result{{
+			Played: false, Phase: "Round of 24", Round: "Group A", Order: 1,
+			DateTime:     &yesterday,
+			ParticipantA: &model.Participant{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+			ParticipantB: &model.Participant{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+		}},
+	}
+	if _, _, err := svc.Save(ctx, open); err != nil {
+		t.Fatal(err)
+	}
+	done := model.TournamentPage{
+		Link:     "https://liquipedia.net/starcraft/ASL/done",
+		Name:     str("Done"),
+		Finished: boolPtr(true),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+		},
+	}
+	if _, _, err := svc.Save(ctx, done); err != nil {
+		t.Fatal(err)
+	}
+
+	unfinished, err := svc.ListUnfinished(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unfinished) != 1 || unfinished[0].Link != open.Link {
+		t.Fatalf("unfinished=%+v", unfinished)
+	}
+
+	due, err := svc.ListDueRefresh(ctx, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(due) != 0 {
+		t.Fatalf("yesterday match should not be due-today, got %+v", due)
+	}
+
+	inProg, err := svc.ListInProgressRefresh(ctx, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inProg) != 1 || inProg[0].Link != open.Link {
+		t.Fatalf("in-progress=%+v", inProg)
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }

@@ -30,8 +30,8 @@ func TestMigrate_idempotent(t *testing.T) {
 	if err := sqlDB.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatalf("version: %v", err)
 	}
-	if version != 15 {
-		t.Fatalf("version=%d, want 15", version)
+	if version != 16 {
+		t.Fatalf("version=%d, want 16", version)
 	}
 
 	tables := []string{
@@ -72,6 +72,17 @@ func TestMigrate_idempotent(t *testing.T) {
 	}
 	if aliasCol != 1 {
 		t.Fatal("tournament_player.player_alias_id missing")
+	}
+
+	var winnerCol int
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('tournament_group_player') WHERE name='is_winner'`,
+	).Scan(&winnerCol)
+	if err != nil {
+		t.Fatalf("pragma tournament_group_player: %v", err)
+	}
+	if winnerCol != 1 {
+		t.Fatal("tournament_group_player.is_winner missing")
 	}
 
 	for _, col := range []string{"telegram_id", "first_name", "role", "last_login_at"} {

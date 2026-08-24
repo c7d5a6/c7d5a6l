@@ -82,6 +82,8 @@ type FantasyGroupPlayer struct {
 	Race            *string `json:"race"`
 	Cost            int     `json:"cost"`
 	Excluded        bool    `json:"excluded"`
+	// IsGroupWinner marks standings advancement / group top (not fantasy champion).
+	IsGroupWinner bool `json:"isGroupWinner"`
 }
 
 // FantasyGroup is a tournament group with fantasy costs for drafting.

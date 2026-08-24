@@ -418,7 +418,8 @@ func (r *Fantasy) listGroupPlayers(ctx context.Context, q DBTX, leagueID, groupI
 			p.link,
 			pr.race,
 			fp.cost,
-			tp.excluded
+			tp.excluded,
+			tgp.is_winner
 		FROM tournament_group_player tgp
 		JOIN tournament_player tp ON tp.id = tgp.tournament_player_id
 		JOIN fantasy_player fp ON fp.tournament_player_id = tp.id AND fp.fantasy_league_id = ?
@@ -441,8 +442,9 @@ func (r *Fantasy) listGroupPlayers(ctx context.Context, q DBTX, leagueID, groupI
 			link     sql.NullString
 			race     string
 			excluded int
+			winner   int
 		)
-		if err := rows.Scan(&p.FantasyPlayerID, &name, &link, &race, &p.Cost, &excluded); err != nil {
+		if err := rows.Scan(&p.FantasyPlayerID, &name, &link, &race, &p.Cost, &excluded, &winner); err != nil {
 			return nil, err
 		}
 		n := name
@@ -454,6 +456,7 @@ func (r *Fantasy) listGroupPlayers(ctx context.Context, q DBTX, leagueID, groupI
 		raceVal := race
 		p.Race = &raceVal
 		p.Excluded = excluded != 0
+		p.IsGroupWinner = winner != 0
 		out = append(out, p)
 	}
 	return out, rows.Err()

@@ -76,6 +76,8 @@ export type FantasyGroupPlayer = {
   race: string | null
   cost: number
   excluded: boolean
+  /** Tournament group standings winner (not fantasy champion). */
+  isGroupWinner: boolean
 }
 
 export type FantasyGroup = {

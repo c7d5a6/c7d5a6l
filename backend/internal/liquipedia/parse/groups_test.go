@@ -189,6 +189,133 @@ func TestGroups_DedupCaseInsensitive(t *testing.T) {
 
 func strPtr(s string) *string { return &s }
 
+func TestGroups_AdvancingMarkersAndFallback(t *testing.T) {
+	t.Parallel()
+
+	marked := `
+<html><body>
+<h3>Round of 24</h3>
+<h4>Group A</h4>
+<table class="wikitable grouptable">
+  <tr class="bg-up">
+    <td><div class="block-player"><span class="name"><a href="/starcraft/Sharp">Sharp</a></span></div></td>
+  </tr>
+  <tr>
+    <td><div class="block-player"><span class="name"><a href="/starcraft/Ample">Ample</a></span></div></td>
+  </tr>
+  <tr class="bg-up">
+    <td><div class="block-player"><span class="name"><a href="/starcraft/Flash">Flash</a></span></div></td>
+  </tr>
+  <tr>
+    <td><div class="block-player"><span class="name"><a href="/starcraft/Soulkey">Soulkey</a></span></div></td>
+  </tr>
+</table>
+</body></html>`
+	got, err := parse.Groups(documentFromHTML(t, marked), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || len(got[0].Players) != 4 {
+		t.Fatalf("groups=%+v", got)
+	}
+	want := []bool{true, false, true, false}
+	for i, p := range got[0].Players {
+		if p.IsWinner != want[i] {
+			t.Fatalf("player %d IsWinner=%v want %v (%s)", i, p.IsWinner, want[i], nullName(p))
+		}
+	}
+
+	fallback4 := `
+<html><body>
+<h3>Round of 24</h3>
+<h4>Group A</h4>
+<table class="wikitable grouptable">
+  <tr><td><div class="block-player"><span class="name"><a href="/starcraft/A">A</a></span></div></td></tr>
+  <tr><td><div class="block-player"><span class="name"><a href="/starcraft/B">B</a></span></div></td></tr>
+  <tr><td><div class="block-player"><span class="name"><a href="/starcraft/C">C</a></span></div></td></tr>
+  <tr><td><div class="block-player"><span class="name"><a href="/starcraft/D">D</a></span></div></td></tr>
+</table>
+</body></html>`
+	got, err = parse.Groups(documentFromHTML(t, fallback4), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got[0].Players[0].IsWinner || !got[0].Players[1].IsWinner || got[0].Players[2].IsWinner || got[0].Players[3].IsWinner {
+		t.Fatalf("want top 2 winners, got %+v", winnerFlags(got[0].Players))
+	}
+
+	fallback2 := `
+<html><body>
+<h3>Playoffs</h3>
+<h4>Finals</h4>
+<table class="wikitable grouptable">
+  <tr><td><div class="block-player"><span class="name"><a href="/starcraft/A">A</a></span></div></td></tr>
+  <tr><td><div class="block-player"><span class="name"><a href="/starcraft/B">B</a></span></div></td></tr>
+</table>
+</body></html>`
+	got, err = parse.Groups(documentFromHTML(t, fallback2), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got[0].Players[0].IsWinner || got[0].Players[1].IsWinner {
+		t.Fatalf("want top 1 winner, got %+v", winnerFlags(got[0].Players))
+	}
+
+	divMarked := `
+<html><body>
+<h3>Week 1</h3>
+<div class="group-table">
+  <div class="group-table-header"><span class="group-table-title">Standings</span></div>
+  <div class="group-table-results">
+    <div class="group-table-result-row bg-up">
+      <div class="group-table-cell group-table-entry"><div class="block-player"><span class="name"><a href="/starcraft/Protoss">Protoss</a></span></div></div>
+    </div>
+    <div class="group-table-result-row">
+      <div class="group-table-cell group-table-entry"><div class="block-player"><span class="name"><a href="/starcraft/Terran">Terran</a></span></div></div>
+    </div>
+  </div>
+</div>
+</body></html>`
+	got, err = parse.Groups(documentFromHTML(t, divMarked), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Name != "Standings" || len(got[0].Players) != 2 {
+		t.Fatalf("div group=%+v", got)
+	}
+	if !got[0].Players[0].IsWinner || got[0].Players[1].IsWinner {
+		t.Fatalf("div winners=%+v", winnerFlags(got[0].Players))
+	}
+
+	fromResults := []model.Result{{
+		Stage:        strPtr("Round of 24 / Group Z / Match 1"),
+		ParticipantA: &model.Participant{Name: strPtr("X"), Link: strPtr("https://liquipedia.net/starcraft/X")},
+		ParticipantB: &model.Participant{Name: strPtr("Y"), Link: strPtr("https://liquipedia.net/starcraft/Y")},
+	}}
+	got, err = parse.Groups(documentFromHTML(t, `<html><body></body></html>`), fromResults)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || got[0].Players[0].IsWinner || got[0].Players[1].IsWinner {
+		t.Fatalf("result-only groups should have no winners, got %+v", got)
+	}
+}
+
+func nullName(p model.Participant) string {
+	if p.Name == nil {
+		return ""
+	}
+	return *p.Name
+}
+
+func winnerFlags(players []model.Participant) []bool {
+	out := make([]bool, len(players))
+	for i, p := range players {
+		out[i] = p.IsWinner
+	}
+	return out
+}
+
 func TestGroups_FixtureASLIfPresent(t *testing.T) {
 	t.Parallel()
 	root := testdataRoot(t)

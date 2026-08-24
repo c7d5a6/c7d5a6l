@@ -30,7 +30,7 @@ func groupsFromStandings(doc *goquery.Document) []model.TournamentGroup {
 		order  int
 	)
 
-	doc.Find("h3, h4, table").Each(func(_ int, sel *goquery.Selection) {
+	doc.Find("h3, h4, table, div.group-table").Each(func(_ int, sel *goquery.Selection) {
 		switch {
 		case sel.Is("h3"):
 			h3 = cleanHeading(sel)
@@ -39,30 +39,102 @@ func groupsFromStandings(doc *goquery.Document) []model.TournamentGroup {
 			h4 = cleanHeading(sel)
 		case sel.Is("table") && isGroupStandingsTable(sel):
 			name := groupTableName(sel, h4)
-			phase := h3
-			if name == "" || phase == "" {
-				return
-			}
-			players := playersFromGroupTable(sel)
-			if len(players) == 0 {
-				return
-			}
-			key := groupKey(phase, name)
-			if _, ok := seen[key]; ok {
-				return
-			}
-			seen[key] = struct{}{}
-			out = append(out, model.TournamentGroup{
-				Name:      name,
-				Phase:     phase,
-				SortOrder: order,
-				Players:   players,
-			})
-			order++
+			appendStandingGroup(&out, seen, &order, h3, name, playersFromGroupTable(sel))
+		case sel.Is("div") && sel.HasClass("group-table"):
+			name := groupDivName(sel, h4)
+			appendStandingGroup(&out, seen, &order, h3, name, playersFromGroupDiv(sel))
 		}
 	})
 
 	return out
+}
+
+func appendStandingGroup(
+	out *[]model.TournamentGroup,
+	seen map[string]struct{},
+	order *int,
+	phase, name string,
+	rows []standingPlayer,
+) {
+	if name == "" || phase == "" || len(rows) == 0 {
+		return
+	}
+	key := groupKey(phase, name)
+	if _, ok := seen[key]; ok {
+		return
+	}
+	seen[key] = struct{}{}
+	*out = append(*out, model.TournamentGroup{
+		Name:      name,
+		Phase:     phase,
+		SortOrder: *order,
+		Players:   applyGroupWinners(rows, true),
+	})
+	*order++
+}
+
+type standingPlayer struct {
+	p         model.Participant
+	advancing bool
+}
+
+func applyGroupWinners(rows []standingPlayer, fromStandings bool) []model.Participant {
+	out := make([]model.Participant, 0, len(rows))
+	anyMark := false
+	for _, r := range rows {
+		if r.advancing {
+			anyMark = true
+			break
+		}
+	}
+	n := len(rows)
+	topN := 0
+	if fromStandings && !anyMark {
+		if n >= 4 {
+			topN = 2
+		} else if n > 0 {
+			topN = 1
+		}
+	}
+	for i, r := range rows {
+		p := r.p
+		switch {
+		case anyMark:
+			p.IsWinner = r.advancing
+		case i < topN:
+			p.IsWinner = true
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func isAdvancingClass(class string) bool {
+	for _, part := range strings.Fields(strings.ToLower(class)) {
+		switch part {
+		case "bg-up", "bg-uptodate", "bg-safe":
+			return true
+		}
+	}
+	return false
+}
+
+func selectionAdvances(sel *goquery.Selection) bool {
+	if sel.Length() == 0 {
+		return false
+	}
+	if isAdvancingClass(sel.AttrOr("class", "")) {
+		return true
+	}
+	adv := false
+	sel.Find("[class]").EachWithBreak(func(_ int, n *goquery.Selection) bool {
+		if isAdvancingClass(n.AttrOr("class", "")) {
+			adv = true
+			return false
+		}
+		return true
+	})
+	return adv
 }
 
 func isGroupStandingsTable(sel *goquery.Selection) bool {
@@ -100,33 +172,66 @@ func groupTableName(table *goquery.Selection, h4 string) string {
 	return name
 }
 
-func playersFromGroupTable(table *goquery.Selection) []model.Participant {
-	var out []model.Participant
+func groupDivName(div *goquery.Selection, h4 string) string {
+	if title := cleanText(div.Find(".group-table-title").First().Text()); title != "" {
+		return title
+	}
+	return groupTableName(div, h4)
+}
+
+func playersFromGroupTable(table *goquery.Selection) []standingPlayer {
+	var out []standingPlayer
 	seen := map[string]struct{}{}
 
 	table.Find("tr").Each(func(_ int, row *goquery.Selection) {
-		row.Find(".block-player").Each(func(_ int, block *goquery.Selection) {
-			scope := block.Closest("td, th")
-			if scope.Length() == 0 {
-				scope = block.Parent()
-			}
-			p, ok := participantFromBlock(scope, "")
-			if !ok {
-				return
-			}
-			key := participantKey(p)
-			if key == "" {
-				return
-			}
-			if _, exists := seen[key]; exists {
-				return
-			}
-			seen[key] = struct{}{}
-			out = append(out, p)
-		})
+		appendStandingPlayers(&out, seen, row, row.Find(".block-player"))
 	})
 
 	return out
+}
+
+func playersFromGroupDiv(div *goquery.Selection) []standingPlayer {
+	var out []standingPlayer
+	seen := map[string]struct{}{}
+
+	div.Find(".group-table-result-row").Each(func(_ int, row *goquery.Selection) {
+		appendStandingPlayers(&out, seen, row, row.Find(".block-player"))
+	})
+	if len(out) == 0 {
+		div.Find(".block-player").Each(func(_ int, block *goquery.Selection) {
+			row := block.Closest(".group-table-result-row")
+			if row.Length() == 0 {
+				row = block.Parent()
+			}
+			appendStandingPlayers(&out, seen, row, block)
+		})
+	}
+
+	return out
+}
+
+func appendStandingPlayers(out *[]standingPlayer, seen map[string]struct{}, row, blocks *goquery.Selection) {
+	rowAdvancing := selectionAdvances(row)
+	blocks.Each(func(_ int, block *goquery.Selection) {
+		scope := block.Closest("td, th, .group-table-cell, .group-table-entry")
+		if scope.Length() == 0 {
+			scope = block.Parent()
+		}
+		p, ok := participantFromBlock(scope, "")
+		if !ok {
+			return
+		}
+		key := participantKey(p)
+		if key == "" {
+			return
+		}
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		advancing := rowAdvancing || selectionAdvances(scope) || selectionAdvances(block)
+		*out = append(*out, standingPlayer{p: p, advancing: advancing})
+	})
 }
 
 func groupsFromResults(results []model.Result) []model.TournamentGroup {

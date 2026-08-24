@@ -79,7 +79,7 @@ function ResultsSection(props: {
                     <GroupCard
                       name={e.group.name}
                       playoff={isPlayoffsPhase(e.group.phase)}
-                      players={e.group.players}
+                      players={e.group.players.map((p) => ({ ...p, isWinner: p.isGroupWinner }))}
                       results={e.results}
                       dense
                     />

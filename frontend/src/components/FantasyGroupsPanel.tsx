@@ -43,7 +43,7 @@ export function FantasyGroupsPanel(props: FantasyGroupsPanelProps): JSX.Element 
                     <GroupCard
                       name={g.name}
                       playoff={isPlayoffsPhase(g.phase)}
-                      players={g.players}
+                      players={g.players.map((p) => ({ ...p, isWinner: p.isGroupWinner }))}
                       playerExtra={(p) => {
                         const fp = g.players.find(
                           (x) => (x.link ?? '') === (p.link ?? '') && (x.name ?? '') === (p.name ?? ''),

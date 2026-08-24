@@ -38,6 +38,8 @@ type Participant struct {
 	Link     *string `json:"link"`
 	Race     *string `json:"race"`
 	Excluded bool    `json:"excluded"`
+	// IsWinner is set for group standings members who advanced / topped the group.
+	IsWinner bool `json:"isWinner"`
 }
 
 // Result is a scheduled or completed match between two sides.

@@ -5,6 +5,8 @@ export type Participant = {
   link: string | null
   race: string | null
   excluded: boolean
+  /** Group standings winner / advancing player. */
+  isWinner?: boolean
 }
 
 /** Scheduled or completed match between two sides. */

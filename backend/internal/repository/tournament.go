@@ -294,12 +294,18 @@ func (r *Tournament) ReplaceRoster(ctx context.Context, q DBTX, tournamentID int
 	return nil
 }
 
-// GroupEntry is one group row plus roster member links (player profile URLs).
+// GroupPlayerEntry is one group member (roster link + winner flag).
+type GroupPlayerEntry struct {
+	Link     string
+	IsWinner bool
+}
+
+// GroupEntry is one group row plus roster members.
 type GroupEntry struct {
-	Name        string
-	Phase       string
-	SortOrder   int
-	PlayerLinks []string
+	Name      string
+	Phase     string
+	SortOrder int
+	Players   []GroupPlayerEntry
 }
 
 // ReplaceGroups deletes existing groups for a tournament and inserts entries.
@@ -320,8 +326,8 @@ func (r *Tournament) ReplaceGroups(ctx context.Context, q DBTX, tournamentID int
 		if err != nil {
 			return fmt.Errorf("tournament_group last insert id: %w", err)
 		}
-		for i, link := range e.PlayerLinks {
-			link = strings.TrimSpace(link)
+		for i, gp := range e.Players {
+			link := strings.TrimSpace(gp.Link)
 			if link == "" {
 				continue
 			}
@@ -333,10 +339,14 @@ func (r *Tournament) ReplaceGroups(ctx context.Context, q DBTX, tournamentID int
 				debuglog.Printf("ReplaceGroups skip orphan link=%s tournamentID=%d", link, tournamentID)
 				continue
 			}
+			winner := 0
+			if gp.IsWinner {
+				winner = 1
+			}
 			if _, err := q.ExecContext(ctx, `
-				INSERT INTO tournament_group_player (tournament_group_id, tournament_player_id, sort_order)
-				VALUES (?, ?, ?)
-			`, groupID, tpID, i); err != nil {
+				INSERT INTO tournament_group_player (tournament_group_id, tournament_player_id, sort_order, is_winner)
+				VALUES (?, ?, ?, ?)
+			`, groupID, tpID, i, winner); err != nil {
 				return fmt.Errorf("insert tournament_group_player: %w", err)
 			}
 		}
@@ -398,7 +408,8 @@ func (r *Tournament) listGroupPlayers(ctx context.Context, q DBTX, groupID int64
 			p.link,
 			pa.name,
 			pr.race,
-			tp.excluded
+			tp.excluded,
+			tgp.is_winner
 		FROM tournament_group_player tgp
 		JOIN tournament_player tp ON tp.id = tgp.tournament_player_id
 		JOIN player_race pr ON pr.id = tp.player_race_id
@@ -419,11 +430,12 @@ func (r *Tournament) listGroupPlayers(ctx context.Context, q DBTX, groupID int64
 			name     string
 			race     string
 			excluded int
+			winner   int
 		)
-		if err := rows.Scan(&link, &name, &race, &excluded); err != nil {
+		if err := rows.Scan(&link, &name, &race, &excluded, &winner); err != nil {
 			return nil, err
 		}
-		p := model.Participant{Excluded: excluded != 0}
+		p := model.Participant{Excluded: excluded != 0, IsWinner: winner != 0}
 		n := name
 		p.Name = &n
 		if link.Valid && link.String != "" {
@@ -462,7 +474,8 @@ func (r *Tournament) TournamentPlayerIDByLink(ctx context.Context, q DBTX, tourn
 	return id, nil
 }
 
-// ResultEntry is one match to upsert.
+// ResultEntry is one match to upsert or insert (TBD).
+// Zero TournamentPlayerAID/BID means TBD (NULL in DB); player_lo/hi use 0 for that side.
 type ResultEntry struct {
 	Phase               string
 	Round               string
@@ -478,35 +491,47 @@ type ResultEntry struct {
 	SortOrder int
 }
 
-// UpsertResults inserts or updates matches by unordered player pair + pair_index. Never deletes.
+func resultPlayerIDs(a, b int64) (lo, hi int64, idA, idB any) {
+	lo, hi = a, b
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	if a != 0 {
+		idA = a
+	}
+	if b != 0 {
+		idB = b
+	}
+	return lo, hi, idA, idB
+}
+
+func resultScoresPlayedAt(e ResultEntry) (scoreA, scoreB, groupID, playedAt any, played int) {
+	if e.ScoreA != nil {
+		scoreA = *e.ScoreA
+	}
+	if e.ScoreB != nil {
+		scoreB = *e.ScoreB
+	}
+	if e.TournamentGroupID != nil {
+		groupID = *e.TournamentGroupID
+	}
+	if e.PlayedAt != nil && strings.TrimSpace(*e.PlayedAt) != "" {
+		playedAt = strings.TrimSpace(*e.PlayedAt)
+	}
+	if e.Played {
+		played = 1
+	}
+	return scoreA, scoreB, groupID, playedAt, played
+}
+
+// UpsertResults inserts or updates two-player matches by unordered pair + pair_index. Never deletes.
 func (r *Tournament) UpsertResults(ctx context.Context, q DBTX, tournamentID int64, entries []ResultEntry) error {
 	for _, e := range entries {
 		if e.TournamentPlayerAID == 0 || e.TournamentPlayerBID == 0 {
 			continue
 		}
-		lo, hi := e.TournamentPlayerAID, e.TournamentPlayerBID
-		if lo > hi {
-			lo, hi = hi, lo
-		}
-		played := 0
-		if e.Played {
-			played = 1
-		}
-		var scoreA, scoreB any
-		if e.ScoreA != nil {
-			scoreA = *e.ScoreA
-		}
-		if e.ScoreB != nil {
-			scoreB = *e.ScoreB
-		}
-		var groupID any
-		if e.TournamentGroupID != nil {
-			groupID = *e.TournamentGroupID
-		}
-		var playedAt any
-		if e.PlayedAt != nil && strings.TrimSpace(*e.PlayedAt) != "" {
-			playedAt = strings.TrimSpace(*e.PlayedAt)
-		}
+		lo, hi, idA, idB := resultPlayerIDs(e.TournamentPlayerAID, e.TournamentPlayerBID)
+		scoreA, scoreB, groupID, playedAt, played := resultScoresPlayedAt(e)
 		if _, err := q.ExecContext(ctx, `
 			INSERT INTO tournament_result (
 				tournament_id, tournament_group_id, phase, round,
@@ -525,9 +550,47 @@ func (r *Tournament) UpsertResults(ctx context.Context, q DBTX, tournamentID int
 				played_at = excluded.played_at,
 				sort_order = excluded.sort_order
 		`, tournamentID, groupID, e.Phase, e.Round,
-			e.TournamentPlayerAID, e.TournamentPlayerBID, lo, hi, e.PairIndex,
+			idA, idB, lo, hi, e.PairIndex,
 			scoreA, scoreB, played, playedAt, e.SortOrder); err != nil {
 			return fmt.Errorf("upsert tournament_result: %w", err)
+		}
+	}
+	return nil
+}
+
+// DeleteTBDResults removes matches that have a missing (TBD) player side.
+func (r *Tournament) DeleteTBDResults(ctx context.Context, q DBTX, tournamentID int64) error {
+	if _, err := q.ExecContext(ctx, `
+		DELETE FROM tournament_result
+		WHERE tournament_id = ?
+		  AND (tournament_player_a_id IS NULL OR tournament_player_b_id IS NULL)
+	`, tournamentID); err != nil {
+		return fmt.Errorf("delete TBD tournament_result: %w", err)
+	}
+	return nil
+}
+
+// InsertTBDResults inserts one-sided (real + TBD) matches. Caller should DeleteTBDResults first.
+func (r *Tournament) InsertTBDResults(ctx context.Context, q DBTX, tournamentID int64, entries []ResultEntry) error {
+	for _, e := range entries {
+		aZero := e.TournamentPlayerAID == 0
+		bZero := e.TournamentPlayerBID == 0
+		if aZero == bZero {
+			// Need exactly one real player.
+			continue
+		}
+		lo, hi, idA, idB := resultPlayerIDs(e.TournamentPlayerAID, e.TournamentPlayerBID)
+		scoreA, scoreB, groupID, playedAt, played := resultScoresPlayedAt(e)
+		if _, err := q.ExecContext(ctx, `
+			INSERT INTO tournament_result (
+				tournament_id, tournament_group_id, phase, round,
+				tournament_player_a_id, tournament_player_b_id, player_lo, player_hi, pair_index,
+				score_a, score_b, played, played_at, sort_order
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, tournamentID, groupID, e.Phase, e.Round,
+			idA, idB, lo, hi, e.PairIndex,
+			scoreA, scoreB, played, playedAt, e.SortOrder); err != nil {
+			return fmt.Errorf("insert TBD tournament_result: %w", err)
 		}
 	}
 	return nil
@@ -545,17 +608,19 @@ func (r *Tournament) ListResults(ctx context.Context, q DBTX, tournamentID int64
 			tr.round,
 			tr.tournament_group_id,
 			tr.sort_order,
+			tr.tournament_player_a_id,
+			tr.tournament_player_b_id,
 			pa.link, paa.name, pra.race, tpa.excluded,
 			pb.link, pab.name, prb.race, tpb.excluded
 		FROM tournament_result tr
-		JOIN tournament_player tpa ON tpa.id = tr.tournament_player_a_id
-		JOIN player_race pra ON pra.id = tpa.player_race_id
-		JOIN player_alias paa ON paa.id = tpa.player_alias_id
-		JOIN player pa ON pa.id = pra.player_id
-		JOIN tournament_player tpb ON tpb.id = tr.tournament_player_b_id
-		JOIN player_race prb ON prb.id = tpb.player_race_id
-		JOIN player_alias pab ON pab.id = tpb.player_alias_id
-		JOIN player pb ON pb.id = prb.player_id
+		LEFT JOIN tournament_player tpa ON tpa.id = tr.tournament_player_a_id
+		LEFT JOIN player_race pra ON pra.id = tpa.player_race_id
+		LEFT JOIN player_alias paa ON paa.id = tpa.player_alias_id
+		LEFT JOIN player pa ON pa.id = pra.player_id
+		LEFT JOIN tournament_player tpb ON tpb.id = tr.tournament_player_b_id
+		LEFT JOIN player_race prb ON prb.id = tpb.player_race_id
+		LEFT JOIN player_alias pab ON pab.id = tpb.player_alias_id
+		LEFT JOIN player pb ON pb.id = prb.player_id
 		WHERE tr.tournament_id = ?
 		ORDER BY tr.sort_order ASC, tr.id ASC
 	`, tournamentID)
@@ -573,29 +638,40 @@ func (r *Tournament) ListResults(ctx context.Context, q DBTX, tournamentID int64
 			phase, round        string
 			groupID             sql.NullInt64
 			sortOrder           int
+			playerAID           sql.NullInt64
+			playerBID           sql.NullInt64
 			linkA               sql.NullString
-			nameA               string
+			nameA               sql.NullString
 			raceA               sql.NullString
-			exclA               int
+			exclA               sql.NullInt64
 			linkB               sql.NullString
-			nameB               string
+			nameB               sql.NullString
 			raceB               sql.NullString
-			exclB               int
+			exclB               sql.NullInt64
 		)
 		if err := rows.Scan(
 			&played, &scoreA, &scoreB, &playedAt, &phase, &round, &groupID, &sortOrder,
+			&playerAID, &playerBID,
 			&linkA, &nameA, &raceA, &exclA,
 			&linkB, &nameB, &raceB, &exclB,
 		); err != nil {
 			return nil, err
 		}
 		res := model.Result{
-			Played:       played != 0,
-			Phase:        phase,
-			Round:        round,
-			Order:        sortOrder,
-			ParticipantA: participantFromScan(linkA, nameA, raceA, exclA),
-			ParticipantB: participantFromScan(linkB, nameB, raceB, exclB),
+			Played: played != 0,
+			Phase:  phase,
+			Round:  round,
+			Order:  sortOrder,
+		}
+		if playerAID.Valid {
+			res.ParticipantA = participantFromScan(linkA, nameA.String, raceA, int(exclA.Int64))
+		} else {
+			res.ParticipantA = tbdParticipant()
+		}
+		if playerBID.Valid {
+			res.ParticipantB = participantFromScan(linkB, nameB.String, raceB, int(exclB.Int64))
+		} else {
+			res.ParticipantB = tbdParticipant()
 		}
 		if scoreA.Valid {
 			v := int(scoreA.Int64)
@@ -626,6 +702,11 @@ func (r *Tournament) ListResults(ctx context.Context, q DBTX, tournamentID int64
 		out = append(out, res)
 	}
 	return out, rows.Err()
+}
+
+func tbdParticipant() *model.Participant {
+	n := "TBD"
+	return &model.Participant{Name: &n}
 }
 
 func participantFromScan(link sql.NullString, name string, race sql.NullString, excluded int) *model.Participant {
@@ -671,6 +752,22 @@ type TournamentDueRefresh struct {
 	Link string
 }
 
+func scanTournamentIDs(rows *sql.Rows, wrap error) ([]TournamentDueRefresh, error) {
+	if wrap != nil {
+		return nil, wrap
+	}
+	defer rows.Close()
+	out := make([]TournamentDueRefresh, 0)
+	for rows.Next() {
+		var row TournamentDueRefresh
+		if err := rows.Scan(&row.ID, &row.Link); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
 // ListTournamentsDueRefresh finds tournaments with unplayed matches whose played_at is today UTC and in the past.
 func (r *Tournament) ListTournamentsDueRefresh(ctx context.Context, q DBTX, nowUTC time.Time) ([]TournamentDueRefresh, error) {
 	today := nowUTC.UTC().Format("2006-01-02")
@@ -685,17 +782,38 @@ func (r *Tournament) ListTournamentsDueRefresh(ctx context.Context, q DBTX, nowU
 		  AND substr(tr.played_at, 1, 10) = ?
 		ORDER BY t.id ASC
 	`, now, today)
-	if err != nil {
-		return nil, fmt.Errorf("list tournaments due refresh: %w", err)
+	return scanTournamentIDs(rows, errWrap(err, "list tournaments due refresh"))
+}
+
+// ListTournamentsInProgress finds tournaments with unplayed matches whose start is already past (any day).
+func (r *Tournament) ListTournamentsInProgress(ctx context.Context, q DBTX, nowUTC time.Time) ([]TournamentDueRefresh, error) {
+	now := nowUTC.UTC().Format(time.RFC3339)
+	rows, err := q.QueryContext(ctx, `
+		SELECT DISTINCT t.id, t.link
+		FROM tournament t
+		JOIN tournament_result tr ON tr.tournament_id = t.id
+		WHERE tr.played = 0
+		  AND tr.played_at IS NOT NULL
+		  AND tr.played_at < ?
+		ORDER BY t.id ASC
+	`, now)
+	return scanTournamentIDs(rows, errWrap(err, "list tournaments in progress"))
+}
+
+// ListUnfinishedTournaments returns stored tournaments that are not finished.
+func (r *Tournament) ListUnfinishedTournaments(ctx context.Context, q DBTX) ([]TournamentDueRefresh, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT id, link
+		FROM tournament
+		WHERE finished = 0
+		ORDER BY id ASC
+	`)
+	return scanTournamentIDs(rows, errWrap(err, "list unfinished tournaments"))
+}
+
+func errWrap(err error, msg string) error {
+	if err == nil {
+		return nil
 	}
-	defer rows.Close()
-	out := make([]TournamentDueRefresh, 0)
-	for rows.Next() {
-		var row TournamentDueRefresh
-		if err := rows.Scan(&row.ID, &row.Link); err != nil {
-			return nil, err
-		}
-		out = append(out, row)
-	}
-	return out, rows.Err()
+	return fmt.Errorf("%s: %w", msg, err)
 }

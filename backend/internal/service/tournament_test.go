@@ -52,7 +52,7 @@ func TestTournamentSyncAndSave(t *testing.T) {
 			PreferredRace: str("terran"),
 		},
 	}
-	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, fetcher, nil)
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, fetcher, nil)
 
 	page := model.TournamentPage{
 		Link:           "https://liquipedia.net/starcraft/ASL/20",
@@ -86,12 +86,27 @@ func TestTournamentSyncAndSave(t *testing.T) {
 		t.Fatalf("willImport count=%d, want 2", importCount)
 	}
 
-	saved, sync, err := svc.Save(ctx, page)
+	saved, sync, queued, err := svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if queued != 2 {
+		t.Fatalf("importQueued=%d, want 2", queued)
+	}
 	if !sync.Exists || !sync.Same || sync.Action != model.TournamentActionNone {
 		t.Fatalf("after save want none, got %+v", sync)
+	}
+	pending := 0
+	for _, p := range sync.Players {
+		if p.WillImport {
+			t.Fatalf("unexpected willImport after stub save for %v", p.Link)
+		}
+		if p.ImportPending {
+			pending++
+		}
+	}
+	if pending != 2 {
+		t.Fatalf("importPending=%d, want 2", pending)
 	}
 	if saved.Name == nil || *saved.Name != "ASL Season 20" {
 		t.Fatalf("saved name=%v", saved.Name)
@@ -116,7 +131,7 @@ func TestTournamentSyncAndSave(t *testing.T) {
 		}
 	}
 
-	_, sync, err = svc.Save(ctx, changed)
+	_, sync, _, err = svc.Save(ctx, changed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +154,7 @@ func TestTournamentSaveRollsBackOnRosterError(t *testing.T) {
 	playerRepo := repository.NewPlayer(sqlDB)
 	tourRepo := repository.NewTournament(sqlDB)
 	link := "https://liquipedia.net/starcraft/Jaedong"
-	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, stubPlayerFetcher{
 		link: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
 	}, nil)
 
@@ -151,7 +166,7 @@ func TestTournamentSaveRollsBackOnRosterError(t *testing.T) {
 			{Name: str("Jaedong"), Link: str(link)}, // no race
 		},
 	}
-	_, _, err = svc.Save(ctx, page)
+	_, _, _, err = svc.Save(ctx, page)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -188,7 +203,7 @@ func TestTournamentSaveGroupsRoundTrip(t *testing.T) {
 	jaedongLink := "https://liquipedia.net/starcraft/Jaedong"
 	flashLink := "https://liquipedia.net/starcraft/Flash"
 	orphanLink := "https://liquipedia.net/starcraft/NotOnRoster"
-	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, stubPlayerFetcher{
 		jaedongLink: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
 		flashLink:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
 	}, nil)
@@ -221,7 +236,7 @@ func TestTournamentSaveGroupsRoundTrip(t *testing.T) {
 		},
 	}
 
-	saved, _, err := svc.Save(ctx, page)
+	saved, _, _, err := svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +267,7 @@ func TestTournamentSaveGroupsRoundTrip(t *testing.T) {
 			},
 		},
 	}
-	saved, _, err = svc.Save(ctx, page)
+	saved, _, _, err = svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +305,7 @@ func TestTournamentSaveResultsUpsert(t *testing.T) {
 	tourRepo := repository.NewTournament(sqlDB)
 	jaedongLink := "https://liquipedia.net/starcraft/Jaedong"
 	flashLink := "https://liquipedia.net/starcraft/Flash"
-	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, stubPlayerFetcher{
 		jaedongLink: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
 		flashLink:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
 	}, nil)
@@ -317,7 +332,7 @@ func TestTournamentSaveResultsUpsert(t *testing.T) {
 			},
 		},
 	}
-	saved, _, err := svc.Save(ctx, page)
+	saved, _, _, err := svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +346,7 @@ func TestTournamentSaveResultsUpsert(t *testing.T) {
 	page.Results[0].Played = true
 	page.Results[0].ScoreA = intPtr(2)
 	page.Results[0].ScoreB = intPtr(1)
-	saved, _, err = svc.Save(ctx, page)
+	saved, _, _, err = svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +366,7 @@ func TestTournamentSaveResultsUpsert(t *testing.T) {
 		ParticipantA: &model.Participant{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
 		ParticipantB: &model.Participant{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
 	})
-	saved, _, err = svc.Save(ctx, page)
+	saved, _, _, err = svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +396,7 @@ func TestTournamentSaveTBDResultsReplace(t *testing.T) {
 
 	jaedongLink := "https://liquipedia.net/starcraft/Jaedong"
 	flashLink := "https://liquipedia.net/starcraft/Flash"
-	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), stubPlayerFetcher{
+	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), nil, stubPlayerFetcher{
 		jaedongLink: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
 		flashLink:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
 	}, nil)
@@ -400,7 +415,7 @@ func TestTournamentSaveTBDResultsReplace(t *testing.T) {
 			ParticipantB: &model.Participant{Name: str("TBD")},
 		}},
 	}
-	saved, _, err := svc.Save(ctx, page)
+	saved, _, _, err := svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +431,7 @@ func TestTournamentSaveTBDResultsReplace(t *testing.T) {
 	page.Results[0].Played = true
 	page.Results[0].ScoreA = intPtr(2)
 	page.Results[0].ScoreB = intPtr(1)
-	saved, _, err = svc.Save(ctx, page)
+	saved, _, _, err = svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,7 +447,7 @@ func TestTournamentSaveTBDResultsReplace(t *testing.T) {
 		ParticipantA: &model.Participant{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
 		ParticipantB: &model.Participant{Name: str("TBD")},
 	})
-	saved, _, err = svc.Save(ctx, page)
+	saved, _, _, err = svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,7 +456,7 @@ func TestTournamentSaveTBDResultsReplace(t *testing.T) {
 	}
 
 	page.Results = page.Results[:1]
-	saved, _, err = svc.Save(ctx, page)
+	saved, _, _, err = svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,7 +478,7 @@ func TestTournamentSaveGroupWinners(t *testing.T) {
 
 	jaedongLink := "https://liquipedia.net/starcraft/Jaedong"
 	flashLink := "https://liquipedia.net/starcraft/Flash"
-	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), stubPlayerFetcher{
+	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), nil, stubPlayerFetcher{
 		jaedongLink: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
 		flashLink:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
 	}, nil)
@@ -483,7 +498,7 @@ func TestTournamentSaveGroupWinners(t *testing.T) {
 			},
 		}},
 	}
-	saved, _, err := svc.Save(ctx, page)
+	saved, _, _, err := svc.Save(ctx, page)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -502,7 +517,7 @@ func TestTournamentSaveGroupWinners(t *testing.T) {
 			{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
 		},
 	}}
-	if _, _, err := svc.Save(ctx, noWinners); err != nil {
+	if _, _, _, err := svc.Save(ctx, noWinners); err != nil {
 		t.Fatal(err)
 	}
 	sync, err := svc.SyncStatus(ctx, page)

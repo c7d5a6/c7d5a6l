@@ -44,14 +44,18 @@ func main() {
 	lpClient := liquipedia.NewClient()
 	playerRepo := repository.NewPlayer(sqlDB)
 	tournamentRepo := repository.NewTournament(sqlDB)
+	importRepo := repository.NewPlayerImport()
+	playerFetcher := service.LiquipediaPlayerFetcher{Client: lpClient}
 	playerSvc := service.NewPlayer(sqlDB, playerRepo, lpClient)
 	tournamentSvc := service.NewTournament(
 		sqlDB,
 		tournamentRepo,
 		playerRepo,
-		service.LiquipediaPlayerFetcher{Client: lpClient},
+		importRepo,
+		playerFetcher,
 		lpClient,
 	)
+	playerImporter := service.NewPlayerImporter(sqlDB, importRepo, playerRepo, playerFetcher, lpClient)
 	fantasyRepo := repository.NewFantasy(sqlDB)
 	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo, tournamentRepo)
 	userRepo := repository.NewUser(sqlDB)
@@ -135,6 +139,7 @@ func main() {
 	mux.Handle("DELETE /api/user-titles/{id}", requireAdmin(apiServer.DeleteUserTitle))
 
 	sched := job.StartRefreshTournaments(tournamentSvc, lpClient)
+	importer := job.StartImportPlayers(playerImporter)
 
 	addr := ":18765"
 	srv := &http.Server{Addr: addr, Handler: withCORS(mux)}
@@ -153,6 +158,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+	importer.Stop()
 	<-sched.Stop().Done()
 	log.Printf("shutdown complete")
 }

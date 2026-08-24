@@ -11,7 +11,7 @@ import (
 )
 
 // DefaultElo is assigned when a new player_race row is created.
-const DefaultElo = 950.0
+const DefaultElo = 1750.0
 
 // PortraitBlob is cached portrait image bytes to store with a player row.
 // Nil PortraitBlob on Upsert leaves an existing blob unchanged.

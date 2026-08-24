@@ -12,13 +12,14 @@ type TournamentSync struct {
 
 // TournamentPlayerStatus is one participant's DB presence for import planning.
 type TournamentPlayerStatus struct {
-	Name       *string `json:"name"`
-	Link       *string `json:"link"`
-	Race       *string `json:"race"`
-	Excluded   bool    `json:"excluded"`
-	InDatabase bool    `json:"inDatabase"`
-	WillImport bool    `json:"willImport"`
-	SkipReason *string `json:"skipReason,omitempty"`
+	Name          *string `json:"name"`
+	Link          *string `json:"link"`
+	Race          *string `json:"race"`
+	Excluded      bool    `json:"excluded"`
+	InDatabase    bool    `json:"inDatabase"`
+	WillImport    bool    `json:"willImport"`
+	ImportPending bool    `json:"importPending"`
+	SkipReason    *string `json:"skipReason,omitempty"`
 }
 
 const (

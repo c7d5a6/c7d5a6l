@@ -25,6 +25,7 @@ type Tournament struct {
 	db      *sql.DB
 	tours   *repository.Tournament
 	players *repository.Player
+	imports *repository.PlayerImport
 	fetcher PlayerPageFetcher
 	assets  AssetFetcher
 }
@@ -33,10 +34,14 @@ func NewTournament(
 	db *sql.DB,
 	tournaments *repository.Tournament,
 	players *repository.Player,
+	imports *repository.PlayerImport,
 	fetcher PlayerPageFetcher,
 	assets AssetFetcher,
 ) *Tournament {
-	return &Tournament{db: db, tours: tournaments, players: players, fetcher: fetcher, assets: assets}
+	if imports == nil {
+		imports = repository.NewPlayerImport()
+	}
+	return &Tournament{db: db, tours: tournaments, players: players, imports: imports, fetcher: fetcher, assets: assets}
 }
 
 // ListSummaries returns lightweight tournament rows for pickers.
@@ -67,6 +72,10 @@ func (s *Tournament) SyncStatus(ctx context.Context, page model.TournamentPage) 
 }
 
 func (s *Tournament) playerStatuses(ctx context.Context, participants []model.Participant) ([]model.TournamentPlayerStatus, error) {
+	pending, err := s.imports.PendingLinks(ctx, s.db)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]model.TournamentPlayerStatus, 0, len(participants))
 	for _, p := range participants {
 		st := model.TournamentPlayerStatus{
@@ -87,102 +96,101 @@ func (s *Tournament) playerStatuses(ctx context.Context, participants []model.Pa
 			return nil, err
 		}
 		st.InDatabase = exists
+		_, enrich := pending[strings.ToLower(link)]
+		st.ImportPending = enrich
+		// Missing rows need a stub on save; pending enrichment is async Liquipedia fetch.
 		st.WillImport = !exists
 		out = append(out, st)
 	}
 	return out, nil
 }
 
-// Save fetches missing players (outside TX), then upserts players + tournament + roster in one TX.
-func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model.TournamentPage, model.TournamentSync, error) {
+// Save upserts tournament data. Missing players are stubbed immediately and
+// Liquipedia enrichment is queued (does not block on the 30s parse rate limit).
+func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model.TournamentPage, model.TournamentSync, int, error) {
 	if page.Link == "" {
-		return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("tournament link is required")
+		return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("tournament link is required")
 	}
 	debuglog.Printf("service.Tournament.Save link=%s participants=%d", page.Link, len(page.Participants))
 
 	toImport, err := s.collectMissingLinks(ctx, page.Participants)
 	if err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
-	}
-
-	imported := make([]model.PlayerPage, 0, len(toImport))
-	portraits := make([]*repository.PortraitBlob, 0, len(toImport))
-	for _, link := range toImport {
-		if s.fetcher == nil {
-			return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("player fetcher not configured")
-		}
-		debuglog.Printf("service.Tournament.Save fetch player link=%s", link)
-		pp, err := s.fetcher.FetchPlayerPage(ctx, link)
-		if err != nil {
-			return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("fetch player %s: %w", link, err)
-		}
-		canonical, err := liquipedia.ValidateURL(link)
-		if err != nil {
-			return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("player link %s: %w", link, err)
-		}
-		pp.Link = canonical
-		portrait, err := resolvePortrait(ctx, s.assets, pp, nil)
-		if err != nil {
-			return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("portrait %s: %w", link, err)
-		}
-		imported = append(imported, pp)
-		portraits = append(portraits, portrait)
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("begin tx: %w", err)
+		return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback()
 
-	for i, pp := range imported {
-		if err := s.players.Upsert(ctx, tx, pp, portraits[i]); err != nil {
-			return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("upsert imported player: %w", err)
+	byLink := participantByLink(page.Participants)
+	for _, link := range toImport {
+		canonical, err := liquipedia.ValidateURL(link)
+		if err != nil {
+			return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("player link %s: %w", link, err)
+		}
+		part := byLink[strings.ToLower(canonical)]
+		stub := model.NewPlayerPage(canonical)
+		if part.Name != nil {
+			stub.Name = part.Name
+		}
+		if part.Race != nil {
+			stub.PreferredRace = part.Race
+		}
+		debuglog.Printf("service.Tournament.Save stub player link=%s", canonical)
+		if err := s.players.Upsert(ctx, tx, stub, nil); err != nil {
+			return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("stub player: %w", err)
+		}
+	}
+	if len(toImport) > 0 {
+		if err := s.imports.Enqueue(ctx, tx, toImport); err != nil {
+			return model.TournamentPage{}, model.TournamentSync{}, 0, err
 		}
 	}
 
 	tournamentID, err := s.tours.Upsert(ctx, tx, page)
 	if err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 
 	entries, err := s.buildRosterEntries(ctx, tx, page.Participants)
 	if err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 	if err := s.tours.ReplaceRoster(ctx, tx, tournamentID, entries); err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 
 	groupEntries := buildGroupEntries(page.Groups)
 	if err := s.tours.ReplaceGroups(ctx, tx, tournamentID, groupEntries); err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 
 	resultEntries, tbdEntries, err := s.buildResultEntries(ctx, tx, tournamentID, page.Results)
 	if err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 	if err := s.tours.UpsertResults(ctx, tx, tournamentID, resultEntries); err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 	if err := s.tours.DeleteTBDResults(ctx, tx, tournamentID); err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 	if err := s.tours.InsertTBDResults(ctx, tx, tournamentID, tbdEntries); err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("commit: %w", err)
+		return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("commit: %w", err)
 	}
 
 	stored, err := s.tours.GetByLink(ctx, s.db, page.Link)
 	if err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 	if stored == nil {
-		return model.TournamentPage{}, model.TournamentSync{}, fmt.Errorf("tournament missing after save")
+		return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("tournament missing after save")
 	}
 
 	out := stored.Page
@@ -195,10 +203,10 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 
 	playerStatuses, err := s.playerStatuses(ctx, out.Participants)
 	if err != nil {
-		return model.TournamentPage{}, model.TournamentSync{}, err
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 	sync := CompareTournament(out, &out, out.Participants, playerStatuses)
-	return out, sync, nil
+	return out, sync, len(toImport), nil
 }
 
 // ListDueRefresh returns tournaments with past-due unplayed matches today (UTC).
@@ -222,8 +230,20 @@ func (s *Tournament) RefreshFromHTML(ctx context.Context, link, html string) (mo
 	if err != nil {
 		return model.TournamentPage{}, err
 	}
-	saved, _, err := s.Save(ctx, page)
+	saved, _, _, err := s.Save(ctx, page)
 	return saved, err
+}
+
+func participantByLink(participants []model.Participant) map[string]model.Participant {
+	out := make(map[string]model.Participant, len(participants))
+	for _, p := range participants {
+		link := strings.TrimSpace(nullStr(p.Link))
+		if link == "" {
+			continue
+		}
+		out[strings.ToLower(link)] = p
+	}
+	return out
 }
 
 func (s *Tournament) collectMissingLinks(ctx context.Context, participants []model.Participant) ([]string, error) {

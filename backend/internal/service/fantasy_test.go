@@ -26,7 +26,7 @@ func setupFantasyFixture(t *testing.T) (context.Context, *service.Fantasy, *repo
 
 	playerRepo := repository.NewPlayer(sqlDB)
 	tourRepo := repository.NewTournament(sqlDB)
-	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, stubPlayerFetcher{
 		"https://liquipedia.net/starcraft/Jaedong": {
 			Link: "https://liquipedia.net/starcraft/Jaedong", Name: str("Jaedong"), IDs: []string{}, PreferredRace: str("zerg"),
 		},
@@ -48,7 +48,7 @@ func setupFantasyFixture(t *testing.T) (context.Context, *service.Fantasy, *repo
 		},
 		Results: []model.Result{},
 	}
-	if _, _, err := tourSvc.Save(ctx, page); err != nil {
+	if _, _, _, err := tourSvc.Save(ctx, page); err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,7 +118,7 @@ func TestFantasySurvivesTournamentResave(t *testing.T) {
 
 	playerRepo := repository.NewPlayer(sqlDB)
 	tourRepo := repository.NewTournament(sqlDB)
-	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, stubPlayerFetcher{
 		"https://liquipedia.net/starcraft/Jaedong": {
 			Link: "https://liquipedia.net/starcraft/Jaedong", Name: str("Jaedong"), IDs: []string{}, PreferredRace: str("zerg"),
 		},
@@ -149,7 +149,7 @@ func TestFantasySurvivesTournamentResave(t *testing.T) {
 		},
 		Results: []model.Result{},
 	}
-	if _, _, err := tourSvc.Save(ctx, page); err != nil {
+	if _, _, _, err := tourSvc.Save(ctx, page); err != nil {
 		t.Fatal(err)
 	}
 
@@ -281,7 +281,7 @@ func TestFantasyGetActiveLeaguePrefersUnfinishedNewest(t *testing.T) {
 	// Second tournament + leagues so we can mark finished independently.
 	playerRepo := repository.NewPlayer(sqlDB)
 	tourRepo := repository.NewTournament(sqlDB)
-	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubPlayerFetcher{
+	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, stubPlayerFetcher{
 		"https://liquipedia.net/starcraft/Jaedong": {
 			Link: "https://liquipedia.net/starcraft/Jaedong", Name: str("Jaedong"), IDs: []string{}, PreferredRace: str("zerg"),
 		},
@@ -294,7 +294,7 @@ func TestFantasyGetActiveLeaguePrefersUnfinishedNewest(t *testing.T) {
 		},
 		Results: []model.Result{},
 	}
-	if _, _, err := tourSvc.Save(ctx, page2); err != nil {
+	if _, _, _, err := tourSvc.Save(ctx, page2); err != nil {
 		t.Fatal(err)
 	}
 	var tournamentID2 int64

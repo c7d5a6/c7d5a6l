@@ -38,7 +38,7 @@ func TestListTournamentsDueRefresh(t *testing.T) {
 	flash := "https://liquipedia.net/starcraft/Flash"
 	tourRepo := repository.NewTournament(sqlDB)
 	playerRepo := repository.NewPlayer(sqlDB)
-	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, stubFetcher{
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, stubFetcher{
 		jaedong: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
 		flash:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
 	}, nil)
@@ -59,7 +59,7 @@ func TestListTournamentsDueRefresh(t *testing.T) {
 			ParticipantB: &model.Participant{Name: str("Flash"), Link: str(flash), Race: str("terran")},
 		}},
 	}
-	if _, _, err := svc.Save(ctx, page); err != nil {
+	if _, _, _, err := svc.Save(ctx, page); err != nil {
 		t.Fatal(err)
 	}
 
@@ -75,7 +75,7 @@ func TestListTournamentsDueRefresh(t *testing.T) {
 	page.Results[0].Played = true
 	page.Results[0].ScoreA = intPtr(2)
 	page.Results[0].ScoreB = intPtr(0)
-	if _, _, err := svc.Save(ctx, page); err != nil {
+	if _, _, _, err := svc.Save(ctx, page); err != nil {
 		t.Fatal(err)
 	}
 	due, err = svc.ListDueRefresh(ctx, now)
@@ -100,7 +100,7 @@ func TestListUnfinishedAndInProgress(t *testing.T) {
 
 	jaedong := "https://liquipedia.net/starcraft/Jaedong"
 	flash := "https://liquipedia.net/starcraft/Flash"
-	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), stubFetcher{
+	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), nil, stubFetcher{
 		jaedong: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
 		flash:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
 	}, nil)
@@ -122,7 +122,7 @@ func TestListUnfinishedAndInProgress(t *testing.T) {
 			ParticipantB: &model.Participant{Name: str("Flash"), Link: str(flash), Race: str("terran")},
 		}},
 	}
-	if _, _, err := svc.Save(ctx, open); err != nil {
+	if _, _, _, err := svc.Save(ctx, open); err != nil {
 		t.Fatal(err)
 	}
 	done := model.TournamentPage{
@@ -134,7 +134,7 @@ func TestListUnfinishedAndInProgress(t *testing.T) {
 			{Name: str("Flash"), Link: str(flash), Race: str("terran")},
 		},
 	}
-	if _, _, err := svc.Save(ctx, done); err != nil {
+	if _, _, _, err := svc.Save(ctx, done); err != nil {
 		t.Fatal(err)
 	}
 

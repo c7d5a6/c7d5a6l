@@ -105,6 +105,7 @@ export type TournamentPlayerStatus = {
   excluded: boolean
   inDatabase: boolean
   willImport: boolean
+  importPending?: boolean
   skipReason?: string | null
 }
 
@@ -138,6 +139,7 @@ export type SaveTournamentResponse = {
   message: string
   tournament: TournamentPage
   tournamentSync: TournamentSync
+  importQueued?: number
 }
 
 export type ErrorResponse = {

@@ -32,7 +32,7 @@ CREATE TABLE player_race (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id INTEGER NOT NULL REFERENCES player (id) ON DELETE CASCADE,
     race TEXT NOT NULL CHECK (race IN ('protoss', 'terran', 'zerg', 'random')),
-    elo REAL NOT NULL DEFAULT 950,
+    elo REAL NOT NULL DEFAULT 1750,
     UNIQUE (player_id, race)
 );
 

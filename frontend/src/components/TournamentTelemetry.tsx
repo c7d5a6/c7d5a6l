@@ -35,8 +35,13 @@ export function TournamentTelemetry(props: {
     return 'In database — differs from parse'
   })
 
-  const toImport = createMemo(() => (sync().players ?? []).filter((p) => p.willImport))
+  const toImport = createMemo(() =>
+    (sync().players ?? []).filter((p) => p.willImport || p.importPending),
+  )
   const changes = createMemo(() => sync().changes ?? [])
+  const importPendingCount = createMemo(
+    () => (sync().players ?? []).filter((p) => p.importPending).length,
+  )
 
   return (
     <section class="telemetry" aria-label="Tournament parse result">
@@ -165,12 +170,22 @@ export function TournamentTelemetry(props: {
             </Show>
 
             <Show when={toImport().length > 0}>
-              <RailSection label="Import" title={`Players to import (${toImport().length})`}>
+              <RailSection
+                label="Import"
+                title={
+                  importPendingCount() > 0 && toImport().every((p) => p.importPending)
+                    ? `Player enrichment queued (${toImport().length})`
+                    : `Players to import (${toImport().length})`
+                }
+              >
                 <ul class="telemetry__list">
                   <For each={toImport()}>
                     {(p) => (
                       <li>
                         <Player name={p.name} link={p.link} race={p.race} excluded={p.excluded} />
+                        <Show when={p.importPending}>
+                          <span class="telemetry__val"> queued</span>
+                        </Show>
                       </li>
                     )}
                   </For>

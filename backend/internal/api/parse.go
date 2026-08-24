@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -46,6 +47,7 @@ type saveTournamentResponse struct {
 	Message        string               `json:"message"`
 	Tournament     model.TournamentPage `json:"tournament"`
 	TournamentSync model.TournamentSync `json:"tournamentSync"`
+	ImportQueued   int                  `json:"importQueued"`
 }
 
 type errorResponse struct {
@@ -359,18 +361,23 @@ func (s *Server) SaveTournament(w http.ResponseWriter, r *http.Request) {
 		page.Results = []model.Result{}
 	}
 
-	saved, sync, err := s.Tournaments.Save(r.Context(), page)
+	saved, sync, queued, err := s.Tournaments.Save(r.Context(), page)
 	if err != nil {
 		log.Printf("save tournament %s: %v", page.Link, err)
 		writeError(w, http.StatusInternalServerError, "failed to save tournament")
 		return
 	}
-	debuglog.Printf("SaveTournament ok link=%s exists=%v same=%v", saved.Link, sync.Exists, sync.Same)
+	msg := "saved"
+	if queued > 0 {
+		msg = fmt.Sprintf("saved — queued %d player import(s)", queued)
+	}
+	debuglog.Printf("SaveTournament ok link=%s exists=%v same=%v importQueued=%d", saved.Link, sync.Exists, sync.Same, queued)
 
 	_ = json.NewEncoder(w).Encode(saveTournamentResponse{
-		Message:        "saved",
+		Message:        msg,
 		Tournament:     saved,
 		TournamentSync: sync,
+		ImportQueued:   queued,
 	})
 }
 

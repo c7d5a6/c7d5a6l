@@ -49,10 +49,11 @@ function toDraft(p: FantasyPlayerRow): PlayerDraft {
 }
 
 function draftPointsTotal(d: PlayerDraft): number {
-  return [d.pointsRo24, d.pointsRo16, d.pointsRo8, d.pointsRo4, d.pointsRo2].reduce(
-    (sum, v) => sum + (v ?? 0),
-    0,
-  )
+  let total = 0
+  for (const v of [d.pointsRo24, d.pointsRo16, d.pointsRo8, d.pointsRo4, d.pointsRo2]) {
+    total += v ?? 0
+  }
+  return total
 }
 
 function stageField(

@@ -265,7 +265,9 @@ export function Player(props: PlayerProps): JSX.Element {
       </Show>
 
       <Show
-        when={props.link && !props.link.startsWith('local://')}
+        when={
+          props.link && !props.link.startsWith('local://') ? props.link : undefined
+        }
         fallback={<span class="player__name">{displayValue(props.name)}</span>}
       >
         {(href) => (

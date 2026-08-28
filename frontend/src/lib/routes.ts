@@ -40,11 +40,18 @@ export function fantasyManageLeagueId(path: string): number | null {
   return Number.isFinite(id) && id > 0 ? id : null
 }
 
+export function isSeasonClosePath(path: string): boolean {
+  return normalizePath(path) === '/season-close'
+}
+
 /** Redirect non-admins away from admin-only routes. */
 export function guardAdminPath(path: string): string | null {
   const p = normalizePath(path)
   if (
-    (p === NAV_PATHS.parser || p === NAV_PATHS.users || isFantasyManagePath(p)) &&
+    (p === NAV_PATHS.parser ||
+      p === NAV_PATHS.users ||
+      isFantasyManagePath(p) ||
+      isSeasonClosePath(p)) &&
     !isAdmin()
   ) {
     return NAV_PATHS.fantasy

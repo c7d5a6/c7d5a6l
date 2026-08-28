@@ -25,5 +25,6 @@ export function stageBackgroundForPath(path: string): string {
   const p = normalizePath(path)
   if (p.startsWith('/tournaments')) return STAGE_BACKGROUNDS['/fantasy-league']
   if (p.startsWith('/fantasy-manage')) return STAGE_BACKGROUNDS['/fantasy-league']
+  if (p === '/season-close') return STAGE_BACKGROUNDS['/fantasy-league']
   return STAGE_BACKGROUNDS[p] ?? DEFAULT_ART
 }

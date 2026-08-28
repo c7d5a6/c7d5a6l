@@ -321,6 +321,15 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
         <p class="status status--ok">{msg()}</p>
       </Show>
 
+      <Show when={league()?.finished}>
+        <p class="status status--idle season-close__banner">
+          Season ratings pending ·{' '}
+          <A href="/season-close" class="season-strip__link">
+            Close season →
+          </A>
+        </p>
+      </Show>
+
       <Show when={league()}>
         {(l) => (
           <>

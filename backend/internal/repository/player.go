@@ -293,10 +293,30 @@ func (r *Player) ensurePlayerRace(ctx context.Context, q DBTX, playerID int64, r
 	if n > 0 {
 		return nil
 	}
-	if _, err := q.ExecContext(ctx, `
+	res, err := q.ExecContext(ctx, `
 		INSERT INTO player_race (player_id, race, elo) VALUES (?, ?, ?)
-	`, playerID, race, DefaultElo); err != nil {
+	`, playerID, race, DefaultElo)
+	if err != nil {
 		return fmt.Errorf("insert player_race: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("player_race last insert id: %w", err)
+	}
+	return ensureActiveSeasonSnapshot(ctx, q, id, DefaultElo)
+}
+
+func ensureActiveSeasonSnapshot(ctx context.Context, q DBTX, playerRaceID int64, elo float64) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT OR IGNORE INTO season_player_race (season_id, player_race_id, start_elo, start_rank)
+		SELECT s.id, ?, ?,
+			COALESCE((SELECT MAX(spr.start_rank) FROM season_player_race spr WHERE spr.season_id = s.id), 0) + 1
+		FROM season s
+		WHERE s.status = 'active'
+		LIMIT 1
+	`, playerRaceID, elo)
+	if err != nil {
+		return fmt.Errorf("ensure active season snapshot: %w", err)
 	}
 	return nil
 }
@@ -378,6 +398,9 @@ func (r *Player) EnsureRaceID(ctx context.Context, q DBTX, playerID int64, race 
 	id, err = res.LastInsertId()
 	if err != nil {
 		return 0, fmt.Errorf("player_race last insert id: %w", err)
+	}
+	if err := ensureActiveSeasonSnapshot(ctx, q, id, DefaultElo); err != nil {
+		return 0, err
 	}
 	return id, nil
 }

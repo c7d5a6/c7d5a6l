@@ -20,6 +20,7 @@ type Server struct {
 	Players     *service.Player
 	Tournaments *service.Tournament
 	Fantasy     *service.Fantasy
+	Seasons     *service.Season
 	Auth        *service.Auth
 	Titles      *service.Title
 }
@@ -142,13 +143,14 @@ func (s *Server) ParseLink(w http.ResponseWriter, r *http.Request) {
 
 type listPlayersResponse struct {
 	Players []model.PlayerRaceEntry `json:"players"`
+	Season  *model.SeasonSummary    `json:"season,omitempty"`
 }
 
 // ListPlayers returns player_race rows merged with player info, sorted by elo.
 func (s *Server) ListPlayers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	players, err := s.Players.ListRaceEntries(r.Context())
+	players, season, err := s.Seasons.ListRaceEntriesWithSeason(r.Context())
 	if err != nil {
 		log.Printf("list players: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to list players")
@@ -158,7 +160,7 @@ func (s *Server) ListPlayers(w http.ResponseWriter, r *http.Request) {
 		players = []model.PlayerRaceEntry{}
 	}
 	debuglog.Printf("ListPlayers count=%d", len(players))
-	_ = json.NewEncoder(w).Encode(listPlayersResponse{Players: players})
+	_ = json.NewEncoder(w).Encode(listPlayersResponse{Players: players, Season: season})
 }
 
 type patchPlayerRaceRequest struct {

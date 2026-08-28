@@ -121,6 +121,7 @@ function App() {
       <Route path={LAYER_ROUTE_PATHS[5]} component={() => null} />
       <Route path={LAYER_ROUTE_PATHS[6]} component={() => null} />
       <Route path={LAYER_ROUTE_PATHS[7]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[8]} component={() => null} />
       <Route path="/tournaments" component={() => <Navigate href={NAV_PATHS.fantasy} />} />
       <Route path="*404" component={HomeRedirect} />
     </Router>

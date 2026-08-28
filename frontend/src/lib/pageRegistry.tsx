@@ -6,6 +6,7 @@ import { FantasyManagePage } from '../pages/FantasyManagePage'
 import { MePage } from '../pages/MePage'
 import { ParserPage } from '../pages/ParserPage'
 import { PlayersPage } from '../pages/PlayersPage'
+import { SeasonClosePage } from '../pages/SeasonClosePage'
 import { TitlesPage } from '../pages/TitlesPage'
 import { UsersPage } from '../pages/UsersPage'
 import { isAdmin } from './auth'
@@ -26,6 +27,7 @@ export const LAYER_ROUTE_PATHS = [
   '/fantasy-league',
   '/fantasy-manage',
   '/fantasy-manage/:id',
+  '/season-close',
   '/users',
   '/titles',
   '/me',
@@ -47,6 +49,7 @@ export function renderPageForPath(path: string): JSX.Element | null {
     return id != null ? <FantasyManageDetailPage leagueId={id} /> : <FantasyManagePage />
   }
   if (p === NAV_PATHS.users) return isAdmin() ? <UsersPage /> : null
+  if (p === '/season-close') return isAdmin() ? <SeasonClosePage /> : null
   if (p === NAV_PATHS.titles) return <TitlesPage />
   if (p === '/me') return <MePage />
   return null

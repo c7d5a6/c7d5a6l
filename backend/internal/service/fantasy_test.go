@@ -58,7 +58,7 @@ func setupFantasyFixture(t *testing.T) (context.Context, *service.Fantasy, *repo
 	}
 
 	fantasyRepo := repository.NewFantasy(sqlDB)
-	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo, tourRepo)
+	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo, tourRepo, nil)
 	return ctx, fantasySvc, fantasyRepo, tournamentID
 }
 

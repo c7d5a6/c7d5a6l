@@ -34,13 +34,14 @@ const (
 
 // Fantasy orchestrates fantasy league reads and mutations.
 type Fantasy struct {
-	db    *sql.DB
-	repo  *repository.Fantasy
-	tours *repository.Tournament
+	db      *sql.DB
+	repo    *repository.Fantasy
+	tours   *repository.Tournament
+	seasons *Season
 }
 
-func NewFantasy(db *sql.DB, repo *repository.Fantasy, tours *repository.Tournament) *Fantasy {
-	return &Fantasy{db: db, repo: repo, tours: tours}
+func NewFantasy(db *sql.DB, repo *repository.Fantasy, tours *repository.Tournament, seasons *Season) *Fantasy {
+	return &Fantasy{db: db, repo: repo, tours: tours, seasons: seasons}
 }
 
 // ListLeagues returns all fantasy leagues.
@@ -339,6 +340,11 @@ func (s *Fantasy) FinishLeague(ctx context.Context, id int64) (model.FantasyLeag
 	}
 	if err := s.repo.SetLeagueFinished(ctx, s.db, id); err != nil {
 		return model.FantasyLeague{}, err
+	}
+	if s.seasons != nil {
+		if err := s.seasons.MarkReadyToClose(ctx, id); err != nil {
+			debuglog.Printf("FinishLeague MarkReadyToClose leagueId=%d err=%v", id, err)
+		}
 	}
 	updated, err := s.repo.GetLeagueByID(ctx, s.db, id)
 	if err != nil || updated == nil {

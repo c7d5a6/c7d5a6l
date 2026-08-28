@@ -1,26 +1,51 @@
 import { ConsoleCard } from '../components/ConsoleCard'
 import { ChannelHead } from '../components/ChannelChrome'
 import { Player } from '../components/Player'
+import { A } from '@solidjs/router'
 import { For, Match, Show, Switch, createResource, createSignal } from 'solid-js'
 import { authFetch, isAdmin } from '../lib/auth'
 import { invalidatePlayerInfo } from '../lib/playerHoverCache'
-import { playerPortraitSrc, type PlayerRaceEntry } from '../types/tournament'
+import {
+  playerPortraitSrc,
+  type PlayerRaceEntry,
+  type SeasonSummary,
+} from '../types/tournament'
 
 type ListPlayersResponse = {
   players: PlayerRaceEntry[]
+  season?: SeasonSummary | null
 }
 
-async function fetchPlayers(): Promise<PlayerRaceEntry[]> {
+type RosterPayload = {
+  players: PlayerRaceEntry[]
+  season: SeasonSummary | null
+}
+
+async function fetchPlayers(): Promise<RosterPayload> {
   const res = await authFetch('/api/players')
   if (!res.ok) {
     throw new Error(`roster uplink failed (${res.status})`)
   }
   const data = (await res.json()) as ListPlayersResponse
-  return data.players ?? []
+  return {
+    players: data.players ?? [],
+    season: data.season ?? null,
+  }
 }
 
 function formatElo(elo: number): string {
   return elo.toFixed(0)
+}
+
+function formatSeasonDate(iso: string): string {
+  const d = iso.slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : iso
+}
+
+function formatRankDelta(delta: number | null | undefined): string {
+  if (delta == null) return '—'
+  if (delta === 0) return '0'
+  return delta > 0 ? `+${delta}` : String(delta)
 }
 
 /** Roster channel — player_race rows ranked by elo. */
@@ -97,122 +122,171 @@ export function PlayersPage() {
             {(roster.error as Error)?.message ?? 'Roster uplink failed'}
           </p>
         </Match>
-        <Match when={(roster() ?? []).length === 0}>
-          <p class="status status--idle">No race entries in database</p>
-        </Match>
-        <Match when={roster()}>
+        <Match when={roster()?.players}>
           {(rows) => (
             <>
-              <p class="status status--ok">
-                {rows().length} race entr{rows().length === 1 ? 'y' : 'ies'} · ranked by elo
-              </p>
-              <Show when={error()}>
-                <p class="status status--error">{error()}</p>
+              <Show when={rows().length === 0}>
+                <p class="status status--idle">No race entries in database</p>
               </Show>
-              <div
-                classList={{
-                  roster: true,
-                  'roster--players': true,
-                  'roster--players-admin': isAdmin(),
-                }}
-                role="table"
-                aria-label="Players by elo"
-              >
-                <div class="roster__head" role="row">
-                  <span class="roster__cell roster__rank" role="columnheader">
-                    #
-                  </span>
-                  <span class="roster__cell roster__player" role="columnheader">
-                    Player
-                  </span>
-                  <span class="roster__cell roster__elo" role="columnheader">
-                    Elo
-                  </span>
-                  <Show when={isAdmin()}>
-                    <span class="roster__cell roster__actions" role="columnheader">
-                      <span class="points-board__sr-only">Actions</span>
-                    </span>
-                  </Show>
-                </div>
-                <For each={rows()}>
-                  {(row, i) => (
-                    <div class="roster__row" role="row">
-                      <span class="roster__cell roster__rank" role="cell">
-                        {i() + 1}
-                      </span>
-                      <span class="roster__cell roster__player" role="cell">
-                        <Show when={playerPortraitSrc(row)}>
-                          {(src) => <img class="roster__portrait" src={src()} alt="" />}
-                        </Show>
-                        <Player
-                          name={row.name}
-                          link={row.link}
-                          race={row.race}
-                          hasPortrait={row.hasPortrait}
-                        />
-                      </span>
-                      <span class="roster__cell roster__elo" role="cell">
-                        <Show
-                          when={isAdmin() && editingId() === row.playerRaceId}
-                          fallback={formatElo(row.elo)}
-                        >
-                          <input
-                            class="field__input fantasy-cost-input roster__elo-input"
-                            type="number"
-                            min={0}
-                            max={9999}
-                            step={1}
-                            value={draftElo()}
-                            disabled={busy()}
-                            aria-label={`Elo for ${row.name ?? row.link}`}
-                            onInput={(e) => setDraftElo(e.currentTarget.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void saveEdit(row)
-                              if (e.key === 'Escape') cancelEdit()
-                            }}
-                          />
-                        </Show>
-                      </span>
-                      <Show when={isAdmin()}>
-                        <span class="roster__cell roster__actions" role="cell">
-                          <Show
-                            when={editingId() === row.playerRaceId}
-                            fallback={
-                              <button
-                                type="button"
-                                class="btn btn--ghost btn--compact"
-                                disabled={busy() || (editingId() != null && editingId() !== row.playerRaceId)}
-                                onClick={() => startEdit(row)}
-                              >
-                                Edit
-                              </button>
-                            }
-                          >
-                            <div class="roster__elo-actions">
-                              <button
-                                type="button"
-                                class="btn btn--primary btn--compact"
-                                disabled={busy()}
-                                onClick={() => void saveEdit(row)}
-                              >
-                                {busy() ? 'Saving…' : 'Save'}
-                              </button>
-                              <button
-                                type="button"
-                                class="btn btn--ghost btn--compact"
-                                disabled={busy()}
-                                onClick={cancelEdit}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </Show>
+              <Show when={rows().length > 0}>
+                <Show when={roster()?.season}>
+                  {(season) => (
+                    <div class="season-strip">
+                      <div class="season-strip__main">
+                        <span class="season-strip__name">{season().name}</span>
+                        <span class="season-strip__meta">
+                          Opened {formatSeasonDate(season().startedAt)}
                         </span>
+                      </div>
+                      <Show when={season().readyToClose && isAdmin()}>
+                        <A
+                          href="/season-close"
+                          class="chip chip--alert season-strip__chip season-strip__link"
+                        >
+                          Close season →
+                        </A>
                       </Show>
                     </div>
                   )}
-                </For>
-              </div>
+                </Show>
+
+                <p class="status status--ok">
+                  {rows().length} race entr{rows().length === 1 ? 'y' : 'ies'} · ranked by elo
+                </p>
+                <Show when={error()}>
+                  <p class="status status--error">{error()}</p>
+                </Show>
+                <div
+                  classList={{
+                    roster: true,
+                    'roster--players': true,
+                    'roster--players-admin': isAdmin(),
+                  }}
+                  role="table"
+                  aria-label="Players by elo"
+                >
+                  <div class="roster__head" role="row">
+                    <span class="roster__cell roster__rank" role="columnheader">
+                      #
+                    </span>
+                    <span class="roster__cell roster__player" role="columnheader">
+                      Player
+                    </span>
+                    <span class="roster__cell roster__elo" role="columnheader">
+                      Elo
+                    </span>
+                    <span class="roster__cell roster__rank-delta" role="columnheader">
+                      Δ Rank
+                    </span>
+                    <Show when={isAdmin()}>
+                      <span class="roster__cell roster__actions" role="columnheader">
+                        <span class="points-board__sr-only">Actions</span>
+                      </span>
+                    </Show>
+                  </div>
+                  <For each={rows()}>
+                    {(row, i) => (
+                      <div class="roster__row" role="row">
+                        <span class="roster__cell roster__rank" role="cell">
+                          {i() + 1}
+                        </span>
+                        <span class="roster__cell roster__player" role="cell">
+                          <Show when={playerPortraitSrc(row)}>
+                            {(src) => <img class="roster__portrait" src={src()} alt="" />}
+                          </Show>
+                          <Player
+                            name={row.name}
+                            link={row.link}
+                            race={row.race}
+                            hasPortrait={row.hasPortrait}
+                          />
+                        </span>
+                        <span class="roster__cell roster__elo" role="cell">
+                          <Show
+                            when={isAdmin() && editingId() === row.playerRaceId}
+                            fallback={
+                              <>
+                                {formatElo(row.elo)}
+                                <Show when={row.seasonStartElo != null}>
+                                  <span class="roster__elo-start">
+                                    {formatElo(row.seasonStartElo!)}
+                                  </span>
+                                </Show>
+                              </>
+                            }
+                          >
+                            <input
+                              class="field__input fantasy-cost-input roster__elo-input"
+                              type="number"
+                              min={0}
+                              max={9999}
+                              step={1}
+                              value={draftElo()}
+                              disabled={busy()}
+                              aria-label={`Elo for ${row.name ?? row.link}`}
+                              onInput={(e) => setDraftElo(e.currentTarget.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') void saveEdit(row)
+                                if (e.key === 'Escape') cancelEdit()
+                              }}
+                            />
+                          </Show>
+                        </span>
+                        <span
+                          classList={{
+                            'roster__cell': true,
+                            'roster__rank-delta': true,
+                            'roster__rank-delta--up': (row.rankDelta ?? 0) > 0,
+                            'roster__rank-delta--down': (row.rankDelta ?? 0) < 0,
+                          }}
+                          role="cell"
+                        >
+                          {formatRankDelta(row.rankDelta)}
+                        </span>
+                        <Show when={isAdmin()}>
+                          <span class="roster__cell roster__actions" role="cell">
+                            <Show
+                              when={editingId() === row.playerRaceId}
+                              fallback={
+                                <button
+                                  type="button"
+                                  class="btn btn--ghost btn--compact"
+                                  disabled={
+                                    busy() ||
+                                    (editingId() != null && editingId() !== row.playerRaceId)
+                                  }
+                                  onClick={() => startEdit(row)}
+                                >
+                                  Edit
+                                </button>
+                              }
+                            >
+                              <div class="roster__elo-actions">
+                                <button
+                                  type="button"
+                                  class="btn btn--primary btn--compact"
+                                  disabled={busy()}
+                                  onClick={() => void saveEdit(row)}
+                                >
+                                  {busy() ? 'Saving…' : 'Save'}
+                                </button>
+                                <button
+                                  type="button"
+                                  class="btn btn--ghost btn--compact"
+                                  disabled={busy()}
+                                  onClick={cancelEdit}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </Show>
+                          </span>
+                        </Show>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
             </>
           )}
         </Match>

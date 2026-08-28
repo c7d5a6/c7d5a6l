@@ -57,7 +57,9 @@ func main() {
 	)
 	playerImporter := service.NewPlayerImporter(sqlDB, importRepo, playerRepo, playerFetcher, lpClient)
 	fantasyRepo := repository.NewFantasy(sqlDB)
-	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo, tournamentRepo)
+	seasonRepo := repository.NewSeason(sqlDB)
+	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo)
+	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo, tournamentRepo, seasonSvc)
 	userRepo := repository.NewUser(sqlDB)
 	titleRepo := repository.NewTitle(sqlDB)
 	titleSvc := service.NewTitle(sqlDB, titleRepo, userRepo, fantasyRepo)
@@ -77,6 +79,7 @@ func main() {
 		Players:     playerSvc,
 		Tournaments: tournamentSvc,
 		Fantasy:     fantasySvc,
+		Seasons:     seasonSvc,
 		Auth:        authSvc,
 		Titles:      titleSvc,
 	}
@@ -104,6 +107,10 @@ func main() {
 	mux.HandleFunc("GET /api/tournaments", apiServer.ListTournaments)
 	mux.Handle("POST /api/tournaments", requireAdmin(apiServer.SaveTournament))
 	mux.Handle("GET /api/tournaments/unused-for-fantasy", requireAdmin(apiServer.ListUnusedTournamentsForFantasy))
+
+	mux.Handle("GET /api/seasons/current", requireAuth(http.HandlerFunc(apiServer.GetCurrentSeason)))
+	mux.Handle("GET /api/seasons/close-preview", requireAdmin(apiServer.GetSeasonClosePreview))
+	mux.Handle("POST /api/seasons/close", requireAdmin(apiServer.CloseSeason))
 
 	mux.HandleFunc("GET /api/fantasy-leagues", apiServer.ListFantasyLeagues)
 	mux.HandleFunc("GET /api/fantasy-leagues/active", apiServer.GetActiveFantasyLeague)

@@ -2556,7 +2556,7 @@ button.lamp-flash::after {
 .roster__head,
 .roster__row {
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr) 4.5rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 4.5rem 3.25rem;
   gap: 0.75rem;
   align-items: center;
   padding: 0.45rem 0.7rem;
@@ -2564,7 +2564,7 @@ button.lamp-flash::after {
 
 .roster--players-admin .roster__head,
 .roster--players-admin .roster__row {
-  grid-template-columns: 2.5rem minmax(0, 1fr) 5.5rem minmax(7.5rem, auto);
+  grid-template-columns: 2.5rem minmax(0, 1fr) 5.5rem 3.25rem minmax(7.5rem, auto);
 }
 
 .roster__elo-input {
@@ -2624,6 +2624,145 @@ button.lamp-flash::after {
   color: var(--color-theme);
   text-align: right;
   letter-spacing: 0.04em;
+}
+
+.roster__elo-start {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--color-text-dim);
+  letter-spacing: 0.06em;
+}
+
+.roster__rank-delta {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  text-align: right;
+  letter-spacing: 0.04em;
+  color: var(--color-text-dim);
+}
+
+.roster__rank-delta--up {
+  color: var(--color-theme);
+}
+
+.roster__rank-delta--down {
+  color: var(--color-hazard);
+}
+
+.season-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-border);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.season-strip__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.85rem;
+}
+
+.season-strip__name {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-theme);
+}
+
+.season-strip__meta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-text-dim);
+  letter-spacing: 0.06em;
+}
+
+.season-strip__link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.season-strip__link:hover {
+  filter: brightness(1.15);
+}
+
+.season-close__hint {
+  margin-top: 0.25rem;
+}
+
+.season-close__list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.season-close__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem 0.85rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-rule);
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.season-close__row--fl {
+  border-color: color-mix(in srgb, var(--color-hazard) 45%, var(--color-rule));
+}
+
+.season-close__check {
+  accent-color: var(--color-theme);
+}
+
+.season-close__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.season-close__title {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.season-close__dates {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--color-text-dim);
+}
+
+.season-close__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.season-close__actions {
+  margin-top: 0.5rem;
+}
+
+.season-pending-chip {
+  margin-left: 0.35rem;
+}
+
+.season-close__banner {
+  margin-bottom: 0.5rem;
+}
+
+.chip--compact {
+  font-size: 0.58rem;
+  padding: 0.12rem 0.4rem;
 }
 
 .roster--users .roster__head,
@@ -2730,18 +2869,18 @@ button.lamp-flash::after {
 
   .roster--players .roster__head,
   .roster--players .roster__row {
-    grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+    grid-template-columns: 2.2rem minmax(0, 1fr) auto auto;
     grid-template-areas:
-      "rank player player"
-      ". elo elo";
+      "rank player player player"
+      ". elo delta delta";
   }
 
   .roster--players-admin .roster__head,
   .roster--players-admin .roster__row {
-    grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+    grid-template-columns: 2.2rem minmax(0, 1fr) auto auto;
     grid-template-areas:
-      "rank player player"
-      ". elo actions";
+      "rank player player player"
+      ". elo delta actions";
   }
 
   .roster--players .roster__rank {
@@ -2757,6 +2896,11 @@ button.lamp-flash::after {
   .roster--players .roster__elo {
     grid-area: elo;
     text-align: left;
+  }
+
+  .roster--players .roster__rank-delta {
+    grid-area: delta;
+    text-align: right;
   }
 
   .roster--players .roster__actions {

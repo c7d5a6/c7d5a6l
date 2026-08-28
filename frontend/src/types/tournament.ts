@@ -76,6 +76,17 @@ export type PlayerRaceEntry = {
   hasPortrait: boolean
   race: string
   elo: number
+  seasonStartElo?: number | null
+  rankDelta?: number | null
+}
+
+export type SeasonSummary = {
+  id: number
+  name: string
+  status: string
+  startedAt: string
+  closedAt?: string | null
+  readyToClose: boolean
 }
 
 /** Local API URL for a cached player portrait, or null. */

@@ -151,7 +151,7 @@ export function PlayersPage() {
                 </Show>
 
                 <p class="status status--ok">
-                  {rows().length} race entr{rows().length === 1 ? 'y' : 'ies'} · ranked by elo
+                  {rows().length} race entr{rows().length === 1 ? 'y' : 'ies'} · ranked by season rating
                 </p>
                 <Show when={error()}>
                   <p class="status status--error">{error()}</p>

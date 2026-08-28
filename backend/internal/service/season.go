@@ -95,46 +95,10 @@ func (s *Season) CloseSeason(ctx context.Context, tournamentIDs []int64) (*model
 		return nil, 0, ErrSeasonNoActive
 	}
 
-	snapshots, err := s.repo.ListActiveSeasonSnapshots(ctx, s.db, active.ID)
+	endElos, endRanks, err := s.computeSeasonRatings(ctx, active, tournamentIDs)
 	if err != nil {
 		return nil, 0, err
 	}
-	startElos := make(map[int64]float64, len(snapshots))
-	for _, snap := range snapshots {
-		startElos[snap.PlayerRaceID] = snap.StartElo
-	}
-	// Include any player_race rows missing from snapshot (safety net).
-	allElos, err := s.repo.ListAllPlayerRaceElos(ctx, s.db)
-	if err != nil {
-		return nil, 0, err
-	}
-	for id, elo := range allElos {
-		if _, ok := startElos[id]; !ok {
-			startElos[id] = elo
-		}
-	}
-
-	seasonMatches, err := s.repo.ListRatingMatches(ctx, s.db, tournamentIDs)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	var flMatches []rating.Match
-	if active.ClosingFantasyLeagueID != nil {
-		flTourID, err := s.repo.FantasyLeagueTournamentID(ctx, s.db, *active.ClosingFantasyLeagueID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, 0, err
-		}
-		if flTourID != 0 {
-			flMatches, err = s.repo.ListRatingMatches(ctx, s.db, []int64{flTourID})
-			if err != nil {
-				return nil, 0, err
-			}
-		}
-	}
-
-	endElos := s.calc.Compute(startElos, seasonMatches, flMatches)
-	endRanks := computeRanks(endElos)
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	newName := fmt.Sprintf("Season %d", active.ID+1)
@@ -176,6 +140,8 @@ func (s *Season) CloseSeason(ctx context.Context, tournamentIDs []int64) (*model
 }
 
 // ListRaceEntriesWithSeason returns player rows enriched with season metadata.
+// Ratings, ranks, and rank deltas are computed in memory from current-season matches
+// (all finished tournaments in the season window plus the closing fantasy league).
 func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerRaceEntry, *model.SeasonSummary, error) {
 	entries, err := s.players.ListRaceEntries(ctx, s.db)
 	if err != nil {
@@ -190,7 +156,7 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 		return entries, nil, nil
 	}
 
-	currRanks, err := s.repo.ListSeasonStartRanks(ctx, s.db, active.ID)
+	startRanks, err := s.repo.ListSeasonStartRanks(ctx, s.db, active.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -204,16 +170,9 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 		startEloByPR[snap.PlayerRaceID] = snap.StartElo
 	}
 
-	var prevRanks map[int64]int
-	prev, err := s.repo.GetPreviousClosedSeason(ctx, s.db, active.ID)
+	projectedElos, projectedRanks, err := s.computeLiveSeasonRatings(ctx, active)
 	if err != nil {
 		return nil, nil, err
-	}
-	if prev != nil {
-		prevRanks, err = s.repo.ListSeasonStartRanks(ctx, s.db, prev.ID)
-		if err != nil {
-			return nil, nil, err
-		}
 	}
 
 	for i := range entries {
@@ -222,15 +181,18 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 			v := elo
 			entries[i].SeasonStartElo = &v
 		}
-		if prevRanks != nil {
-			prevRank, hasPrev := prevRanks[id]
-			currRank, hasCurr := currRanks[id]
-			if hasPrev && hasCurr {
-				delta := prevRank - currRank
-				entries[i].RankDelta = &delta
-			}
+		if projected, ok := projectedElos[id]; ok {
+			entries[i].Elo = projected
+		}
+		startRank, hasStart := startRanks[id]
+		projectedRank, hasProjected := projectedRanks[id]
+		if hasStart && hasProjected {
+			delta := startRank - projectedRank
+			entries[i].RankDelta = &delta
 		}
 	}
+
+	sortEntriesByRank(entries, projectedRanks)
 
 	summary := &model.SeasonSummary{
 		ID:           active.ID,
@@ -241,6 +203,120 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 		ReadyToClose: active.ReadyToClose,
 	}
 	return entries, summary, nil
+}
+
+func (s *Season) loadStartElos(ctx context.Context, seasonID int64) (map[int64]float64, error) {
+	snapshots, err := s.repo.ListActiveSeasonSnapshots(ctx, s.db, seasonID)
+	if err != nil {
+		return nil, err
+	}
+	startElos := make(map[int64]float64, len(snapshots))
+	for _, snap := range snapshots {
+		startElos[snap.PlayerRaceID] = snap.StartElo
+	}
+	allElos, err := s.repo.ListAllPlayerRaceElos(ctx, s.db)
+	if err != nil {
+		return nil, err
+	}
+	for id, elo := range allElos {
+		if _, ok := startElos[id]; !ok {
+			startElos[id] = elo
+		}
+	}
+	return startElos, nil
+}
+
+func (s *Season) fantasyLeagueTourID(ctx context.Context, active *model.Season) (int64, error) {
+	if active.ClosingFantasyLeagueID == nil {
+		return 0, nil
+	}
+	flTourID, err := s.repo.FantasyLeagueTournamentID(ctx, s.db, *active.ClosingFantasyLeagueID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+	return flTourID, nil
+}
+
+func (s *Season) loadFantasyLeagueMatches(ctx context.Context, active *model.Season) ([]rating.Match, error) {
+	flTourID, err := s.fantasyLeagueTourID(ctx, active)
+	if err != nil || flTourID == 0 {
+		return nil, err
+	}
+	return s.repo.ListRatingMatches(ctx, s.db, []int64{flTourID})
+}
+
+func (s *Season) finishedSeasonTournamentIDs(ctx context.Context, active *model.Season, flTourID int64) ([]int64, error) {
+	seasonStart := active.StartedAt
+	if len(seasonStart) > 10 {
+		seasonStart = seasonStart[:10]
+	}
+	tournaments, err := s.repo.ListTournamentsInSeasonWindow(ctx, s.db, seasonStart, repository.NowISO())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]int64, 0, len(tournaments))
+	for _, t := range tournaments {
+		if !t.Finished || t.ID == flTourID {
+			continue
+		}
+		out = append(out, t.ID)
+	}
+	return out, nil
+}
+
+func (s *Season) computeSeasonRatings(ctx context.Context, active *model.Season, seasonTournamentIDs []int64) (map[int64]float64, map[int64]int, error) {
+	startElos, err := s.loadStartElos(ctx, active.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	flTourID, err := s.fantasyLeagueTourID(ctx, active)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	seasonIDs := seasonTournamentIDs
+	if seasonIDs == nil {
+		seasonIDs, err = s.finishedSeasonTournamentIDs(ctx, active, flTourID)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	seasonMatches, err := s.repo.ListRatingMatches(ctx, s.db, seasonIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	flMatches, err := s.loadFantasyLeagueMatches(ctx, active)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	elos := s.calc.Compute(startElos, seasonMatches, flMatches)
+	return elos, computeRanks(elos), nil
+}
+
+func (s *Season) computeLiveSeasonRatings(ctx context.Context, active *model.Season) (map[int64]float64, map[int64]int, error) {
+	return s.computeSeasonRatings(ctx, active, nil)
+}
+
+func sortEntriesByRank(entries []model.PlayerRaceEntry, ranks map[int64]int) {
+	sort.Slice(entries, func(i, j int) bool {
+		ri, okI := ranks[entries[i].PlayerRaceID]
+		rj, okJ := ranks[entries[j].PlayerRaceID]
+		if okI && okJ {
+			if ri != rj {
+				return ri < rj
+			}
+		} else if okI != okJ {
+			return okI
+		}
+		if entries[i].Elo != entries[j].Elo {
+			return entries[i].Elo > entries[j].Elo
+		}
+		return entries[i].PlayerRaceID < entries[j].PlayerRaceID
+	})
 }
 
 type rankEntry struct {

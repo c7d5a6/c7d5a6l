@@ -66,6 +66,32 @@ func setupSeasonFixture(t *testing.T) (context.Context, *service.Season, *servic
 		t.Fatal(err)
 	}
 
+	if _, err := seasonRepo.DB().ExecContext(ctx, `UPDATE season SET started_at = '2026-01-01' WHERE status = 'active'`); err != nil {
+		t.Fatal(err)
+	}
+
+	// B starts ranked above A so a win moves A up in the calculated standings.
+	if _, err := seasonRepo.DB().ExecContext(ctx, `
+		UPDATE season_player_race SET start_elo = 1800, start_rank = 1
+		WHERE player_race_id = (
+			SELECT pr.id FROM player_race pr
+			JOIN player p ON p.id = pr.player_id
+			WHERE p.link LIKE '%/B'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := seasonRepo.DB().ExecContext(ctx, `
+		UPDATE season_player_race SET start_elo = 1700, start_rank = 2
+		WHERE player_race_id = (
+			SELECT pr.id FROM player_race pr
+			JOIN player p ON p.id = pr.player_id
+			WHERE p.link LIKE '%/A'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+
 	return ctx, seasonSvc, fantasySvc, seasonRepo
 }
 
@@ -155,10 +181,20 @@ func TestListRaceEntriesWithSeasonRankDelta(t *testing.T) {
 	if season == nil || season.Name != "Season 1" {
 		t.Fatalf("season=%#v", season)
 	}
-	for _, e := range entries {
-		if e.RankDelta != nil {
-			t.Fatalf("season 1 should have no rank delta, got %v for %d", *e.RankDelta, e.PlayerRaceID)
-		}
+	if len(entries) < 2 {
+		t.Fatalf("entries=%d", len(entries))
+	}
+	// A won 2-0 — should rank above B with positive delta vs season start.
+	top := entries[0]
+	bottom := entries[len(entries)-1]
+	if top.RankDelta == nil || *top.RankDelta <= 0 {
+		t.Fatalf("winner should have positive rank delta, got %#v", top.RankDelta)
+	}
+	if bottom.RankDelta == nil || *bottom.RankDelta >= 0 {
+		t.Fatalf("loser should have negative rank delta, got %#v", bottom.RankDelta)
+	}
+	if top.Elo <= bottom.Elo {
+		t.Fatalf("expected winner above loser by calculated elo: %v vs %v", top.Elo, bottom.Elo)
 	}
 
 	var tourID int64
@@ -179,16 +215,12 @@ func TestListRaceEntriesWithSeasonRankDelta(t *testing.T) {
 	if len(entries2) < 2 {
 		t.Fatalf("entries=%d", len(entries2))
 	}
-	hasDelta := false
 	for _, e := range entries2 {
 		if e.SeasonStartElo == nil {
 			t.Fatalf("missing seasonStartElo for %d", e.PlayerRaceID)
 		}
-		if e.RankDelta != nil {
-			hasDelta = true
+		if e.RankDelta == nil || *e.RankDelta != 0 {
+			t.Fatalf("expected zero rank delta at season open, got %v for %d", e.RankDelta, e.PlayerRaceID)
 		}
-	}
-	if !hasDelta {
-		t.Fatal("expected rank deltas after season 2 open")
 	}
 }

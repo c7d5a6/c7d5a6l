@@ -154,6 +154,7 @@ export type SaveTournamentResponse = {
   tournament: TournamentPage
   tournamentSync: TournamentSync
   importQueued?: number
+  tournamentId?: number
 }
 
 export type ErrorResponse = {

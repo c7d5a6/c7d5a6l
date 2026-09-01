@@ -98,7 +98,7 @@ func (r *TournamentQueue) AttachByLink(ctx context.Context, q DBTX, link string,
 	now := time.Now().UTC().Format(time.RFC3339)
 	if _, err := q.ExecContext(ctx, `
 		UPDATE tournament_queue
-		SET tournament_id = ?, updated_at = ?
+		SET tournament_id = ?, disabled = 0, updated_at = ?
 		WHERE link = ? COLLATE NOCASE
 	`, tournamentID, now, link); err != nil {
 		return fmt.Errorf("attach tournament queue: %w", err)

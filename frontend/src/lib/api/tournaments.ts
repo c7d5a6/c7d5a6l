@@ -30,10 +30,10 @@ export async function syncTournamentQueue(): Promise<number> {
   return data.count
 }
 
-export async function parseQueueItem(id: number): Promise<SaveTournamentResponse & { tournamentId?: number }> {
+export async function parseQueueItem(id: number): Promise<SaveTournamentResponse> {
   const res = await authFetch(`/api/tournament-queue/${id}/parse`, { method: 'POST' })
   if (!res.ok) throw new Error(await readApiError(res, `parse failed (${res.status})`))
-  return (await res.json()) as SaveTournamentResponse & { tournamentId?: number }
+  return (await res.json()) as SaveTournamentResponse
 }
 
 export async function ignoreQueueItem(id: number): Promise<void> {

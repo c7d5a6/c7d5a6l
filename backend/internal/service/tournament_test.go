@@ -645,6 +645,25 @@ func TestTournamentQueueSyncIgnoreAndList(t *testing.T) {
 		t.Fatalf("detail link=%s", got.Link)
 	}
 
+	ignoredLink := ignored.Items[0].Link
+	if _, _, _, err := svc.Save(ctx, model.TournamentPage{
+		Link:     ignoredLink,
+		Name:     str("Ignored then parsed"),
+		Finished: boolPtr(true),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	unignored, err := svc.ListAdmin(ctx, model.AdminFilterIgnored, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unignored.Total != 0 {
+		t.Fatalf("parse should clear ignore, got %+v", unignored)
+	}
+
 	page2, err := svc.ListAdmin(ctx, model.AdminFilterAll, 2, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -654,5 +673,5 @@ func TestTournamentQueueSyncIgnoreAndList(t *testing.T) {
 	}
 }
 
-func intPtr(n int) *int       { return &n }
-func boolPtr(b bool) *bool    { return &b }
+func intPtr(n int) *int    { return &n }
+func boolPtr(b bool) *bool { return &b }

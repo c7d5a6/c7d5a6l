@@ -3,7 +3,9 @@ package parse
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 
@@ -13,6 +15,15 @@ import (
 )
 
 var isoDateRE = regexp.MustCompile(`\d{4}-\d{2}-\d{2}`)
+
+const listingMonthPat = `(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)`
+
+var (
+	listingTwoFullRE = regexp.MustCompile(`(?i)(` + listingMonthPat + `)\s+(\d{1,2}),\s+(\d{4})\s*-\s*(` + listingMonthPat + `)\s+(\d{1,2}),\s+(\d{4})`)
+	listingCrossRE   = regexp.MustCompile(`(?i)(` + listingMonthPat + `)\s+(\d{1,2})\s*-\s*(` + listingMonthPat + `)\s+(\d{1,2}),\s+(\d{4})`)
+	listingSameRE    = regexp.MustCompile(`(?i)(` + listingMonthPat + `)\s+(\d{1,2})\s*-\s*(\d{1,2}),\s+(\d{4})`)
+	listingSingleRE  = regexp.MustCompile(`(?i)(` + listingMonthPat + `)\s+(\d{1,2}),\s+(\d{4})`)
+)
 
 // RecentTournaments extracts tournament rows from the Leagues/Recent_Tournaments listing.
 func RecentTournaments(html string) ([]model.TournamentListing, error) {
@@ -25,7 +36,7 @@ func RecentTournaments(html string) ([]model.TournamentListing, error) {
 	seen := map[string]struct{}{}
 	section := ""
 
-	doc.Find("h2, h3, table.wikitable, .gridTable, .divTable").Each(func(_ int, sel *goquery.Selection) {
+	doc.Find("h2, h3, table.wikitable, table.table2__table, .tournaments-listing table, .gridTable, .divTable").Each(func(_ int, sel *goquery.Selection) {
 		if sel.Is("h2, h3") {
 			section = headingText(sel)
 			return
@@ -74,9 +85,7 @@ func parseWikiTable(table *goquery.Selection, section string) []model.Tournament
 	table.Find("tr").Each(func(_ int, row *goquery.Selection) {
 		ths := row.ChildrenFiltered("th")
 		if ths.Length() > 0 && len(headers) == 0 {
-			ths.Each(func(_ int, th *goquery.Selection) {
-				headers = append(headers, strings.ToLower(cleanText(th.Text())))
-			})
+			headers = expandedTableHeaders(ths)
 			return
 		}
 		tds := row.ChildrenFiltered("td")
@@ -163,6 +172,15 @@ func listingFromCells(tds *goquery.Selection, headers []string, section string) 
 		tier       *goquery.Selection
 	)
 	tds.Each(func(i int, cell *goquery.Selection) {
+		if cellIsPlacement(cell) {
+			return
+		}
+		class := strings.ToLower(cell.AttrOr("class", ""))
+		if strings.Contains(class, "column__tournament") || strings.Contains(class, "column-tournament") {
+			if link == "" {
+				link, name, _ = tournamentLinkFromCell(cell)
+			}
+		}
 		if headerMatches(headers, i, "tournament", "event", "name") {
 			if link == "" {
 				link, name, _ = tournamentLinkFromCell(cell)
@@ -175,8 +193,23 @@ func listingFromCells(tds *goquery.Selection, headers []string, section string) 
 			tier = cell
 		}
 	})
+	if dates == nil {
+		tds.EachWithBreak(func(_ int, cell *goquery.Selection) bool {
+			if cellIsPlacement(cell) {
+				return true
+			}
+			if start, _ := parseListingDates(cleanText(cell.Text())); start != nil {
+				dates = cell
+				return false
+			}
+			return true
+		})
+	}
 	if link == "" {
 		tds.EachWithBreak(func(_ int, cell *goquery.Selection) bool {
+			if cellIsPlacement(cell) {
+				return true
+			}
 			l, n, ok := tournamentLinkFromCell(cell)
 			if !ok {
 				return true
@@ -186,6 +219,27 @@ func listingFromCells(tds *goquery.Selection, headers []string, section string) 
 		})
 	}
 	return finishListing(link, name, dates, tier, section)
+}
+
+func expandedTableHeaders(ths *goquery.Selection) []string {
+	var headers []string
+	ths.Each(func(_ int, th *goquery.Selection) {
+		label := strings.ToLower(cleanText(th.Text()))
+		span := 1
+		if raw, ok := th.Attr("colspan"); ok {
+			if n, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && n > 1 {
+				span = n
+			}
+		}
+		for i := 0; i < span; i++ {
+			headers = append(headers, label)
+		}
+	})
+	return headers
+}
+
+func cellIsPlacement(cell *goquery.Selection) bool {
+	return strings.Contains(strings.ToLower(cell.AttrOr("class", "")), "placement")
 }
 
 func finishListing(link, name string, dates, tier *goquery.Selection, section string) (model.TournamentListing, bool) {
@@ -231,8 +285,11 @@ func headerMatches(headers []string, i int, names ...string) bool {
 }
 
 func tournamentLinkFromCell(cell *goquery.Selection) (link, name string, ok bool) {
+	if cellIsPlacement(cell) {
+		return "", "", false
+	}
 	cell.Find("a[href]").EachWithBreak(func(_ int, a *goquery.Selection) bool {
-		if a.Closest(".league-icon-small-image, .sprite-image").Length() > 0 {
+		if a.Closest(".league-icon-small-image, .sprite-image, .column__placement, .block-team, .block-player").Length() > 0 {
 			return true
 		}
 		n := cleanText(a.Text())
@@ -241,7 +298,7 @@ func tournamentLinkFromCell(cell *goquery.Selection) (link, name string, ok bool
 		}
 		href, _ := a.Attr("href")
 		u := profileURL(href)
-		if u == nil {
+		if u == nil || strings.HasPrefix(*u, "local://") {
 			return true
 		}
 		ref, err := liquipedia.ParsePageRef(*u)
@@ -300,5 +357,102 @@ func parseListingDates(text string) (start, end *string) {
 		e := dates[1]
 		end = &e
 	}
-	return start, end
+	if start != nil {
+		return start, end
+	}
+	return parseEnglishListingDates(text)
+}
+
+func parseEnglishListingDates(text string) (start, end *string) {
+	s := listingDashReplacer.Replace(text)
+	s = strings.Join(strings.Fields(s), " ")
+	if s == "" {
+		return nil, nil
+	}
+	if m := listingTwoFullRE.FindStringSubmatch(s); m != nil {
+		a, okA := listingYMD(m[3], m[1], m[2])
+		b, okB := listingYMD(m[6], m[4], m[5])
+		if okA && okB {
+			return &a, &b
+		}
+	}
+	if m := listingCrossRE.FindStringSubmatch(s); m != nil {
+		a, okA := listingYMD(m[5], m[1], m[2])
+		b, okB := listingYMD(m[5], m[3], m[4])
+		if okA && okB {
+			return &a, &b
+		}
+	}
+	if m := listingSameRE.FindStringSubmatch(s); m != nil {
+		a, okA := listingYMD(m[4], m[1], m[2])
+		b, okB := listingYMD(m[4], m[1], m[3])
+		if okA && okB {
+			return &a, &b
+		}
+	}
+	if m := listingSingleRE.FindStringSubmatch(s); m != nil {
+		a, ok := listingYMD(m[3], m[1], m[2])
+		if ok {
+			return &a, nil
+		}
+	}
+	return nil, nil
+}
+
+var listingDashReplacer = strings.NewReplacer(
+	"\u2013", "-",
+	"\u2014", "-",
+	"\u2212", "-",
+	"\u00a0", " ",
+)
+
+func listingYMD(year, month, day string) (string, bool) {
+	y, err := strconv.Atoi(year)
+	if err != nil {
+		return "", false
+	}
+	d, err := strconv.Atoi(day)
+	if err != nil {
+		return "", false
+	}
+	m, ok := listingMonthNum(month)
+	if !ok {
+		return "", false
+	}
+	t := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	if t.Year() != y || t.Month() != m || t.Day() != d {
+		return "", false
+	}
+	return t.Format("2006-01-02"), true
+}
+
+func listingMonthNum(s string) (time.Month, bool) {
+	switch strings.ToLower(strings.TrimSuffix(strings.TrimSpace(s), ".")) {
+	case "jan", "january":
+		return time.January, true
+	case "feb", "february":
+		return time.February, true
+	case "mar", "march":
+		return time.March, true
+	case "apr", "april":
+		return time.April, true
+	case "may":
+		return time.May, true
+	case "jun", "june":
+		return time.June, true
+	case "jul", "july":
+		return time.July, true
+	case "aug", "august":
+		return time.August, true
+	case "sep", "sept", "september":
+		return time.September, true
+	case "oct", "october":
+		return time.October, true
+	case "nov", "november":
+		return time.November, true
+	case "dec", "december":
+		return time.December, true
+	default:
+		return 0, false
+	}
 }

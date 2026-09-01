@@ -379,6 +379,34 @@ func (r *Season) EnsureActiveSeasonSnapshot(ctx context.Context, q DBTX, playerR
 	return nil
 }
 
+// SyncActiveSeasonStartElo sets start_elo for a player in the active season snapshot.
+func (r *Season) SyncActiveSeasonStartElo(ctx context.Context, q DBTX, playerRaceID int64, elo float64) error {
+	active, err := r.GetActiveSeason(ctx, q)
+	if err != nil {
+		return err
+	}
+	if active == nil {
+		return nil
+	}
+	if err := r.EnsureActiveSeasonSnapshot(ctx, q, playerRaceID, elo); err != nil {
+		return err
+	}
+	res, err := q.ExecContext(ctx, `
+		UPDATE season_player_race
+		SET start_elo = ?
+		WHERE season_id = ? AND player_race_id = ?
+	`, elo, active.ID, playerRaceID)
+	if err != nil {
+		return fmt.Errorf("sync season start elo: %w", err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("sync season start elo rows: %w", err)
+	} else if n == 0 {
+		return fmt.Errorf("sync season start elo: no snapshot row for player_race_id=%d", playerRaceID)
+	}
+	return nil
+}
+
 // ListAllPlayerRaceElos returns every player_race id and elo.
 func (r *Season) ListAllPlayerRaceElos(ctx context.Context, q DBTX) (map[int64]float64, error) {
 	rows, err := q.QueryContext(ctx, `SELECT id, elo FROM player_race`)

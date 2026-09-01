@@ -11,6 +11,7 @@ type PlayerRaceEntry struct {
 	HasPortrait    bool    `json:"hasPortrait"`
 	Race           string  `json:"race"`
 	Elo            float64 `json:"elo"`
+	ProjectedElo   *float64 `json:"projectedElo,omitempty"`
 	SeasonStartElo *float64 `json:"seasonStartElo,omitempty"`
 	RankDelta      *int     `json:"rankDelta,omitempty"`
 }

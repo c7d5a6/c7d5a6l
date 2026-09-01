@@ -37,6 +37,10 @@ function formatElo(elo: number): string {
   return elo.toFixed(0)
 }
 
+function displayElo(row: PlayerRaceEntry): number {
+  return row.projectedElo ?? row.elo
+}
+
 function formatSeasonDate(iso: string): string {
   const d = iso.slice(0, 10)
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : iso
@@ -206,7 +210,7 @@ export function PlayersPage() {
                             when={isAdmin() && editingId() === row.playerRaceId}
                             fallback={
                               <>
-                                {formatElo(row.elo)}
+                                {formatElo(displayElo(row))}
                                 <Show when={row.seasonStartElo != null}>
                                   <span class="roster__elo-start">
                                     {formatElo(row.seasonStartElo!)}

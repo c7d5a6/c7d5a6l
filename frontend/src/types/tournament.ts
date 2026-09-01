@@ -75,7 +75,10 @@ export type PlayerRaceEntry = {
   preferredRace: string | null
   hasPortrait: boolean
   race: string
+  /** Stored player_race.elo (admin baseline). */
   elo: number
+  /** Live season rating from match results, when a season is active. */
+  projectedElo?: number | null
   seasonStartElo?: number | null
   rankDelta?: number | null
 }

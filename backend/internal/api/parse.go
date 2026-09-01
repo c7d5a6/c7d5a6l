@@ -204,6 +204,24 @@ func (s *Server) PatchPlayerRace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update elo")
 		return
 	}
+	if err := s.Seasons.SyncActiveSeasonStartElo(r.Context(), id, entry.Elo); err != nil {
+		log.Printf("patch player race %d sync season start elo: %v", id, err)
+		writeError(w, http.StatusInternalServerError, "failed to update season baseline")
+		return
+	}
+	players, season, err := s.Seasons.ListRaceEntriesWithSeason(r.Context())
+	if err != nil {
+		log.Printf("patch player race %d list after update: %v", id, err)
+		writeError(w, http.StatusInternalServerError, "failed to load updated player")
+		return
+	}
+	for _, p := range players {
+		if p.PlayerRaceID == id {
+			entry = p
+			break
+		}
+	}
+	_ = season
 	debuglog.Printf("PatchPlayerRace id=%d elo=%.0f", entry.PlayerRaceID, entry.Elo)
 	_ = json.NewEncoder(w).Encode(patchPlayerRaceResponse{Player: entry})
 }

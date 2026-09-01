@@ -193,8 +193,14 @@ func TestListRaceEntriesWithSeasonRankDelta(t *testing.T) {
 	if bottom.RankDelta == nil || *bottom.RankDelta >= 0 {
 		t.Fatalf("loser should have negative rank delta, got %#v", bottom.RankDelta)
 	}
-	if top.Elo <= bottom.Elo {
-		t.Fatalf("expected winner above loser by calculated elo: %v vs %v", top.Elo, bottom.Elo)
+	if top.ProjectedElo == nil || bottom.ProjectedElo == nil || *top.ProjectedElo <= *bottom.ProjectedElo {
+		t.Fatalf("expected winner above loser by calculated elo: %v vs %v", top.ProjectedElo, bottom.ProjectedElo)
+	}
+	for _, e := range entries {
+		if e.ProjectedElo != nil && e.Elo == *e.ProjectedElo && e.SeasonStartElo != nil && e.Elo != *e.SeasonStartElo {
+			// Stored elo should remain the season-open baseline, not the live projection.
+			t.Fatalf("stored elo should not be overwritten by projection: %#v", e)
+		}
 	}
 
 	var tourID int64

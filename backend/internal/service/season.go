@@ -37,6 +37,11 @@ func (s *Season) GetCurrent(ctx context.Context) (*model.Season, error) {
 	return s.repo.GetActiveSeason(ctx, s.db)
 }
 
+// SyncActiveSeasonStartElo updates the active season baseline for one player_race row.
+func (s *Season) SyncActiveSeasonStartElo(ctx context.Context, playerRaceID int64, elo float64) error {
+	return s.repo.SyncActiveSeasonStartElo(ctx, s.db, playerRaceID, elo)
+}
+
 // GetClosePreview returns tournaments eligible for season close selection.
 func (s *Season) GetClosePreview(ctx context.Context) (*model.SeasonClosePreview, error) {
 	active, err := s.repo.GetActiveSeason(ctx, s.db)
@@ -182,7 +187,8 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 			entries[i].SeasonStartElo = &v
 		}
 		if projected, ok := projectedElos[id]; ok {
-			entries[i].Elo = projected
+			v := projected
+			entries[i].ProjectedElo = &v
 		}
 		startRank, hasStart := startRanks[id]
 		projectedRank, hasProjected := projectedRanks[id]
@@ -312,8 +318,16 @@ func sortEntriesByRank(entries []model.PlayerRaceEntry, ranks map[int64]int) {
 		} else if okI != okJ {
 			return okI
 		}
-		if entries[i].Elo != entries[j].Elo {
-			return entries[i].Elo > entries[j].Elo
+		ei := entries[i].Elo
+		if entries[i].ProjectedElo != nil {
+			ei = *entries[i].ProjectedElo
+		}
+		ej := entries[j].Elo
+		if entries[j].ProjectedElo != nil {
+			ej = *entries[j].ProjectedElo
+		}
+		if ei != ej {
+			return ei > ej
 		}
 		return entries[i].PlayerRaceID < entries[j].PlayerRaceID
 	})

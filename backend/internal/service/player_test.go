@@ -313,6 +313,60 @@ func TestPlayerListRaceEntriesSortedByElo(t *testing.T) {
 	}
 }
 
+func TestPlayerUpdateRaceEloSyncsSeasonBaseline(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+	playerRepo := repository.NewPlayer(sqlDB)
+	seasonRepo := repository.NewSeason(sqlDB)
+	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo)
+	playerSvc := service.NewPlayer(sqlDB, playerRepo, nil)
+
+	if _, _, err := playerSvc.Save(ctx, model.PlayerPage{
+		Link: "https://liquipedia.net/starcraft/Flash", Name: str("Flash"), IDs: []string{}, PreferredRace: str("terran"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := playerSvc.ListRaceEntries(ctx)
+	if err != nil || len(list) == 0 {
+		t.Fatalf("list: %v %#v", err, list)
+	}
+	id := list[0].PlayerRaceID
+	if _, err := playerSvc.UpdateRaceElo(ctx, id, 2050); err != nil {
+		t.Fatal(err)
+	}
+	if err := seasonSvc.SyncActiveSeasonStartElo(ctx, id, 2050); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, _, err := seasonSvc.ListRaceEntriesWithSeason(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row *model.PlayerRaceEntry
+	for i := range entries {
+		if entries[i].PlayerRaceID == id {
+			row = &entries[i]
+			break
+		}
+	}
+	if row == nil {
+		t.Fatal("missing entry after update")
+	}
+	if row.Elo != 2050 {
+		t.Fatalf("stored elo=%v want 2050", row.Elo)
+	}
+	if row.ProjectedElo == nil || *row.ProjectedElo != 2050 {
+		t.Fatalf("projected elo=%v want 2050 with no matches", row.ProjectedElo)
+	}
+}
+
 func TestPlayerUpdateRaceElo(t *testing.T) {
 	ctx := context.Background()
 	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))

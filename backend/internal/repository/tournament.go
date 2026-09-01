@@ -26,14 +26,33 @@ func (r *Tournament) DB() *sql.DB {
 
 // StoredTournament is the DB view used for sync compare (no results).
 type StoredTournament struct {
+	ID           int64
 	Page         model.TournamentPage
 	Participants []model.Participant
 }
 
 // GetByLink loads a tournament and its roster. Returns nil, nil when missing.
 func (r *Tournament) GetByLink(ctx context.Context, q DBTX, link string) (*StoredTournament, error) {
+	return r.scanTournament(ctx, q, `
+		SELECT id, link, name, start_date, end_date, tier, player_count, finished
+		FROM tournament
+		WHERE link = ? COLLATE NOCASE
+	`, link)
+}
+
+// GetByID loads a tournament and its roster. Returns nil, nil when missing.
+func (r *Tournament) GetByID(ctx context.Context, q DBTX, id int64) (*StoredTournament, error) {
+	return r.scanTournament(ctx, q, `
+		SELECT id, link, name, start_date, end_date, tier, player_count, finished
+		FROM tournament
+		WHERE id = ?
+	`, id)
+}
+
+func (r *Tournament) scanTournament(ctx context.Context, q DBTX, query string, arg any) (*StoredTournament, error) {
 	var (
 		id          int64
+		link        string
 		name        sql.NullString
 		startDate   sql.NullString
 		endDate     sql.NullString
@@ -41,16 +60,12 @@ func (r *Tournament) GetByLink(ctx context.Context, q DBTX, link string) (*Store
 		playerCount sql.NullInt64
 		finished    int
 	)
-	err := q.QueryRowContext(ctx, `
-		SELECT id, name, start_date, end_date, tier, player_count, finished
-		FROM tournament
-		WHERE link = ? COLLATE NOCASE
-	`, link).Scan(&id, &name, &startDate, &endDate, &tier, &playerCount, &finished)
+	err := q.QueryRowContext(ctx, query, arg).Scan(&id, &link, &name, &startDate, &endDate, &tier, &playerCount, &finished)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get tournament by link: %w", err)
+		return nil, fmt.Errorf("get tournament: %w", err)
 	}
 
 	page := model.NewTournamentPage(link)
@@ -95,7 +110,7 @@ func (r *Tournament) GetByLink(ctx context.Context, q DBTX, link string) (*Store
 	}
 	page.Results = results
 
-	return &StoredTournament{Page: page, Participants: participants}, nil
+	return &StoredTournament{ID: id, Page: page, Participants: participants}, nil
 }
 
 func (r *Tournament) listRoster(ctx context.Context, q DBTX, tournamentID int64) ([]model.Participant, error) {

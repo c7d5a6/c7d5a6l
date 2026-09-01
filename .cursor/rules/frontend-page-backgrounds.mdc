@@ -21,6 +21,7 @@ When adding or changing routes, stage art, or page shells in the frontend, follo
 | Route | Preferred art |
 |---|---|
 | `/parser` | `010` (alt `015` / `home.jpg`) |
+| `/tournaments` | `003` Terran fleet |
 | `/me` | `002` industrial towers |
 | `/players` | `terran-01` / `terran.png` (alt `009`, `003`) |
 | `/fantasy-league` | `001` (alt `sc03`, `007`, `sc01`) |

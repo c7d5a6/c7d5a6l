@@ -22,6 +22,7 @@ type Scheduler struct {
 func StartRefreshTournaments(tours *service.Tournament, client *liquipedia.Client) *Scheduler {
 	s := &Scheduler{cron: cron.New(cron.WithLocation(time.UTC))}
 	job := &RefreshTournaments{Tours: tours, Client: client}
+	recent := &RecentTournaments{Tours: tours, Client: client}
 	if _, err := s.cron.AddFunc("*/15 * * * *", func() {
 		job.RunDue(context.Background())
 	}); err != nil {
@@ -34,9 +35,23 @@ func StartRefreshTournaments(tours *service.Tournament, client *liquipedia.Clien
 		log.Printf("job: schedule refresh tournaments 2m: %v", err)
 		return s
 	}
+	if _, err := s.cron.AddFunc("0 6 * * *", func() {
+		job.RunUnfinished(context.Background())
+	}); err != nil {
+		log.Printf("job: schedule unfinished tournaments daily: %v", err)
+		return s
+	}
+	if _, err := s.cron.AddFunc("0 7 * * 1", func() {
+		recent.Run(context.Background())
+	}); err != nil {
+		log.Printf("job: schedule recent tournaments weekly: %v", err)
+		return s
+	}
 	s.cron.Start()
-	log.Printf("job: refresh tournaments scheduled every 15m (due) and 2m (in-progress) UTC")
+	log.Printf("job: refresh tournaments scheduled every 15m (due), 2m (in-progress), daily 06:00 UTC (unfinished)")
+	log.Printf("job: recent tournaments scheduled weekly Monday 07:00 UTC")
 	go job.RunUnfinished(context.Background())
+	go recent.Run(context.Background())
 	return s
 }
 

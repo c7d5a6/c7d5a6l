@@ -213,6 +213,7 @@ Canonical mapping for the app lives in `frontend/STYLE_GUIDE.md` §3a (per-page 
 | Channel | Family | Strong fits (prefer first) |
 |---|---|---|
 | `/parser` — uplink console | Terran industrial / cosmic calm | `010`, `015` / `home.jpg` |
+| `/tournaments` — admin queue | Terran industrial / fleet | `003` |
 | `/me` — operator profile | Terran industrial (parser sibling) | `002` |
 | `/players` — roster | Terran war / people | `terran-01` / `terran.png`, `009`, `003` |
 | `/fantasy-league` — competition | Epic void war | `001`, `sc03`, `007`, `sc01` |
@@ -230,6 +231,7 @@ Runtime stage art (Vite): `frontend/src/assets/background/`
 | Route | File | Catalog source |
 |---|---|---|
 | `/parser` | `parser.webp` | `010` bunker CRT |
+| `/tournaments` | `003` battlecruiser | `003` Terran fleet |
 | `/me` | `me.webp` | `002` industrial towers |
 | `/players` | `players.webp` | `terran-01` Marines |
 | `/fantasy-league` | `fantasy.webp` | `001` Protoss purification |

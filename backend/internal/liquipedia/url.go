@@ -8,6 +8,9 @@ import (
 
 const AllowedHost = "liquipedia.net"
 
+// RecentTournamentsURL is the Brood War listing scraped into the admin queue.
+const RecentTournamentsURL = "https://liquipedia.net/starcraft/Leagues/Recent_Tournaments"
+
 // PageRef identifies a Liquipedia wiki page.
 type PageRef struct {
 	Wiki  string // e.g. "starcraft"

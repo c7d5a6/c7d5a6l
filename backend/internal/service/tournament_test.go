@@ -529,5 +529,130 @@ func TestTournamentSaveGroupWinners(t *testing.T) {
 	}
 }
 
+func TestTournamentQueueSyncIgnoreAndList(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "q.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	jaedong := "https://liquipedia.net/starcraft/Jaedong"
+	flash := "https://liquipedia.net/starcraft/Flash"
+	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), nil, stubPlayerFetcher{
+		jaedong: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
+		flash:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
+	}, nil)
+
+	html := `
+		<h2><span class="mw-headline">Ongoing</span></h2>
+		<table class="wikitable">
+			<tr><th>Date</th><th>Tournament</th></tr>
+			<tr>
+				<td>2026-04-01 - 2026-04-15</td>
+				<td><a href="/starcraft/ASL/22">ASL Season 22</a></td>
+			</tr>
+			<tr>
+				<td>2026-05-01</td>
+				<td><a href="/starcraft/KCM/Race_Survival/2026/1">KCM Race Survival 2026 Season 1</a></td>
+			</tr>
+		</table>
+	`
+	n, err := svc.SyncRecentFromHTML(ctx, html)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("synced=%d want 2", n)
+	}
+
+	queue, err := svc.ListAdmin(ctx, model.AdminFilterQueue, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queue.Total != 2 || len(queue.Items) != 2 {
+		t.Fatalf("queue=%+v", queue)
+	}
+	if queue.Items[0].QueueID == nil {
+		t.Fatal("missing queue id")
+	}
+
+	if err := svc.IgnoreQueueItem(ctx, *queue.Items[0].QueueID); err != nil {
+		t.Fatal(err)
+	}
+	ignored, err := svc.ListAdmin(ctx, model.AdminFilterIgnored, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ignored.Total != 1 {
+		t.Fatalf("ignored=%+v", ignored)
+	}
+
+	remaining, err := svc.ListAdmin(ctx, model.AdminFilterQueue, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remaining.Total != 1 {
+		t.Fatalf("remaining queue=%+v", remaining)
+	}
+
+	page := model.TournamentPage{
+		Link:     remaining.Items[0].Link,
+		Name:     str("KCM"),
+		Finished: boolPtr(false),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+		},
+	}
+	if _, _, _, err := svc.Save(ctx, page); err != nil {
+		t.Fatal(err)
+	}
+
+	parsed, err := svc.ListAdmin(ctx, model.AdminFilterParsed, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Total != 1 || parsed.Items[0].TournamentID == nil {
+		t.Fatalf("parsed=%+v", parsed)
+	}
+	hasOngoing := false
+	for _, f := range parsed.Items[0].Flags {
+		if f == "ongoing" {
+			hasOngoing = true
+		}
+	}
+	if !hasOngoing {
+		t.Fatalf("flags=%v want ongoing", parsed.Items[0].Flags)
+	}
+
+	empty, err := svc.ListAdmin(ctx, model.AdminFilterQueue, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.Total != 0 {
+		t.Fatalf("queue after parse=%+v", empty)
+	}
+
+	got, _, err := svc.GetPageByID(ctx, *parsed.Items[0].TournamentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Link != page.Link {
+		t.Fatalf("detail link=%s", got.Link)
+	}
+
+	page2, err := svc.ListAdmin(ctx, model.AdminFilterAll, 2, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page2.Total != 2 || len(page2.Items) != 1 || page2.Page != 2 {
+		t.Fatalf("page2=%+v", page2)
+	}
+}
+
 func intPtr(n int) *int       { return &n }
 func boolPtr(b bool) *bool    { return &b }

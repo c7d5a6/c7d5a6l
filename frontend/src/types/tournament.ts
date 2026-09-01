@@ -160,6 +160,39 @@ export type ErrorResponse = {
   error: string
 }
 
+export type AdminTournamentTab =
+  | 'queue'
+  | 'ongoing'
+  | 'parsed'
+  | 'finished'
+  | 'ignored'
+  | 'fantasy'
+  | 'all'
+
+export type AdminTournamentFlag = 'queue' | 'ongoing' | 'parsed' | 'finished' | 'ignored' | 'fantasy'
+
+export type AdminTournament = {
+  queueId: number | null
+  tournamentId: number | null
+  link: string
+  name: string | null
+  startDate: string | null
+  endDate: string | null
+  liquipediaTier: string | null
+  section?: string | null
+  disabled: boolean
+  finished: boolean | null
+  fantasyLeagueId: number | null
+  flags: AdminTournamentFlag[]
+}
+
+export type AdminTournamentList = {
+  items: AdminTournament[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 export function displayValue(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'boolean') return value ? 'yes' : 'no'

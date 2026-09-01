@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -13,6 +14,11 @@ import (
 	"github.com/c7d5a6/c7d5a6l/internal/liquipedia/parse"
 	"github.com/c7d5a6/c7d5a6l/internal/model"
 	"github.com/c7d5a6/c7d5a6l/internal/repository"
+)
+
+var (
+	ErrTournamentNotFound = errors.New("tournament not found")
+	ErrQueueNotFound      = errors.New("tournament queue item not found")
 )
 
 // PlayerPageFetcher loads a player page by Liquipedia link (used when importing missing participants).
@@ -26,6 +32,7 @@ type Tournament struct {
 	tours   *repository.Tournament
 	players *repository.Player
 	imports *repository.PlayerImport
+	queue   *repository.TournamentQueue
 	fetcher PlayerPageFetcher
 	assets  AssetFetcher
 }
@@ -41,7 +48,15 @@ func NewTournament(
 	if imports == nil {
 		imports = repository.NewPlayerImport()
 	}
-	return &Tournament{db: db, tours: tournaments, players: players, imports: imports, fetcher: fetcher, assets: assets}
+	return &Tournament{
+		db:      db,
+		tours:   tournaments,
+		players: players,
+		imports: imports,
+		queue:   repository.NewTournamentQueue(),
+		fetcher: fetcher,
+		assets:  assets,
+	}
 }
 
 // ListSummaries returns lightweight tournament rows for pickers.
@@ -160,6 +175,9 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 	if err != nil {
 		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
+	if err := s.queue.AttachByLink(ctx, tx, page.Link, tournamentID); err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, 0, err
+	}
 
 	entries, err := s.buildRosterEntries(ctx, tx, page.Participants)
 	if err != nil {
@@ -239,6 +257,125 @@ func (s *Tournament) RefreshFromHTML(ctx context.Context, link, html string) (mo
 	}
 	saved, _, _, err := s.Save(ctx, page)
 	return saved, err
+}
+
+// SyncRecentFromHTML upserts Recent Tournaments listing rows into the queue.
+func (s *Tournament) SyncRecentFromHTML(ctx context.Context, html string) (int, error) {
+	listings, err := parse.RecentTournaments(html)
+	if err != nil {
+		return 0, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+	if err := s.queue.UpsertListings(ctx, tx, listings); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return len(listings), nil
+}
+
+// ListAdmin returns a paginated admin tournament list.
+func (s *Tournament) ListAdmin(ctx context.Context, filter string, page, pageSize int) (model.AdminTournamentList, error) {
+	items, total, err := s.queue.ListAdmin(ctx, s.db, filter, page, pageSize)
+	if err != nil {
+		return model.AdminTournamentList{}, err
+	}
+	if items == nil {
+		items = []model.AdminTournament{}
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return model.AdminTournamentList{
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+// IgnoreQueueItem marks a queue row disabled.
+func (s *Tournament) IgnoreQueueItem(ctx context.Context, queueID int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+	ok, err := s.queue.SetDisabled(ctx, tx, queueID, true)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrQueueNotFound
+	}
+	return tx.Commit()
+}
+
+// ParseQueueFromHTML parses a queue item's Liquipedia page and saves it.
+func (s *Tournament) ParseQueueFromHTML(ctx context.Context, queueID int64, html string) (model.TournamentPage, model.TournamentSync, int, int64, error) {
+	row, err := s.queue.GetByID(ctx, s.db, queueID)
+	if err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, 0, 0, err
+	}
+	if row == nil {
+		return model.TournamentPage{}, model.TournamentSync{}, 0, 0, ErrQueueNotFound
+	}
+	page, err := parse.Tournament(row.Link, html)
+	if err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, 0, 0, err
+	}
+	saved, sync, queued, err := s.Save(ctx, page)
+	if err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, 0, 0, err
+	}
+	stored, err := s.tours.GetByLink(ctx, s.db, saved.Link)
+	if err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, 0, 0, err
+	}
+	var id int64
+	if stored != nil {
+		id = stored.ID
+	}
+	return saved, sync, queued, id, nil
+}
+
+// GetPageByID loads a stored tournament for the admin detail view.
+func (s *Tournament) GetPageByID(ctx context.Context, id int64) (model.TournamentPage, model.TournamentSync, error) {
+	stored, err := s.tours.GetByID(ctx, s.db, id)
+	if err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, err
+	}
+	if stored == nil {
+		return model.TournamentPage{}, model.TournamentSync{}, ErrTournamentNotFound
+	}
+	sync, err := s.SyncStatus(ctx, stored.Page)
+	if err != nil {
+		return model.TournamentPage{}, model.TournamentSync{}, err
+	}
+	return stored.Page, sync, nil
+}
+
+// QueueLinkByID returns the Liquipedia URL for a queue row.
+func (s *Tournament) QueueLinkByID(ctx context.Context, id int64) (string, error) {
+	row, err := s.queue.GetByID(ctx, s.db, id)
+	if err != nil {
+		return "", err
+	}
+	if row == nil {
+		return "", ErrQueueNotFound
+	}
+	return row.Link, nil
 }
 
 func participantByLink(participants []model.Participant) map[string]model.Participant {

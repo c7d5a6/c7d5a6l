@@ -5217,3 +5217,103 @@ button.lamp-flash::after {
     width: 100%;
   }
 }
+
+/* —— Admin tournament queue —— */
+
+.roster--tours .roster__head,
+.roster--tours .roster__row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(7rem, 0.7fr) minmax(8rem, 1fr) minmax(7.5rem, auto);
+}
+
+.roster__tour-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.roster__tour-title {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.roster__tour-link {
+  color: var(--color-theme);
+  font-size: 0.72rem;
+  text-decoration: none;
+}
+
+.roster__tour-link:hover {
+  color: var(--color-theme-light);
+}
+
+.roster__tour-dates {
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+}
+
+.roster__tour-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.roster__row--link {
+  cursor: pointer;
+}
+
+.roster__row--link:hover {
+  background: color-mix(in srgb, var(--color-theme) 8%, transparent);
+}
+
+.roster__row--ignored {
+  opacity: 0.62;
+}
+
+.chip--fantasy {
+  border-color: color-mix(in srgb, var(--color-hazard) 70%, var(--color-border));
+  color: var(--color-hazard);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.pager__status {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+@media (max-width: 720px) {
+  .roster--tours .roster__head,
+  .roster--tours .roster__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name actions"
+      "dates flags";
+  }
+
+  .roster--tours .roster__tour-name {
+    grid-area: name;
+  }
+
+  .roster--tours .roster__tour-dates {
+    grid-area: dates;
+  }
+
+  .roster--tours .roster__tour-flags {
+    grid-area: flags;
+  }
+
+  .roster--tours .roster__actions {
+    grid-area: actions;
+  }
+}

@@ -218,6 +218,7 @@ Lock these unless the catalog gains a clearly better tone match — then update 
 | Route | Job | Family | Preferred art (catalog id / file) |
 |---|---|---|---|
 | `/parser` | Liquipedia uplink / console work | Terran industrial (+ cosmic OK) | `010` bunker CRT · calm alt `015` / `home.jpg` |
+| `/tournaments` | Admin tournament queue / listing | Terran industrial / fleet (parser sibling) | `003` battlecruiser void |
 | `/me` | Operator profile / identity | Terran industrial (sibling of parser) | `002` industrial towers |
 | `/players` | Roster / people | Terran war / roster | `terran-01` / `terran.png` · alt `009` rain marine · fleet alt `003` |
 | `/fantasy-league` | Competition / league scale | Epic void war | `001` purification · alt `sc03` bombardment · `007` / `sc01` |
@@ -305,7 +306,7 @@ Small living details sell the console — use them, but **never stack the same t
 | Ghost button | Transparent, red border; hover only shifts border/text — no gradient or CRT |
 | Action dock | `ActionDock` — mini Ok/Cancel console shells; mount only when a confirm/dismiss action is required (not on the uplink form by default) |
 | Auth dock | `AuthDock` — floating Login / alias plate (deep drop shadow above stage) |
-| Nav rail | `NavRail` — left metal plates; green SVG icons; bottom strip ≤720px; floating drop-shadow; `visible` to hide; routes `/parser`, `/players`, `/fantasy-league` |
+| Nav rail | `NavRail` — left metal plates; green SVG icons; bottom strip ≤720px; floating drop-shadow; `visible` to hide; routes `/parser`, `/tournaments`, `/players`, `/fantasy-league` |
 | Telemetry | Glass belly, green header, hazard stripe rule, grey interior block separators |
 | Player | `Player` — race icon + race-colored profile link; excluded = strike + tag; hover dossier after ~360ms (shell first, then lookup + cached portrait) |
 | Fantasy scores | `TeamScoreMeta` — PTS phosphor green + glow; COST quiet hazard-dim metal |
@@ -319,7 +320,7 @@ Small living details sell the console — use them, but **never stack the same t
 
 **Nav rail mobile:** at `max-width: 720px` the rail becomes a fixed bottom strip (3 equal cells). Stage gains bottom padding so the console isn’t covered; ActionDock lifts above the strip when both are present.
 
-**Routes:** `/` → `/parser`; `/players` and `/fantasy-league` are channel pages (fantasy is a placeholder). Nav selection navigates; exit starts immediately, enter follows after `--motion-slide-stagger` (220ms). `/tournaments` redirects to `/fantasy-league`.
+**Routes:** `/` → `/parser`; `/players` and `/fantasy-league` are channel pages. Admin `/tournaments` is tournament queue management. Nav selection navigates; exit starts immediately, enter follows after `--motion-slide-stagger` (220ms).
 
 ---
 

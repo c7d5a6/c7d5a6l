@@ -156,18 +156,6 @@ body {
   }
 }
 
-/* Compositor-friendly: translateY only (do not animate top/layout).
- * Band height is 26% of stage — move from fully above (−100% self) until
- * the band top reaches the stage bottom (~100%/0.26 ≈ 385% self). */
-@keyframes scan-drift {
-  from {
-    transform: translate3d(0, -100%, 0);
-  }
-  to {
-    transform: translate3d(0, 385%, 0);
-  }
-}
-
 @keyframes energy-sweep {
   0% {
     background-position:
@@ -390,30 +378,6 @@ button.lamp-flash::after {
   mask-image: radial-gradient(circle at center, black 18%, transparent 72%);
 }
 
-.stage__scan {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  z-index: 3;
-}
-
-.stage__scan::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 26%;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    color-mix(in srgb, var(--color-theme) 10%, transparent),
-    transparent
-  );
-  animation: scan-drift 10s linear infinite;
-}
-
 .stage__vignette {
   pointer-events: none;
   position: absolute;
@@ -574,7 +538,6 @@ button.lamp-flash::after {
 
 /* Kill continuous atmosphere + route motion; keep static CRT/grid/vignette look */
 @media (prefers-reduced-motion: reduce) {
-  .stage__scan::after,
   .atm-phosphor,
   .chip--live::before,
   .chip--alert::before,
@@ -584,10 +547,6 @@ button.lamp-flash::after {
   button.lamp-flash::before,
   button.lamp-flash::after {
     animation: none;
-  }
-
-  .stage__scan::after {
-    opacity: 0;
   }
 
   .atm-phosphor {

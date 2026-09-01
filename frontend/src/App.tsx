@@ -77,7 +77,6 @@ function StageShell(props: RouteSectionProps): JSX.Element {
       <div class="stage">
         <div class="stage__grid" aria-hidden="true" />
         <div class="stage__crt" aria-hidden="true" />
-        <div class="stage__scan" aria-hidden="true" />
         <div class="stage__vignette" aria-hidden="true" />
 
         <NavRail visible activeId={pathToNavId(location.pathname)} onSelect={onNavSelect} />

@@ -13,7 +13,7 @@ When adding or changing routes, stage art, or page shells in the frontend, follo
 1. **Unique art per distinct page** — `/parser`, `/players`, `/fantasy-league`, `/me`, and new top-level channels each use a different background file.
 2. **Similar pages → same palette family** — sibling/nested views inherit the channel’s family (Terran industrial, Terran war/roster, cosmic desolate, epic void war, Protoss sacred, Zerg organic) even if the exact file differs.
 3. **Main channels → best tone/content fit** — pick from BACKGROUND.md “Strong fits” / STYLE_GUIDE canonical table; match atmosphere and content to the page’s job, not random spectacle.
-4. **Fade through black** — on route change: current art → void black → new art. No direct photo crossfade. Keep CRT/grid/scan/vignette; only art (or a black scrim over art) fades. Use a shared duration token (e.g. `--motion-bg-fade-duration`), shorter than card slide.
+4. **Fade through black** — on route change: current art → void black → new art. No direct photo crossfade. Keep CRT/grid/vignette; only art (or a black scrim over art) fades. Use a shared duration token (e.g. `--motion-bg-fade-duration`), shorter than card slide.
 5. **Update both docs** if preferred picks change — STYLE_GUIDE §3a table and BACKGROUND.md channel table together.
 
 ## Canonical main picks (default)

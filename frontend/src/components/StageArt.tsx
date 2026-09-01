@@ -7,7 +7,7 @@ const BG_FADE_MS = 350
 
 /**
  * Full-bleed stage photograph. On route change: fade to void, swap art, fade in.
- * CRT/grid/scan stay outside this node.
+ * CRT/grid/vignette stay outside this node.
  */
 export function StageArt(): JSX.Element {
   const location = useLocation()

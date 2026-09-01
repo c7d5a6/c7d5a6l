@@ -12,7 +12,7 @@ References: classic StarCraft / Brood War UI chrome, [StarCraft: Remastered mark
 2. **Green = live / select / success** — menu phosphor and active energy.
 3. **Red = structure / danger** — panel frames, invalid state, hot borders.
 4. **Yellow-black stripes = hazard / metal trim** — not a primary text color.
-5. **CRT presence** — horizontal scanlines + drifting scan band on the stage.
+5. **CRT presence** — static horizontal scanlines + vignette on the stage.
 6. **Angular clips** — hard corners, no pill shapes, no soft cards.
 7. **No marketing fluff** — no large hero subtitles or explanatory blurb under the title. Labels, chips, fields, and status lines carry meaning; don’t pad the viewport with “what this page does” copy.
 8. **Grey rules inside** — section breaks in the glass belly use thin grey `.rule` lines (`--color-rule`). Red stays on frames; hazard stays on trim.
@@ -145,7 +145,7 @@ background: rgba(0, 0, 0, 0.74);
 /* few-pixel edge vignette via ::before inset shadow + soft radial */
 ```
 
-Do **not** use `backdrop-filter`. Blur over the moving scan/CRT/art stack is a Firefox-on-macOS compositor trap (full-viewport re-blur every frame). Opacity does the frosting; the photograph still reads around the card.
+Do **not** use `backdrop-filter`. Blur over the CRT/art stack is a Firefox-on-macOS compositor trap (full-viewport re-blur every frame). Opacity does the frosting; the photograph still reads around the card.
 
 ```tsx
 <ConsoleCard top={<nav>…</nav>}>
@@ -180,13 +180,12 @@ Layer order (bottom → top):
 2. Art darken wash (gradient overlay on `::after`; src-over, ~brightness 0.48 equivalent).
 3. `.stage__grid` — static green grid (masked).
 4. `.stage__crt` — **static** horizontal scanlines (`src-over`, no `mix-blend-mode`, no opacity flicker).
-5. `.stage__scan` — drifting green band (`transform` only).
-6. `.stage__vignette` — edge crush.
-7. `.console` — metal rim + glass belly.
+5. `.stage__vignette` — edge crush.
+6. `.console` — metal rim + glass belly.
 
-Stage grows with content (`min-height: 100svh`). Use `overflow: clip` on `.stage` so backdrop transforms/scan can't inflate `<body>` scroll height, and so there is no nested scrollbar. Page scroll follows in-flow content only. Scan band runs the full stage (`top: -26% → 100%`); `.stage__scan { overflow: hidden }` clips the band at the edges.
+Stage grows with content (`min-height: 100svh`). Use `overflow: clip` on `.stage` so abspos overlays can't inflate `<body>` scroll height, and so there is no nested scrollbar. Page scroll follows in-flow content only.
 
-Keep grid/CRT/scan when swapping art; only replace the art asset (and its fade handoff). Source catalog: [`assets/background/BACKGROUND.md`](./assets/background/BACKGROUND.md) (library under `frontend/assets/background/`; runtime copies live under `src/assets/background/` as needed).
+Keep grid/CRT/vignette when swapping art; only replace the art asset (and its fade handoff). Source catalog: [`assets/background/BACKGROUND.md`](./assets/background/BACKGROUND.md) (library under `frontend/assets/background/`; runtime copies live under `src/assets/background/` as needed).
 
 ### 3a. Per-page backgrounds
 
@@ -197,7 +196,7 @@ Every routed channel gets its **own** stage art. Do not reuse one global `home.j
 1. **One unique image per distinct page** — `/parser`, `/players`, `/fantasy-league`, and any future top-level channel each pick a different file from the catalog.
 2. **Similar pages → similar palettes** — group by tone family from `BACKGROUND.md`, not by filename order. Nested or sibling views that feel like the same channel (e.g. player detail under Players) stay in that family’s palette even if the exact file differs.
 3. **Main pages → best tone/content fit** — choose the catalog entry whose **atmosphere + content** match the channel’s job (console work, roster/people, epic league), not merely a pretty frame. Prefer the “Strong fits” rows in `BACKGROUND.md`.
-4. **Fade through black** — on route change, art does **not** cross-dissolve image→image. Sequence: current art → fade to void black → new art fades in. Keep CRT/grid/scan/vignette mounted; only the art layer opacity (or a black scrim over art) animates. Duration should feel deliberate but shorter than card slide (`--motion-slide-duration`); reuse a shared token (e.g. `--motion-bg-fade-duration`) rather than one-offs.
+4. **Fade through black** — on route change, art does **not** cross-dissolve image→image. Sequence: current art → fade to void black → new art fades in. Keep CRT/grid/vignette mounted; only the art layer opacity (or a black scrim over art) animates. Duration should feel deliberate but shorter than card slide (`--motion-slide-duration`); reuse a shared token (e.g. `--motion-bg-fade-duration`) rather than one-offs.
 5. **Legibility first** — catalog notes on bright beams / logo bands still apply; opaque HUD belly + darken wash stay. Do not pick a busier hero just because it is “more epic” if UI contrast dies.
 6. **UI chrome unchanged** — green/red/metal tokens stay global. Background palette informs *which art* to pick, not a second HUD color system (no cyan Protoss panels, no purple marketing washes on chrome).
 
@@ -275,7 +274,7 @@ Small living details sell the console — use them, but **never stack the same t
 | Alert beacon | `.chip--alert` | Faster red pulse (~1s) | Fault / danger / uplink error |
 | Phosphor breath | `.atm-phosphor` | Slow opacity breathe on text | One eyebrow or idle chrome line |
 | Hazard micro-rule | `.brand__eyebrow::before` | Static gold tick | Section identity |
-| CRT stage | `.stage__*` | Scan + grid + vignette | Full-bleed page backdrop only |
+| CRT stage | `.stage__*` | Static scanlines + grid + vignette | Full-bleed page backdrop only |
 | Energy sweep | primary `.btn:hover` | Green crawl | CTA hover — not chips |
 | Lamp flash | `installLampFlash` → `.lamp-flash` | Bright wash + pip on the pressed control only | Confirm on **any** enabled button press |
 
@@ -292,7 +291,7 @@ Small living details sell the console — use them, but **never stack the same t
 
 | UI piece | Recipe |
 |---|---|
-| Stage | `StageArt` — per-route art (§3a) + grid + CRT + scan + vignette; art swaps via fade-to-black |
+| Stage | `StageArt` — per-route art (§3a) + grid + CRT + vignette; art swaps via fade-to-black |
 | Console frame | `ConsoleCard` — metal rim + hazard + red border; `top` slot; `hazard="right"` for side panels; optional `slide` for solo card motion; route pages use `PagePanels` |
 | Console inner / telemetry | Glass belly ~52% black + few-px edge vignette + light blur |
 | Page panels | `PagePanels` — one or more consoles slide in (right) / out (left) together on route change |
@@ -371,13 +370,12 @@ Coordinate with panel slide: art may start fading as soon as the route changes; 
 
 ### Other motion
 
-1. **CRT scan drift** — continuous, low opacity.
-2. **Primary button sweep** — green energy on hover only.
-3. **Busy pulse** — green rim while transmitting.
-4. **Live beacon** — slow green blink on `.chip--live`.
-5. **Alert beacon** — faster red blink on `.chip--alert`.
-6. **Phosphor breath** — slow opacity on `.atm-phosphor` (one line max nearby).
-7. **Stage art fade** — through black on route background change (§3a).
+1. **Primary button sweep** — green energy on hover only.
+2. **Busy pulse** — green rim while transmitting.
+3. **Live beacon** — slow green blink on `.chip--live`.
+4. **Alert beacon** — faster red blink on `.chip--alert`.
+5. **Phosphor breath** — slow opacity on `.atm-phosphor` (one line max nearby).
+6. **Stage art fade** — through black on route background change (§3a).
 
 No bounce, no purple glow, no soft shadow stacks.
 

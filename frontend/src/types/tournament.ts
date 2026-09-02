@@ -75,11 +75,14 @@ export type PlayerRaceEntry = {
   preferredRace: string | null
   hasPortrait: boolean
   race: string
-  /** Stored player_race.elo (admin baseline). */
+  /** Stored player_race.elo (admin baseline = current season start). */
   elo: number
   /** Live season rating from match results, when a season is active. */
   projectedElo?: number | null
   seasonStartElo?: number | null
+  lastSeasonEndElo?: number | null
+  lastSeasonEndRank?: number | null
+  /** Rank change vs last season end (positive = moved up). */
   rankDelta?: number | null
 }
 

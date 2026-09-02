@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 
@@ -72,6 +73,26 @@ func setupSeasonFixture(t *testing.T) (context.Context, *service.Season, *servic
 
 	// B starts ranked above A so a win moves A up in the calculated standings.
 	if _, err := seasonRepo.DB().ExecContext(ctx, `
+		UPDATE player_race SET elo = 1800
+		WHERE id = (
+			SELECT pr.id FROM player_race pr
+			JOIN player p ON p.id = pr.player_id
+			WHERE p.link LIKE '%/B'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := seasonRepo.DB().ExecContext(ctx, `
+		UPDATE player_race SET elo = 1700
+		WHERE id = (
+			SELECT pr.id FROM player_race pr
+			JOIN player p ON p.id = pr.player_id
+			WHERE p.link LIKE '%/A'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := seasonRepo.DB().ExecContext(ctx, `
 		UPDATE season_player_race SET start_elo = 1800, start_rank = 1
 		WHERE player_race_id = (
 			SELECT pr.id FROM player_race pr
@@ -96,7 +117,7 @@ func setupSeasonFixture(t *testing.T) (context.Context, *service.Season, *servic
 }
 
 func TestSeasonCloseOpensNextSeason(t *testing.T) {
-	ctx, seasonSvc, fantasySvc, seasonRepo := setupSeasonFixture(t)
+	ctx, seasonSvc, _, seasonRepo := setupSeasonFixture(t)
 
 	active, err := seasonSvc.GetCurrent(ctx)
 	if err != nil || active == nil {
@@ -106,22 +127,6 @@ func TestSeasonCloseOpensNextSeason(t *testing.T) {
 	var tourID int64
 	if err := seasonRepo.DB().QueryRowContext(ctx, `SELECT id FROM tournament LIMIT 1`).Scan(&tourID); err != nil {
 		t.Fatal(err)
-	}
-
-	league, err := fantasySvc.CreateOrSeed(ctx, tourID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := fantasySvc.StartLeague(ctx, league.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := fantasySvc.FinishLeague(ctx, league.ID); err != nil {
-		t.Fatal(err)
-	}
-
-	active, err = seasonSvc.GetCurrent(ctx)
-	if err != nil || !active.ReadyToClose {
-		t.Fatalf("ready to close: %#v err=%v", active, err)
 	}
 
 	next, updated, err := seasonSvc.CloseSeason(ctx, []int64{tourID})
@@ -144,7 +149,7 @@ func TestSeasonCloseOpensNextSeason(t *testing.T) {
 	}
 }
 
-func TestFinishLeagueMarksSeasonReady(t *testing.T) {
+func TestStartLeagueClosesSeason(t *testing.T) {
 	ctx, seasonSvc, fantasySvc, seasonRepo := setupSeasonFixture(t)
 
 	var tourID int64
@@ -155,19 +160,47 @@ func TestFinishLeagueMarksSeasonReady(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fantasySvc.StartLeague(ctx, league.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := fantasySvc.FinishLeague(ctx, league.ID); err != nil {
-		t.Fatal(err)
-	}
 
 	active, err := seasonSvc.GetCurrent(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !active.ReadyToClose || active.ClosingFantasyLeagueID == nil || *active.ClosingFantasyLeagueID != league.ID {
-		t.Fatalf("season not ready: %#v", active)
+	if active.Name != "Season 1" || active.ReadyToClose {
+		t.Fatalf("create should not close season: %#v", active)
+	}
+
+	if _, err := fantasySvc.StartLeague(ctx, league.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	active, err = seasonSvc.GetCurrent(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if active == nil || active.Name != "Season 2" {
+		t.Fatalf("start should open next season: %#v", active)
+	}
+
+	var closedID int64
+	var closingFL sql.NullInt64
+	if err := seasonRepo.DB().QueryRowContext(ctx, `
+		SELECT id, closing_fantasy_league_id FROM season WHERE status='closed'
+	`).Scan(&closedID, &closingFL); err != nil {
+		t.Fatal(err)
+	}
+	if closedID != 1 || !closingFL.Valid || closingFL.Int64 != league.ID {
+		t.Fatalf("closed season=%d fl=%v want season 1 fl %d", closedID, closingFL, league.ID)
+	}
+
+	if _, err := fantasySvc.FinishLeague(ctx, league.ID); err != nil {
+		t.Fatal(err)
+	}
+	active, err = seasonSvc.GetCurrent(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if active.Name != "Season 2" || active.ReadyToClose {
+		t.Fatalf("finish should not close season: %#v", active)
 	}
 }
 
@@ -184,21 +217,19 @@ func TestListRaceEntriesWithSeasonRankDelta(t *testing.T) {
 	if len(entries) < 2 {
 		t.Fatalf("entries=%d", len(entries))
 	}
-	// A won 2-0 — should rank above B with positive delta vs season start.
 	top := entries[0]
 	bottom := entries[len(entries)-1]
-	if top.RankDelta == nil || *top.RankDelta <= 0 {
-		t.Fatalf("winner should have positive rank delta, got %#v", top.RankDelta)
-	}
-	if bottom.RankDelta == nil || *bottom.RankDelta >= 0 {
-		t.Fatalf("loser should have negative rank delta, got %#v", bottom.RankDelta)
-	}
 	if top.ProjectedElo == nil || bottom.ProjectedElo == nil || *top.ProjectedElo <= *bottom.ProjectedElo {
 		t.Fatalf("expected winner above loser by calculated elo: %v vs %v", top.ProjectedElo, bottom.ProjectedElo)
 	}
 	for _, e := range entries {
+		if e.LastSeasonEndElo != nil || e.RankDelta != nil {
+			t.Fatalf("season 1 should have no previous season comparison: %#v", e)
+		}
+		if e.SeasonStartElo == nil || e.Elo != *e.SeasonStartElo {
+			t.Fatalf("stored elo should equal season start: elo=%v start=%v", e.Elo, e.SeasonStartElo)
+		}
 		if e.ProjectedElo != nil && e.Elo == *e.ProjectedElo && e.SeasonStartElo != nil && e.Elo != *e.SeasonStartElo {
-			// Stored elo should remain the season-open baseline, not the live projection.
 			t.Fatalf("stored elo should not be overwritten by projection: %#v", e)
 		}
 	}
@@ -224,6 +255,15 @@ func TestListRaceEntriesWithSeasonRankDelta(t *testing.T) {
 	for _, e := range entries2 {
 		if e.SeasonStartElo == nil {
 			t.Fatalf("missing seasonStartElo for %d", e.PlayerRaceID)
+		}
+		if e.Elo != *e.SeasonStartElo {
+			t.Fatalf("new season start should equal stored elo: elo=%v start=%v", e.Elo, e.SeasonStartElo)
+		}
+		if e.LastSeasonEndElo == nil {
+			t.Fatalf("missing lastSeasonEndElo for %d", e.PlayerRaceID)
+		}
+		if e.LastSeasonEndRank == nil {
+			t.Fatalf("missing lastSeasonEndRank for %d", e.PlayerRaceID)
 		}
 		if e.RankDelta == nil || *e.RankDelta != 0 {
 			t.Fatalf("expected zero rank delta at season open, got %v for %d", e.RankDelta, e.PlayerRaceID)

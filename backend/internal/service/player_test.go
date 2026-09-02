@@ -362,6 +362,9 @@ func TestPlayerUpdateRaceEloSyncsSeasonBaseline(t *testing.T) {
 	if row.Elo != 2050 {
 		t.Fatalf("stored elo=%v want 2050", row.Elo)
 	}
+	if row.SeasonStartElo == nil || *row.SeasonStartElo != 2050 {
+		t.Fatalf("season start elo=%v want 2050", row.SeasonStartElo)
+	}
 	if row.ProjectedElo == nil || *row.ProjectedElo != 2050 {
 		t.Fatalf("projected elo=%v want 2050 with no matches", row.ProjectedElo)
 	}

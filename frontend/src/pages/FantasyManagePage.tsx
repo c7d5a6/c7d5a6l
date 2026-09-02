@@ -5,7 +5,6 @@ import { For, Match, Show, Switch, createEffect, createMemo, createResource, cre
 import { useNavigate } from '@solidjs/router'
 import { authFetch } from '../lib/auth'
 import { fetchFantasyLeagues } from '../lib/api/fantasy'
-import { fetchCurrentSeason } from '../lib/api/season'
 import { readApiError } from '../lib/api/http'
 import { displayValue } from '../types/tournament'
 import type { FantasyLeague, FantasyPreviewPlayer, TournamentSummary } from '../types/fantasy'
@@ -43,7 +42,6 @@ function leagueStatus(l: FantasyLeague): { label: string; kind: 'open' | 'live' 
 export function FantasyManagePage(): JSX.Element {
   const navigate = useNavigate()
   const [leagues, { refetch: refetchLeagues }] = createResource(fetchFantasyLeagues)
-  const [season] = createResource(fetchCurrentSeason)
   const [unused, { refetch: refetchUnused }] = createResource(fetchUnused)
 
   const [tournamentId, setTournamentId] = createSignal<number | null>(null)
@@ -330,16 +328,6 @@ export function FantasyManagePage(): JSX.Element {
                         >
                           {st().label}
                         </span>
-                        <Show
-                          when={
-                            season()?.readyToClose &&
-                            season()?.closingFantasyLeagueId === l.id
-                          }
-                        >
-                          <span class="chip chip--alert chip--compact season-pending-chip">
-                            Season pending
-                          </span>
-                        </Show>
                       </span>
                       <span class="roster__cell roster__caps" role="cell">
                         {l.maxPlayers}p / {l.maxCost}c

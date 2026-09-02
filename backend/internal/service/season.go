@@ -14,18 +14,17 @@ import (
 )
 
 var (
-	ErrSeasonNotFound    = errors.New("season not found")
-	ErrSeasonNotReady    = errors.New("season not ready to close")
-	ErrSeasonNoActive    = errors.New("no active season")
-	ErrSeasonInvalid     = errors.New("invalid season request")
+	ErrSeasonNotFound = errors.New("season not found")
+	ErrSeasonNoActive = errors.New("no active season")
+	ErrSeasonInvalid  = errors.New("invalid season request")
 )
 
 // Season orchestrates season lifecycle and rating recalculation.
 type Season struct {
-	db       *sql.DB
-	repo     *repository.Season
-	players  *repository.Player
-	calc     rating.Calculator
+	db      *sql.DB
+	repo    *repository.Season
+	players *repository.Player
+	calc    rating.Calculator
 }
 
 func NewSeason(db *sql.DB, repo *repository.Season, players *repository.Player) *Season {
@@ -38,6 +37,7 @@ func (s *Season) GetCurrent(ctx context.Context) (*model.Season, error) {
 }
 
 // SyncActiveSeasonStartElo updates the active season baseline for one player_race row.
+// player_race.elo and season start rating stay equal after an admin edit.
 func (s *Season) SyncActiveSeasonStartElo(ctx context.Context, playerRaceID int64, elo float64) error {
 	return s.repo.SyncActiveSeasonStartElo(ctx, s.db, playerRaceID, elo)
 }
@@ -53,7 +53,6 @@ func (s *Season) GetClosePreview(ctx context.Context) (*model.SeasonClosePreview
 	}
 
 	nowISO := repository.NowISO()
-	// Use date portion of started_at for window comparison when it includes time.
 	seasonStart := active.StartedAt
 	if len(seasonStart) > 10 {
 		seasonStart = seasonStart[:10]
@@ -64,20 +63,6 @@ func (s *Season) GetClosePreview(ctx context.Context) (*model.SeasonClosePreview
 		return nil, err
 	}
 
-	var flTourID int64
-	if active.ClosingFantasyLeagueID != nil {
-		flTourID, err = s.repo.FantasyLeagueTournamentID(ctx, s.db, *active.ClosingFantasyLeagueID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, err
-		}
-	}
-
-	for i := range tournaments {
-		if flTourID != 0 && tournaments[i].ID == flTourID {
-			tournaments[i].IsFantasySource = true
-		}
-	}
-
 	return &model.SeasonClosePreview{
 		Season:                 *active,
 		Tournaments:            tournaments,
@@ -85,13 +70,23 @@ func (s *Season) GetClosePreview(ctx context.Context) (*model.SeasonClosePreview
 	}, nil
 }
 
-// MarkReadyToClose flags the active season after a fantasy league finishes.
-func (s *Season) MarkReadyToClose(ctx context.Context, fantasyLeagueID int64) error {
-	return s.repo.SetReadyToClose(ctx, s.db, fantasyLeagueID)
+// CloseSeason recalculates elos and closes the active season in one transaction.
+// A nil tournamentIDs list includes every finished tournament in the season window.
+func (s *Season) CloseSeason(ctx context.Context, tournamentIDs []int64) (*model.Season, int, error) {
+	return s.closeSeason(ctx, tournamentIDs, nil)
 }
 
-// CloseSeason recalculates elos and closes the active season in one transaction.
-func (s *Season) CloseSeason(ctx context.Context, tournamentIDs []int64) (*model.Season, int, error) {
+// CloseSeasonForFantasyStart freezes live ratings as the season end and opens the next season.
+// No-op when there is no active season.
+func (s *Season) CloseSeasonForFantasyStart(ctx context.Context, fantasyLeagueID int64) (*model.Season, int, error) {
+	season, n, err := s.closeSeason(ctx, nil, &fantasyLeagueID)
+	if errors.Is(err, ErrSeasonNoActive) {
+		return nil, 0, nil
+	}
+	return season, n, err
+}
+
+func (s *Season) closeSeason(ctx context.Context, tournamentIDs []int64, fantasyLeagueID *int64) (*model.Season, int, error) {
 	active, err := s.repo.GetActiveSeason(ctx, s.db)
 	if err != nil {
 		return nil, 0, err
@@ -100,7 +95,15 @@ func (s *Season) CloseSeason(ctx context.Context, tournamentIDs []int64) (*model
 		return nil, 0, ErrSeasonNoActive
 	}
 
-	endElos, endRanks, err := s.computeSeasonRatings(ctx, active, tournamentIDs)
+	ids := tournamentIDs
+	if ids == nil {
+		ids, err = s.finishedSeasonTournamentIDs(ctx, active)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	endElos, endRanks, err := s.computeSeasonRatings(ctx, active, ids)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -119,15 +122,16 @@ func (s *Season) CloseSeason(ctx context.Context, tournamentIDs []int64) (*model
 	}
 
 	newSeasonID, err := s.repo.CloseAndOpenSeason(ctx, tx, repository.CloseSeasonParams{
-		SeasonID:      active.ID,
-		NewSeasonName: newName,
-		ClosedAt:      now,
-		StartedAt:     now,
-		TournamentIDs: tournamentIDs,
-		EndElos:       endElos,
-		EndRanks:      endRanks,
-		StartElos:     endElos,
-		StartRanks:    endRanks,
+		SeasonID:               active.ID,
+		NewSeasonName:          newName,
+		ClosedAt:               now,
+		StartedAt:              now,
+		TournamentIDs:          ids,
+		ClosingFantasyLeagueID: fantasyLeagueID,
+		EndElos:                endElos,
+		EndRanks:               endRanks,
+		StartElos:              endElos,
+		StartRanks:             endRanks,
 	})
 	if err != nil {
 		return nil, 0, err
@@ -145,8 +149,8 @@ func (s *Season) CloseSeason(ctx context.Context, tournamentIDs []int64) (*model
 }
 
 // ListRaceEntriesWithSeason returns player rows enriched with season metadata.
-// Ratings, ranks, and rank deltas are computed in memory from current-season matches
-// (all finished tournaments in the season window plus the closing fantasy league).
+// Live ratings come from current-season matches. Rank/rating deltas compare against
+// the previous season's end snapshot. player_race.elo is the current season start.
 func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerRaceEntry, *model.SeasonSummary, error) {
 	entries, err := s.players.ListRaceEntries(ctx, s.db)
 	if err != nil {
@@ -161,11 +165,6 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 		return entries, nil, nil
 	}
 
-	startRanks, err := s.repo.ListSeasonStartRanks(ctx, s.db, active.ID)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	snapshots, err := s.repo.ListActiveSeasonSnapshots(ctx, s.db, active.ID)
 	if err != nil {
 		return nil, nil, err
@@ -173,6 +172,11 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 	startEloByPR := make(map[int64]float64, len(snapshots))
 	for _, snap := range snapshots {
 		startEloByPR[snap.PlayerRaceID] = snap.StartElo
+	}
+
+	prevEndElo, prevEndRank, err := s.previousSeasonEnd(ctx, active.ID)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	projectedElos, projectedRanks, err := s.computeLiveSeasonRatings(ctx, active)
@@ -190,11 +194,17 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 			v := projected
 			entries[i].ProjectedElo = &v
 		}
-		startRank, hasStart := startRanks[id]
-		projectedRank, hasProjected := projectedRanks[id]
-		if hasStart && hasProjected {
-			delta := startRank - projectedRank
-			entries[i].RankDelta = &delta
+		if elo, ok := prevEndElo[id]; ok {
+			v := elo
+			entries[i].LastSeasonEndElo = &v
+		}
+		if rank, ok := prevEndRank[id]; ok {
+			v := rank
+			entries[i].LastSeasonEndRank = &v
+			if projectedRank, hasProjected := projectedRanks[id]; hasProjected {
+				delta := rank - projectedRank
+				entries[i].RankDelta = &delta
+			}
 		}
 	}
 
@@ -209,6 +219,28 @@ func (s *Season) ListRaceEntriesWithSeason(ctx context.Context) ([]model.PlayerR
 		ReadyToClose: active.ReadyToClose,
 	}
 	return entries, summary, nil
+}
+
+func (s *Season) previousSeasonEnd(ctx context.Context, activeSeasonID int64) (map[int64]float64, map[int64]int, error) {
+	prev, err := s.repo.GetPreviousClosedSeason(ctx, s.db, activeSeasonID)
+	if err != nil || prev == nil {
+		return nil, nil, err
+	}
+	snaps, err := s.repo.ListActiveSeasonSnapshots(ctx, s.db, prev.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	endElo := make(map[int64]float64)
+	endRank := make(map[int64]int)
+	for _, snap := range snaps {
+		if snap.EndElo != nil {
+			endElo[snap.PlayerRaceID] = *snap.EndElo
+		}
+		if snap.EndRank != nil {
+			endRank[snap.PlayerRaceID] = *snap.EndRank
+		}
+	}
+	return endElo, endRank, nil
 }
 
 func (s *Season) loadStartElos(ctx context.Context, seasonID int64) (map[int64]float64, error) {
@@ -232,26 +264,7 @@ func (s *Season) loadStartElos(ctx context.Context, seasonID int64) (map[int64]f
 	return startElos, nil
 }
 
-func (s *Season) fantasyLeagueTourID(ctx context.Context, active *model.Season) (int64, error) {
-	if active.ClosingFantasyLeagueID == nil {
-		return 0, nil
-	}
-	flTourID, err := s.repo.FantasyLeagueTournamentID(ctx, s.db, *active.ClosingFantasyLeagueID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
-	}
-	return flTourID, nil
-}
-
-func (s *Season) loadFantasyLeagueMatches(ctx context.Context, active *model.Season) ([]rating.Match, error) {
-	flTourID, err := s.fantasyLeagueTourID(ctx, active)
-	if err != nil || flTourID == 0 {
-		return nil, err
-	}
-	return s.repo.ListRatingMatches(ctx, s.db, []int64{flTourID})
-}
-
-func (s *Season) finishedSeasonTournamentIDs(ctx context.Context, active *model.Season, flTourID int64) ([]int64, error) {
+func (s *Season) finishedSeasonTournamentIDs(ctx context.Context, active *model.Season) ([]int64, error) {
 	seasonStart := active.StartedAt
 	if len(seasonStart) > 10 {
 		seasonStart = seasonStart[:10]
@@ -262,7 +275,7 @@ func (s *Season) finishedSeasonTournamentIDs(ctx context.Context, active *model.
 	}
 	out := make([]int64, 0, len(tournaments))
 	for _, t := range tournaments {
-		if !t.Finished || t.ID == flTourID {
+		if !t.Finished {
 			continue
 		}
 		out = append(out, t.ID)
@@ -276,14 +289,9 @@ func (s *Season) computeSeasonRatings(ctx context.Context, active *model.Season,
 		return nil, nil, err
 	}
 
-	flTourID, err := s.fantasyLeagueTourID(ctx, active)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	seasonIDs := seasonTournamentIDs
 	if seasonIDs == nil {
-		seasonIDs, err = s.finishedSeasonTournamentIDs(ctx, active, flTourID)
+		seasonIDs, err = s.finishedSeasonTournamentIDs(ctx, active)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -294,12 +302,7 @@ func (s *Season) computeSeasonRatings(ctx context.Context, active *model.Season,
 		return nil, nil, err
 	}
 
-	flMatches, err := s.loadFantasyLeagueMatches(ctx, active)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	elos := s.calc.Compute(startElos, seasonMatches, flMatches)
+	elos := s.calc.Compute(startElos, seasonMatches, nil)
 	return elos, computeRanks(elos), nil
 }
 

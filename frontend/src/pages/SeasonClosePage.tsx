@@ -107,7 +107,7 @@ export function SeasonClosePage(): JSX.Element {
                   </div>
                   <Show when={data().season.readyToClose}>
                     <span class="chip chip--alert season-strip__chip">
-                      Fantasy finished · ratings pending
+                      Ratings pending
                     </span>
                   </Show>
                 </div>
@@ -120,8 +120,10 @@ export function SeasonClosePage(): JSX.Element {
                   </Show>
 
                   <p class="status status--idle season-close__hint">
-                    Select tournaments whose matches count toward this season's rating recalculation.
-                    The closing fantasy league tournament is always included in an additional pass.
+                    Starting a fantasy league closes the season automatically (draft/picks do not).
+                    Use this page only to close a season without starting a league. Selected
+                    finished tournaments count toward the frozen ratings; those ratings become
+                    the next season's start (and the admin-editable player rating).
                   </p>
 
                   <div class="season-close__list" role="group" aria-label="Season tournaments">

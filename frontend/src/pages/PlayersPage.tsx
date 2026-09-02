@@ -142,12 +142,9 @@ export function PlayersPage() {
                           Opened {formatSeasonDate(season().startedAt)}
                         </span>
                       </div>
-                      <Show when={season().readyToClose && isAdmin()}>
-                        <A
-                          href="/season-close"
-                          class="chip chip--alert season-strip__chip season-strip__link"
-                        >
-                          Close season →
+                      <Show when={isAdmin()}>
+                        <A href="/season-close" class="chip chip--compact season-strip__chip season-strip__link">
+                          Close season
                         </A>
                       </Show>
                     </div>
@@ -177,7 +174,7 @@ export function PlayersPage() {
                       Player
                     </span>
                     <span class="roster__cell roster__elo" role="columnheader">
-                      Elo
+                      Rating
                     </span>
                     <span class="roster__cell roster__rank-delta" role="columnheader">
                       Δ Rank
@@ -211,9 +208,9 @@ export function PlayersPage() {
                             fallback={
                               <>
                                 {formatElo(displayElo(row))}
-                                <Show when={row.seasonStartElo != null}>
+                                <Show when={row.lastSeasonEndElo != null}>
                                   <span class="roster__elo-start">
-                                    {formatElo(row.seasonStartElo!)}
+                                    last {formatElo(row.lastSeasonEndElo!)}
                                   </span>
                                 </Show>
                               </>
@@ -227,13 +224,14 @@ export function PlayersPage() {
                               step={1}
                               value={draftElo()}
                               disabled={busy()}
-                              aria-label={`Elo for ${row.name ?? row.link}`}
+                              aria-label={`Season start rating for ${row.name ?? row.link}`}
                               onInput={(e) => setDraftElo(e.currentTarget.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') void saveEdit(row)
                                 if (e.key === 'Escape') cancelEdit()
                               }}
                             />
+                            <span class="roster__elo-start">season start</span>
                           </Show>
                         </span>
                         <span

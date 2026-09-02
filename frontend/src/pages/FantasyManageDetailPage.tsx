@@ -321,15 +321,6 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
         <p class="status status--ok">{msg()}</p>
       </Show>
 
-      <Show when={league()?.finished}>
-        <p class="status status--idle season-close__banner">
-          Season ratings pending ·{' '}
-          <A href="/season-close" class="season-strip__link">
-            Close season →
-          </A>
-        </p>
-      </Show>
-
       <Show when={league()}>
         {(l) => (
           <>
@@ -353,6 +344,10 @@ export function FantasyManageDetailPage(props: Props): JSX.Element {
                 <button type="button" class="btn btn--primary" disabled={busy()} onClick={() => void startLeague()}>
                   Start league
                 </button>
+                <p class="status status--idle">
+                  Starting locks teams and closes the current rating season. Creating the league and
+                  picking players does not.
+                </p>
               </Show>
               <Show when={l().started && !l().finished}>
                 <button type="button" class="btn btn--ghost" disabled={busy()} onClick={() => void finishLeague()}>

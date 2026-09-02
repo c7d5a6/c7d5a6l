@@ -304,7 +304,7 @@ func (s *Fantasy) UpdateLeagueCaps(ctx context.Context, id int64, maxPlayers, ma
 	return *updated, nil
 }
 
-// StartLeague sets started=1.
+// StartLeague closes the current rating season, then sets started=1.
 func (s *Fantasy) StartLeague(ctx context.Context, id int64) (model.FantasyLeague, error) {
 	league, err := s.GetLeague(ctx, id)
 	if err != nil {
@@ -315,6 +315,11 @@ func (s *Fantasy) StartLeague(ctx context.Context, id int64) (model.FantasyLeagu
 	}
 	if league.Finished {
 		return model.FantasyLeague{}, ErrFantasyFinished
+	}
+	if s.seasons != nil {
+		if _, _, err := s.seasons.CloseSeasonForFantasyStart(ctx, id); err != nil {
+			return model.FantasyLeague{}, err
+		}
 	}
 	if err := s.repo.SetLeagueStarted(ctx, s.db, id); err != nil {
 		return model.FantasyLeague{}, err
@@ -340,11 +345,6 @@ func (s *Fantasy) FinishLeague(ctx context.Context, id int64) (model.FantasyLeag
 	}
 	if err := s.repo.SetLeagueFinished(ctx, s.db, id); err != nil {
 		return model.FantasyLeague{}, err
-	}
-	if s.seasons != nil {
-		if err := s.seasons.MarkReadyToClose(ctx, id); err != nil {
-			debuglog.Printf("FinishLeague MarkReadyToClose leagueId=%d err=%v", id, err)
-		}
 	}
 	updated, err := s.repo.GetLeagueByID(ctx, s.db, id)
 	if err != nil || updated == nil {
@@ -439,10 +439,10 @@ func (s *Fantasy) PatchPlayer(ctx context.Context, leagueID, playerID int64, pat
 
 // UpsertTeamParams creates or replaces a team roster.
 type UpsertTeamParams struct {
-	LeagueID         int64
-	UserID           int64
-	TeamID           int64 // 0 = create / resolve by user
-	FantasyPlayerIDs []int64
+	LeagueID          int64
+	UserID            int64
+	TeamID            int64 // 0 = create / resolve by user
+	FantasyPlayerIDs  []int64
 	RequireNotStarted bool
 }
 

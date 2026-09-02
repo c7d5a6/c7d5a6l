@@ -36,11 +36,11 @@ type SeasonPlayerSnapshot struct {
 // GetActiveSeason returns the active season or nil when missing.
 func (r *Season) GetActiveSeason(ctx context.Context, q DBTX) (*model.Season, error) {
 	var (
-		s         model.Season
-		closedAt  sql.NullString
-		flID      sql.NullInt64
-		flName    sql.NullString
-		ready     int
+		s        model.Season
+		closedAt sql.NullString
+		flID     sql.NullInt64
+		flName   sql.NullString
+		ready    int
 	)
 	err := q.QueryRowContext(ctx, `
 		SELECT
@@ -278,24 +278,25 @@ func (r *Season) SetReadyToClose(ctx context.Context, q DBTX, fantasyLeagueID in
 
 // CloseSeasonParams is input for closing a season inside a transaction.
 type CloseSeasonParams struct {
-	SeasonID           int64
-	NewSeasonName      string
-	ClosedAt           string
-	StartedAt          string
-	TournamentIDs      []int64
-	EndElos            map[int64]float64
-	EndRanks           map[int64]int
-	StartElos          map[int64]float64
-	StartRanks         map[int64]int
+	SeasonID               int64
+	NewSeasonName          string
+	ClosedAt               string
+	StartedAt              string
+	TournamentIDs          []int64
+	ClosingFantasyLeagueID *int64
+	EndElos                map[int64]float64
+	EndRanks               map[int64]int
+	StartElos              map[int64]float64
+	StartRanks             map[int64]int
 }
 
 // CloseAndOpenSeason closes the active season and opens the next one atomically.
 func (r *Season) CloseAndOpenSeason(ctx context.Context, tx *sql.Tx, p CloseSeasonParams) (int64, error) {
 	res, err := tx.ExecContext(ctx, `
 		UPDATE season
-		SET status = 'closed', closed_at = ?, ready_to_close = 0
+		SET status = 'closed', closed_at = ?, ready_to_close = 0, closing_fantasy_league_id = ?
 		WHERE id = ? AND status = 'active'
-	`, p.ClosedAt, p.SeasonID)
+	`, p.ClosedAt, nullableInt64(p.ClosingFantasyLeagueID), p.SeasonID)
 	if err != nil {
 		return 0, fmt.Errorf("close season: %w", err)
 	}

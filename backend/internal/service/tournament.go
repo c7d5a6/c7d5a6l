@@ -146,9 +146,9 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 		if err != nil {
 			return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("player link %s: %w", link, err)
 		}
-		part := byLink[strings.ToLower(canonical)]
+		part := byLink[canonical]
 		if part.Link == nil {
-			part = byLink[strings.ToLower(link)]
+			part = byLink[link]
 		}
 		stub := model.NewPlayerPage(canonical)
 		if part.Name != nil {
@@ -388,7 +388,7 @@ func participantByLink(participants []model.Participant) map[string]model.Partic
 		if link == "" {
 			continue
 		}
-		out[strings.ToLower(link)] = p
+		out[strings.TrimSpace(link)] = p
 	}
 	return out
 }
@@ -401,7 +401,7 @@ func (s *Tournament) collectMissingLinks(ctx context.Context, participants []mod
 		if link == "" {
 			continue
 		}
-		key := strings.ToLower(link)
+		key := strings.TrimSpace(link)
 		if _, ok := seen[key]; ok {
 			continue
 		}
@@ -588,8 +588,8 @@ func boolOrNil(p *bool) any {
 }
 
 func rosterKey(p model.Participant) string {
-	link := strings.ToLower(strings.TrimSpace(nullStr(p.Link)))
-	name := strings.ToLower(strings.TrimSpace(nullStr(p.Name)))
+	link := strings.TrimSpace(nullStr(p.Link))
+	name := strings.TrimSpace(nullStr(p.Name))
 	race := strings.ToLower(strings.TrimSpace(nullStr(p.Race)))
 	id := link
 	if id == "" {
@@ -767,10 +767,14 @@ func (s *Tournament) resultPlayerID(ctx context.Context, q repository.DBTX, tour
 func resultsSummaries(results []model.Result) []string {
 	out := make([]string, 0, len(results))
 	for _, r := range results {
-		a := strings.ToLower(strings.TrimSpace(nullStr(ptrLink(r.ParticipantA))))
-		b := strings.ToLower(strings.TrimSpace(nullStr(ptrLink(r.ParticipantB))))
-		if a > b {
-			a, b = b, a
+		a := strings.TrimSpace(nullStr(ptrLink(r.ParticipantA)))
+		b := strings.TrimSpace(nullStr(ptrLink(r.ParticipantB)))
+		if a == "" || b == "" {
+			continue
+		}
+		left, right := a, b
+		if left > right {
+			left, right = right, left
 		}
 		sa, sb := "-", "-"
 		if r.ScoreA != nil {
@@ -783,7 +787,7 @@ func resultsSummaries(results []model.Result) []string {
 		if r.Played {
 			played = "1"
 		}
-		out = append(out, a+"|"+b+"|"+played+"|"+sa+":"+sb)
+		out = append(out, left+"|"+right+"|"+played+"|"+sa+":"+sb)
 	}
 	sort.Strings(out)
 	return out

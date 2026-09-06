@@ -116,7 +116,7 @@ func (r *Tournament) scanTournament(ctx context.Context, q DBTX, query string, a
 func (r *Tournament) listRoster(ctx context.Context, q DBTX, tournamentID int64) ([]model.Participant, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT
-			p.link,
+			`+PlayerLinkExpr+`,
 			pa.name,
 			pr.race,
 			tp.excluded
@@ -420,7 +420,7 @@ func (r *Tournament) ListGroups(ctx context.Context, q DBTX, tournamentID int64)
 func (r *Tournament) listGroupPlayers(ctx context.Context, q DBTX, groupID int64) ([]model.Participant, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT
-			p.link,
+			`+PlayerLinkExpr+`,
 			pa.name,
 			pr.race,
 			tp.excluded,
@@ -477,7 +477,7 @@ func (r *Tournament) TournamentPlayerIDByLink(ctx context.Context, q DBTX, tourn
 		FROM tournament_player tp
 		JOIN player_race pr ON pr.id = tp.player_race_id
 		JOIN player p ON p.id = pr.player_id
-		WHERE tp.tournament_id = ? AND p.link = ? COLLATE NOCASE
+		WHERE tp.tournament_id = ? AND p.link_v2 = ?
 		LIMIT 1
 	`, tournamentID, link).Scan(&id)
 	if err == sql.ErrNoRows {

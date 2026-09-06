@@ -37,7 +37,7 @@ export function FantasyTodayPanel(props: FantasyTodayPanelProps): JSX.Element {
     return props.teams
       .map((team) => {
         const members = team.members.filter((m) => {
-          const link = m.link?.trim().toLowerCase()
+          const link = normPlayerLink(m.link)
           return link && want.has(link)
         })
         return { team, members }

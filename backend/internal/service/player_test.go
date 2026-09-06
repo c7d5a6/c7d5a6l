@@ -460,3 +460,60 @@ func TestPlayerSaveCachesPortraitBlob(t *testing.T) {
 		t.Fatal("expected portrait retained")
 	}
 }
+
+func TestPlayerLinksAreCaseSensitive(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := repository.NewPlayer(sqlDB)
+	svc := service.NewPlayer(sqlDB, repo, nil)
+
+	terrOr := "https://liquipedia.net/starcraft/TerrOr"
+	terror := "https://liquipedia.net/starcraft/Terror"
+
+	if _, _, err := svc.Save(ctx, model.PlayerPage{
+		Link:          terrOr,
+		Name:          str("TerrOr"),
+		PreferredRace: str("terran"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.Save(ctx, model.PlayerPage{
+		Link:          terror,
+		Name:          str("Terror"),
+		PreferredRace: str("terran"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	gotOr, err := repo.GetByLink(ctx, sqlDB, terrOr)
+	if err != nil || gotOr == nil || nullStr(gotOr.Name) != "TerrOr" {
+		t.Fatalf("TerrOr: %#v err=%v", gotOr, err)
+	}
+	gotAr, err := repo.GetByLink(ctx, sqlDB, terror)
+	if err != nil || gotAr == nil || nullStr(gotAr.Name) != "Terror" {
+		t.Fatalf("Terror: %#v err=%v", gotAr, err)
+	}
+
+	wrong, err := repo.GetByLink(ctx, sqlDB, "https://liquipedia.net/starcraft/terror")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wrong != nil {
+		t.Fatalf("expected no match for different casing, got %#v", wrong)
+	}
+}
+
+func nullStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}

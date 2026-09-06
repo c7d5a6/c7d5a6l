@@ -247,7 +247,7 @@ type RosterEloRow struct {
 // ListRosterWithElo returns non-excluded tournament players joined to race elo.
 func (r *Fantasy) ListRosterWithElo(ctx context.Context, q DBTX, tournamentID int64) ([]RosterEloRow, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT tp.id, pa.name, p.link, pr.race, pr.elo
+		SELECT tp.id, pa.name, `+PlayerLinkExpr+`, pr.race, pr.elo
 		FROM tournament_player tp
 		JOIN player_race pr ON pr.id = tp.player_race_id
 		JOIN player_alias pa ON pa.id = tp.player_alias_id
@@ -325,7 +325,7 @@ func (r *Fantasy) ListPlayers(ctx context.Context, q DBTX, leagueID int64, sort 
 			fp.fantasy_league_id,
 			fp.tournament_player_id,
 			pa.name,
-			p.link,
+			`+PlayerLinkExpr+`,
 			pr.race,
 			fp.cost,
 			fp.points_ro24,
@@ -415,7 +415,7 @@ func (r *Fantasy) listGroupPlayers(ctx context.Context, q DBTX, leagueID, groupI
 		SELECT
 			fp.id,
 			pa.name,
-			p.link,
+			`+PlayerLinkExpr+`,
 			pr.race,
 			fp.cost,
 			tp.excluded,
@@ -470,7 +470,7 @@ func (r *Fantasy) GetPlayerByID(ctx context.Context, q DBTX, leagueID, playerID 
 			fp.fantasy_league_id,
 			fp.tournament_player_id,
 			pa.name,
-			p.link,
+			`+PlayerLinkExpr+`,
 			pr.race,
 			fp.cost,
 			fp.points_ro24,
@@ -707,7 +707,7 @@ func (r *Fantasy) listTeamMembers(ctx context.Context, q DBTX, teamID int64) ([]
 		SELECT
 			fp.id,
 			pa.name,
-			p.link,
+			`+PlayerLinkExpr+`,
 			pr.race,
 			fp.cost,
 			`+pointsEarnedExpr+`,
@@ -835,7 +835,7 @@ func (r *Fantasy) PlayersByIDs(ctx context.Context, q DBTX, leagueID int64, ids 
 			fp.fantasy_league_id,
 			fp.tournament_player_id,
 			pa.name,
-			p.link,
+			`+PlayerLinkExpr+`,
 			pr.race,
 			fp.cost,
 			fp.points_ro24,

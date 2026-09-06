@@ -16,6 +16,7 @@ import {
 import { authFetch, authUser, isAdmin } from '../lib/auth'
 import { fetchActiveFantasyLeague, fetchFantasyPlayers, fetchMyFantasyTeam } from '../lib/api/fantasy'
 import { invalidatePlayerInfo } from '../lib/playerHoverCache'
+import { playerRaceKey } from '../lib/playerLink'
 import type { FantasyPlayerRow, FantasyTeamRow } from '../types/fantasy'
 import {
   playerPortraitSrc,
@@ -64,14 +65,10 @@ function formatRankDelta(delta: number | null | undefined): string {
   return delta > 0 ? `+${delta}` : String(delta)
 }
 
-function rosterKey(link: string, race: string): string {
-  return `${link.toLowerCase()}\0${race.toLowerCase()}`
-}
-
 function fantasyRosterKeys(players: FantasyPlayerRow[]): Set<string> {
   const keys = new Set<string>()
   for (const p of players) {
-    if (p.link && p.race) keys.add(rosterKey(p.link, p.race))
+    if (p.link && p.race) keys.add(playerRaceKey(p.link, p.race))
   }
   return keys
 }
@@ -80,7 +77,7 @@ function teamRosterKeys(team: FantasyTeamRow | null | undefined): Set<string> {
   const keys = new Set<string>()
   if (!team) return keys
   for (const m of team.members) {
-    if (m.link && m.race) keys.add(rosterKey(m.link, m.race))
+    if (m.link && m.race) keys.add(playerRaceKey(m.link, m.race))
   }
   return keys
 }
@@ -112,7 +109,7 @@ export function PlayersPage() {
     const rows = allRows()
     if (!fantasyOnly()) return rows
     const keys = fantasyKeys()
-    return rows.filter((row) => keys.has(rosterKey(row.link, row.race)))
+    return rows.filter((row) => keys.has(playerRaceKey(row.link, row.race)))
   })
 
   createEffect(() => {
@@ -304,7 +301,7 @@ export function PlayersPage() {
                             race={row.race}
                             hasPortrait={row.hasPortrait}
                           />
-                          <Show when={myTeamKeys().has(rosterKey(row.link, row.race))}>
+                          <Show when={myTeamKeys().has(playerRaceKey(row.link, row.race))}>
                             <span class="chip chip--compact chip--fantasy roster__team-tag">Team</span>
                           </Show>
                         </span>

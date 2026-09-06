@@ -10,8 +10,30 @@ import (
 	"github.com/c7d5a6/c7d5a6l/internal/model"
 )
 
+func playerIDByLinkV2(ctx context.Context, q DBTX, link string) (int64, error) {
+	var id int64
+	err := q.QueryRowContext(ctx, `SELECT id FROM player WHERE link_v2 = ?`, link).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("player id by link_v2: %w", err)
+	}
+	return id, nil
+}
+
+func legacyLinkValue(ctx context.Context, q DBTX, link string) any {
+	var n int
+	if err := q.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM player WHERE link IS NOT NULL AND link = ? COLLATE NOCASE
+	`, link).Scan(&n); err != nil || n > 0 {
+		return nil
+	}
+	return link
+}
+
 // DefaultElo is assigned when a new player_race row is created.
-const DefaultElo = 1750.0
+const DefaultElo = 1250.0
 
 // PortraitBlob is cached portrait image bytes to store with a player row.
 // Nil PortraitBlob on Upsert leaves an existing blob unchanged.
@@ -25,6 +47,7 @@ type PortraitBlob struct {
 func (r *Player) GetByLink(ctx context.Context, q DBTX, link string) (*model.PlayerPage, error) {
 	var (
 		id            int64
+		storedLink    string
 		name          sql.NullString
 		realName      sql.NullString
 		preferredRace sql.NullString
@@ -33,10 +56,11 @@ func (r *Player) GetByLink(ctx context.Context, q DBTX, link string) (*model.Pla
 	)
 	err := q.QueryRowContext(ctx, `
 		SELECT id, name, real_name, preferred_race, portrait_url,
-			CASE WHEN portrait IS NOT NULL AND length(portrait) > 0 THEN 1 ELSE 0 END
+			CASE WHEN portrait IS NOT NULL AND length(portrait) > 0 THEN 1 ELSE 0 END,
+			`+PlayerLinkExprBare+`
 		FROM player
-		WHERE link = ? COLLATE NOCASE
-	`, link).Scan(&id, &name, &realName, &preferredRace, &portraitURL, &hasPortrait)
+		WHERE link_v2 = ?
+	`, link).Scan(&id, &name, &realName, &preferredRace, &portraitURL, &hasPortrait, &storedLink)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -44,7 +68,7 @@ func (r *Player) GetByLink(ctx context.Context, q DBTX, link string) (*model.Pla
 		return nil, fmt.Errorf("get player by link: %w", err)
 	}
 
-	page := model.NewPlayerPage(link)
+	page := model.NewPlayerPage(storedLink)
 	if name.Valid {
 		v := name.String
 		page.Name = &v
@@ -87,7 +111,7 @@ func (r *Player) GetPortraitByLink(ctx context.Context, q DBTX, link string) ([]
 	err := q.QueryRowContext(ctx, `
 		SELECT portrait, portrait_mime
 		FROM player
-		WHERE link = ? COLLATE NOCASE
+		WHERE link_v2 = ?
 	`, link).Scan(&blob, &mime)
 	if err == sql.ErrNoRows {
 		return nil, "", nil
@@ -162,14 +186,18 @@ func (r *Player) Upsert(ctx context.Context, q DBTX, page model.PlayerPage, port
 	}
 
 	var id int64
-	err := q.QueryRowContext(ctx, `SELECT id FROM player WHERE link = ? COLLATE NOCASE`, page.Link).Scan(&id)
+	id, err := playerIDByLinkV2(ctx, q, page.Link)
+	if err != nil {
+		return err
+	}
 	switch {
-	case err == sql.ErrNoRows:
+	case id == 0:
+		legacyLink := legacyLinkValue(ctx, q, page.Link)
 		if portrait != nil {
 			res, err := q.ExecContext(ctx, `
-				INSERT INTO player (link, name, real_name, preferred_race, portrait_url, portrait, portrait_mime)
-				VALUES (?, ?, ?, ?, ?, ?, ?)
-			`, page.Link, nullableText(page.Name), nullableText(page.RealName), nullableText(page.PreferredRace),
+				INSERT INTO player (link, link_v2, name, real_name, preferred_race, portrait_url, portrait, portrait_mime)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, legacyLink, page.Link, nullableText(page.Name), nullableText(page.RealName), nullableText(page.PreferredRace),
 				nullableText(page.PortraitURL), portrait.Data, nullableMime(portrait.Mime))
 			if err != nil {
 				return fmt.Errorf("insert player: %w", err)
@@ -180,9 +208,9 @@ func (r *Player) Upsert(ctx context.Context, q DBTX, page model.PlayerPage, port
 			}
 		} else {
 			res, err := q.ExecContext(ctx, `
-				INSERT INTO player (link, name, real_name, preferred_race, portrait_url)
-				VALUES (?, ?, ?, ?, ?)
-			`, page.Link, nullableText(page.Name), nullableText(page.RealName), nullableText(page.PreferredRace), nullableText(page.PortraitURL))
+				INSERT INTO player (link, link_v2, name, real_name, preferred_race, portrait_url)
+				VALUES (?, ?, ?, ?, ?, ?)
+			`, legacyLink, page.Link, nullableText(page.Name), nullableText(page.RealName), nullableText(page.PreferredRace), nullableText(page.PortraitURL))
 			if err != nil {
 				return fmt.Errorf("insert player: %w", err)
 			}
@@ -191,14 +219,12 @@ func (r *Player) Upsert(ctx context.Context, q DBTX, page model.PlayerPage, port
 				return fmt.Errorf("player last insert id: %w", err)
 			}
 		}
-	case err != nil:
-		return fmt.Errorf("lookup player: %w", err)
 	default:
 		if _, err := q.ExecContext(ctx, `
 			UPDATE player
-			SET name = ?, real_name = ?, preferred_race = ?, portrait_url = ?
+			SET name = ?, real_name = ?, preferred_race = ?, portrait_url = ?, link_v2 = ?
 			WHERE id = ?
-		`, nullableText(page.Name), nullableText(page.RealName), nullableText(page.PreferredRace), nullableText(page.PortraitURL), id); err != nil {
+		`, nullableText(page.Name), nullableText(page.RealName), nullableText(page.PreferredRace), nullableText(page.PortraitURL), page.Link, id); err != nil {
 			return fmt.Errorf("update player: %w", err)
 		}
 		if portrait != nil {
@@ -323,25 +349,16 @@ func ensureActiveSeasonSnapshot(ctx context.Context, q DBTX, playerRaceID int64,
 
 // ExistsByLink reports whether a player row exists for link.
 func (r *Player) ExistsByLink(ctx context.Context, q DBTX, link string) (bool, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM player WHERE link = ? COLLATE NOCASE`, link).Scan(&n)
+	id, err := playerIDByLinkV2(ctx, q, link)
 	if err != nil {
-		return false, fmt.Errorf("exists player by link: %w", err)
+		return false, err
 	}
-	return n > 0, nil
+	return id > 0, nil
 }
 
 // IDByLink returns the player id for link, or 0 if missing.
 func (r *Player) IDByLink(ctx context.Context, q DBTX, link string) (int64, error) {
-	var id int64
-	err := q.QueryRowContext(ctx, `SELECT id FROM player WHERE link = ? COLLATE NOCASE`, link).Scan(&id)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, fmt.Errorf("player id by link: %w", err)
-	}
-	return id, nil
+	return playerIDByLinkV2(ctx, q, link)
 }
 
 // EnsureAliasID ensures an alias row exists and returns its id.
@@ -411,7 +428,7 @@ func (r *Player) ListRaceEntries(ctx context.Context, q DBTX) ([]model.PlayerRac
 		SELECT
 			pr.id,
 			p.id,
-			p.link,
+			`+PlayerLinkExpr+`,
 			p.name,
 			p.real_name,
 			p.preferred_race,
@@ -476,7 +493,7 @@ func (r *Player) GetRaceEntryByID(ctx context.Context, q DBTX, playerRaceID int6
 		SELECT
 			pr.id,
 			p.id,
-			p.link,
+			`+PlayerLinkExpr+`,
 			p.name,
 			p.real_name,
 			p.preferred_race,

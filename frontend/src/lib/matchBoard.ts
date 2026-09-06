@@ -1,10 +1,7 @@
 import type { Result } from '../types/tournament'
+import { normPlayerLink } from './playerLink'
 
-/** Normalize a Liquipedia (or other) player link for set lookups. */
-export function normPlayerLink(link: string | null | undefined): string | null {
-  const t = link?.trim().toLowerCase()
-  return t || null
-}
+export { normPlayerLink } from './playerLink'
 
 /** Fantasy players marked defeated (not champion). */
 export function defeatedPlayerLinks(
@@ -271,8 +268,8 @@ export function pickDayMatches(
 export function participantLinksInResults(results: Result[]): Set<string> {
   const links = new Set<string>()
   for (const r of results) {
-    const a = r.participantA?.link?.trim().toLowerCase()
-    const b = r.participantB?.link?.trim().toLowerCase()
+    const a = normPlayerLink(r.participantA?.link)
+    const b = normPlayerLink(r.participantB?.link)
     if (a) links.add(a)
     if (b) links.add(b)
   }

@@ -24,7 +24,7 @@ func (r *Player) GetIdentityByID(ctx context.Context, q DBTX, playerID int64) (*
 		realName sql.NullString
 	)
 	err := q.QueryRowContext(ctx, `
-		SELECT link, name, real_name FROM player WHERE id = ?
+		SELECT `+PlayerLinkExprBare+`, name, real_name FROM player WHERE id = ?
 	`, playerID).Scan(&link, &name, &realName)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -48,7 +48,7 @@ func (r *Player) GetIdentityByID(ctx context.Context, q DBTX, playerID int64) (*
 // ListIdentitiesExcept returns every player except excludeID.
 func (r *Player) ListIdentitiesExcept(ctx context.Context, q DBTX, excludeID int64) ([]PlayerIdentity, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, link, name, real_name FROM player WHERE id != ? ORDER BY name COLLATE NOCASE
+		SELECT id, `+PlayerLinkExprBare+`, name, real_name FROM player WHERE id != ? ORDER BY name COLLATE NOCASE
 	`, excludeID)
 	if err != nil {
 		return nil, fmt.Errorf("list player identities: %w", err)

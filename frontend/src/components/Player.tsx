@@ -228,8 +228,8 @@ export function Player(props: PlayerProps): JSX.Element {
   })
 
   function openHint(el: HTMLElement) {
-    const link = props.link
-    if (!link || link.startsWith('local://')) return
+    const link = props.link?.trim()
+    if (!link) return
     window.clearTimeout(hideTimer)
     window.clearTimeout(showTimer)
     showTimer = window.setTimeout(() => {
@@ -249,6 +249,22 @@ export function Player(props: PlayerProps): JSX.Element {
     hideTimer = window.setTimeout(() => setHint(null), HIDE_DELAY_MS)
   }
 
+  const externalLink = () => {
+    const link = props.link?.trim()
+    return link && !link.startsWith('local://') ? link : undefined
+  }
+
+  const hintTargetProps = () => {
+    if (!props.link?.trim()) return {}
+    return {
+      onMouseEnter: (e: MouseEvent & { currentTarget: HTMLElement }) => openHint(e.currentTarget),
+      onMouseLeave: scheduleClose,
+      onFocus: (e: FocusEvent & { currentTarget: HTMLElement }) => openHint(e.currentTarget),
+      onBlur: scheduleClose,
+      tabIndex: 0,
+    }
+  }
+
   return (
     <span
       classList={{
@@ -265,10 +281,12 @@ export function Player(props: PlayerProps): JSX.Element {
       </Show>
 
       <Show
-        when={
-          props.link && !props.link.startsWith('local://') ? props.link : undefined
+        when={externalLink()}
+        fallback={
+          <span class="player__name" {...hintTargetProps()}>
+            {displayValue(props.name)}
+          </span>
         }
-        fallback={<span class="player__name">{displayValue(props.name)}</span>}
       >
         {(href) => (
           <a
@@ -276,10 +294,7 @@ export function Player(props: PlayerProps): JSX.Element {
             href={href()}
             target="_blank"
             rel="noreferrer"
-            onMouseEnter={(e) => openHint(e.currentTarget)}
-            onMouseLeave={scheduleClose}
-            onFocus={(e) => openHint(e.currentTarget)}
-            onBlur={scheduleClose}
+            {...hintTargetProps()}
           >
             {displayValue(props.name)}
           </a>

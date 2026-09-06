@@ -126,8 +126,9 @@ func (r *Season) GetPreviousClosedSeason(ctx context.Context, q DBTX, beforeSeas
 	err := q.QueryRowContext(ctx, `
 		SELECT id, name, status, started_at, closed_at, ready_to_close, closing_fantasy_league_id
 		FROM season
-		WHERE status = 'closed' AND id < ?
-		ORDER BY id DESC
+		WHERE status = 'closed'
+			AND started_at < (SELECT started_at FROM season WHERE id = ?)
+		ORDER BY started_at DESC, id DESC
 		LIMIT 1
 	`, beforeSeasonID).Scan(&s.ID, &s.Name, &s.Status, &s.StartedAt, &closedAt, &ready, &flID)
 	if err == sql.ErrNoRows {

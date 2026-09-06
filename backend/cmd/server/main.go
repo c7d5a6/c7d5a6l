@@ -59,6 +59,9 @@ func main() {
 	fantasyRepo := repository.NewFantasy(sqlDB)
 	seasonRepo := repository.NewSeason(sqlDB)
 	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo)
+	if err := seasonSvc.EnsurePreSeason(context.Background()); err != nil {
+		log.Fatalf("ensure pre-season: %v", err)
+	}
 	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo, tournamentRepo, seasonSvc)
 	userRepo := repository.NewUser(sqlDB)
 	titleRepo := repository.NewTitle(sqlDB)

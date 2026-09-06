@@ -31,6 +31,11 @@ func NewSeason(db *sql.DB, repo *repository.Season, players *repository.Player) 
 	return &Season{db: db, repo: repo, players: players}
 }
 
+// EnsurePreSeason bootstraps Season 1 when missing and ensures the synthetic Pre-season row exists.
+func (s *Season) EnsurePreSeason(ctx context.Context) error {
+	return s.repo.EnsurePreSeason(ctx)
+}
+
 // GetCurrent returns the active season summary.
 func (s *Season) GetCurrent(ctx context.Context) (*model.Season, error) {
 	return s.repo.GetActiveSeason(ctx, s.db)

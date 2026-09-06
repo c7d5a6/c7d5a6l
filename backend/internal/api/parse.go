@@ -285,7 +285,7 @@ func (s *Server) GetPlayerLookup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "link query parameter is required")
 		return
 	}
-	canonical, err := liquipedia.ValidateURL(link)
+	canonical, err := liquipedia.NormalizePlayerLink(link)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -315,7 +315,7 @@ func (s *Server) GetPlayerPortrait(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "link query parameter is required")
 		return
 	}
-	canonical, err := liquipedia.ValidateURL(link)
+	canonical, err := liquipedia.NormalizePlayerLink(link)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

@@ -35,6 +35,7 @@ type PlayerCounts struct {
 // Participant is a tournament entrant.
 type Participant struct {
 	Name     *string `json:"name"`
+	RealName *string `json:"realName,omitempty"`
 	Link     *string `json:"link"`
 	Race     *string `json:"race"`
 	Excluded bool    `json:"excluded"`

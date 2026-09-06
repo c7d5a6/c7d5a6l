@@ -26,11 +26,22 @@ func Participants(doc *goquery.Document) ([]model.Participant, error) {
 }
 
 func participantsFromFactionTable(doc *goquery.Document) []model.Participant {
-	table := doc.Find(".participantTable").First()
-	if table.Length() == 0 {
+	tables := doc.Find(".participantTable")
+	if tables.Length() == 0 {
 		return nil
 	}
 
+	var best []model.Participant
+	tables.Each(func(_ int, table *goquery.Selection) {
+		list := participantsFromSingleFactionTable(table)
+		if len(list) > len(best) {
+			best = list
+		}
+	})
+	return best
+}
+
+func participantsFromSingleFactionTable(table *goquery.Selection) []model.Participant {
 	races := factionHeaderRaces(table)
 	if len(races) == 0 {
 		return nil
@@ -162,13 +173,11 @@ func participantFromLegacyCell(cell *goquery.Selection, race string) (model.Part
 	if name == "" || strings.EqualFold(name, "TBD") || name == "—" || name == "-" || name == "–" {
 		return model.Participant{}, false
 	}
-	if profile == nil {
-		local := liquipedia.LocalPlayerURL("starcraft", name)
-		profile = &local
-	}
+	name, realName, profile := resolveParticipantIdentity(name, "starcraft", profile)
 
 	p := model.Participant{
 		Name:     &name,
+		RealName: realName,
 		Link:     profile,
 		Excluded: player.Find("s").Length() > 0 || cell.Find("s").Length() > 0,
 	}
@@ -184,14 +193,11 @@ func participantsFromRaceTeams(doc *goquery.Document) []model.Participant {
 	seen := map[string]struct{}{}
 
 	doc.Find(".team-participant-card").Each(func(_ int, card *goquery.Selection) {
-		race := cleanText(card.Find(".team-participant-card__opponent-compact .name").First().Text())
-		if race == "" {
-			race = cleanText(card.Find(".team-participant-card__opponent .name").First().Text())
+		cardRace := cleanText(card.Find(".team-participant-card__opponent-compact .name").First().Text())
+		if cardRace == "" {
+			cardRace = cleanText(card.Find(".team-participant-card__opponent .name").First().Text())
 		}
-		race = normalizeRace(race)
-		if race == "" {
-			return
-		}
+		cardRace = normalizeRace(cardRace)
 
 		card.Find(".team-participant-card__member").Each(func(_ int, member *goquery.Selection) {
 			player := member.Find(".block-player").First()
@@ -217,14 +223,14 @@ func participantsFromRaceTeams(doc *goquery.Document) []model.Participant {
 			if name == "" || strings.EqualFold(name, "TBD") {
 				return
 			}
-			if profile == nil {
-				local := liquipedia.LocalPlayerURL("starcraft", name)
-				profile = &local
-			}
+			name, realName, profile := resolveParticipantIdentity(name, "starcraft", profile)
 
-			memberRace := race
+			memberRace := cardRace
 			if alt := normalizeRace(player.Find(".race img").First().AttrOr("alt", "")); alt != "" {
 				memberRace = alt
+			}
+			if memberRace == "" {
+				return
 			}
 
 			role := cleanText(member.Find(".team-participant-card__member-role-right").First().Text())
@@ -232,6 +238,7 @@ func participantsFromRaceTeams(doc *goquery.Document) []model.Participant {
 
 			p := model.Participant{
 				Name:     &name,
+				RealName: realName,
 				Link:     profile,
 				Excluded: excluded,
 			}
@@ -253,7 +260,10 @@ func participantsFromRaceTeams(doc *goquery.Document) []model.Participant {
 }
 
 func participantFromBlock(scope *goquery.Selection, race string) (model.Participant, bool) {
-	player := scope.Find(".block-player").First()
+	player := scope
+	if !scope.HasClass("block-player") {
+		player = scope.Find(".block-player").First()
+	}
 	if player.Length() == 0 {
 		return model.Participant{}, false
 	}
@@ -280,13 +290,11 @@ func participantFromBlock(scope *goquery.Selection, race string) (model.Particip
 	if name == "" || strings.EqualFold(name, "TBD") {
 		return model.Participant{}, false
 	}
-	if profile == nil {
-		local := liquipedia.LocalPlayerURL("starcraft", name)
-		profile = &local
-	}
+	name, realName, profile := resolveParticipantIdentity(name, "starcraft", profile)
 
 	p := model.Participant{
 		Name:     &name,
+		RealName: realName,
 		Link:     profile,
 		Excluded: excluded,
 	}

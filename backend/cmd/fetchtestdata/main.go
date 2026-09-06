@@ -18,6 +18,10 @@ var fixtureURLs = []string{
 	"https://liquipedia.net/starcraft/AfreecaTV/StarCraft_League_Remastered/14",
 	"https://liquipedia.net/starcraft/AfreecaTV/StarCraft_League_Remastered/8",
 	"https://liquipedia.net/starcraft/KCM/Race_Survival/2026/1",
+	"https://liquipedia.net/starcraft/Daily_Proleague/K-League/2026-09-03",
+	"https://liquipedia.net/starcraft/Daily_Proleague/Hybrid_Proleague/2026-08-29",
+	"https://liquipedia.net/starcraft/KCM/Special/1",
+	"https://liquipedia.net/starcraft/ASL/22/Qualifier/Day_1",
 	"https://liquipedia.net/starcraft/Leagues/Recent_Tournaments",
 	// Player / team pages (future parsers; not in parse tests yet)
 	"https://liquipedia.net/starcraft/Jaedong",

@@ -9,7 +9,6 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/c7d5a6/c7d5a6l/internal/liquipedia"
 	"github.com/c7d5a6/c7d5a6l/internal/model"
 )
 
@@ -52,12 +51,17 @@ func collectRawResults(doc *goquery.Document) []rawResult {
 	var (
 		out      []rawResult
 		domIndex int
-		h3, h4   string
+		h2, h3, h4 string
 		stageTS  *int64
 	)
 
-	doc.Find("h3, h4, .group-table-countdown, .brkts-matchlist-match, .brkts-bracket .brkts-match").Each(func(_ int, sel *goquery.Selection) {
+	doc.Find("h2, h3, h4, .group-table-countdown, .brkts-matchlist-match, .brkts-match-info-flat, .brkts-bracket .brkts-match").Each(func(_ int, sel *goquery.Selection) {
 		switch {
+		case sel.Is("h2"):
+			h2 = cleanHeading(sel)
+			h3 = ""
+			h4 = ""
+			stageTS = nil
 		case sel.Is("h3"):
 			h3 = cleanHeading(sel)
 			h4 = ""
@@ -69,15 +73,29 @@ func collectRawResults(doc *goquery.Document) []rawResult {
 			stageTS = timerUnix(sel.Find(".timer-object").First())
 		case sel.HasClass("brkts-matchlist-match"):
 			domIndex++
-			if r, ok := parseMatchlistMatch(sel, joinStage(h3, h4, matchlistSubheader(sel)), stageTS, domIndex); ok {
+			stage := resultStageContext(sel, sectionStage(h2, h3, h4, matchlistSubheader(sel)))
+			if games := parseMapGamesFromPopup(sel.Find(".brkts-match-info-popup").First(), stage, stageTS, domIndex); len(games) > 0 {
+				out = append(out, games...)
+				return
+			}
+			if r, ok := parseMatchlistMatch(sel, stage, stageTS, domIndex); ok {
 				out = append(out, r)
+			}
+		case sel.HasClass("brkts-match-info-flat"):
+			if sel.Closest(".brkts-matchlist-match").Length() > 0 {
+				return
+			}
+			domIndex++
+			stage := resultStageContext(sel, sectionStage(h2, h3, h4))
+			if games := parseMapGamesFromPopup(sel, stage, stageTS, domIndex); len(games) > 0 {
+				out = append(out, games...)
 			}
 		case sel.HasClass("brkts-match"):
 			if sel.Closest(".brkts-matchlist").Length() > 0 {
 				return
 			}
 			domIndex++
-			stage := bracketStage(sel, h3, h4)
+			stage := resultStageContext(sel, bracketStage(sel, h2, h3, h4))
 			if r, ok := parseBracketMatch(sel, stage, stageTS, domIndex); ok {
 				out = append(out, r)
 			}
@@ -85,6 +103,153 @@ func collectRawResults(doc *goquery.Document) []rawResult {
 	})
 
 	return out
+}
+
+func resultStageContext(sel *goquery.Selection, stage string) string {
+	if tab := tabGroupLabel(sel); tab != "" {
+		return joinStage(stage, tab)
+	}
+	return stage
+}
+
+func tabGroupLabel(sel *goquery.Selection) string {
+	content := sel.Closest("[class*='content']")
+	if content.Length() == 0 {
+		return ""
+	}
+	class, _ := content.Attr("class")
+	tabClass := ""
+	for _, part := range strings.Fields(class) {
+		if strings.HasPrefix(part, "content") && part != "content" {
+			tabClass = "tab" + strings.TrimPrefix(part, "content")
+			break
+		}
+	}
+	if tabClass == "" {
+		if n := strings.TrimSpace(content.AttrOr("data-count", "")); n != "" {
+			tabClass = "tab" + n
+		}
+	}
+	if tabClass == "" {
+		return ""
+	}
+	tabs := content.Closest(".tabs-dynamic")
+	if tabs.Length() == 0 {
+		return ""
+	}
+	label := cleanText(tabs.Find("li." + tabClass + " span").First().Text())
+	if strings.EqualFold(label, "show all") {
+		return ""
+	}
+	return label
+}
+
+// sectionStage prefers h3/h4 headings when present; h2 is used for pages
+// like team proleagues where matches sit directly under a Results section.
+func sectionStage(h2, h3, h4 string, extra ...string) string {
+	if h3 != "" || h4 != "" {
+		return joinStage(h3, h4, joinParts(extra))
+	}
+	return joinStage(h2, h3, h4, joinParts(extra))
+}
+
+func joinParts(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	return joinStage(parts...)
+}
+
+func parseMapGamesFromPopup(popup *goquery.Selection, stage string, stageTS *int64, domIndex int) []rawResult {
+	if popup.Length() == 0 {
+		return nil
+	}
+	games := popup.Find(".brkts-popup-body-element.brkts-popup-body-game")
+	if games.Length() == 0 {
+		return nil
+	}
+
+	teamStage := joinStage(stage, teamMatchLabel(popup))
+	dt, unix := matchDateTime(popup, stageTS)
+
+	var out []rawResult
+	games.Each(func(i int, game *goquery.Selection) {
+		left := game.Find(".brkts-popup-header-opponent-left .block-player").First()
+		right := game.Find(".brkts-popup-header-opponent-right .block-player").First()
+		if left.Length() == 0 || right.Length() == 0 {
+			return
+		}
+		a, okA := participantFromBlock(left, "")
+		b, okB := participantFromBlock(right, "")
+		if !okA || !okB {
+			return
+		}
+		scoreA := parseScoreText(cleanText(game.Find(".brkts-popup-header-opponent-score-left").First().Text()))
+		scoreB := parseScoreText(cleanText(game.Find(".brkts-popup-header-opponent-score-right").First().Text()))
+		played := scoreA != nil && scoreB != nil
+
+		mapName := cleanText(game.Find(".brkts-popup-spaced a").First().Text())
+		matchStage := teamStage
+		if mapName != "" {
+			matchStage = joinStage(teamStage, mapName)
+		}
+
+		res := model.Result{
+			Played:       played,
+			ScoreA:       scoreA,
+			ScoreB:       scoreB,
+			ParticipantA: &a,
+			ParticipantB: &b,
+			DateTime:     dt,
+		}
+		if matchStage != "" {
+			s := matchStage
+			res.Stage = &s
+		}
+		out = append(out, rawResult{result: res, domIndex: domIndex*1000 + i, unix: unix})
+	})
+	return out
+}
+
+func teamMatchLabel(popup *goquery.Selection) string {
+	var names []string
+	popup.Find(".match-info-header-opponent").Each(func(_ int, opp *goquery.Selection) {
+		if name := opponentDisplayName(opp); name != "" {
+			names = append(names, name)
+		}
+	})
+	if len(names) >= 2 {
+		return names[0] + " vs " + names[1]
+	}
+	if len(names) == 1 {
+		return names[0]
+	}
+	return ""
+}
+
+func opponentDisplayName(opp *goquery.Selection) string {
+	if dyn := opp.Find(".team-name-dynamic").First(); dyn.Length() > 0 {
+		for _, attr := range []string{"data-team-bracketname", "data-team-shortname", "data-team-name"} {
+			if v := cleanText(dyn.AttrOr(attr, "")); v != "" {
+				return v
+			}
+		}
+	}
+	if name := cleanText(opp.Find(".name").First().Text()); name != "" {
+		return name
+	}
+	if a := opp.Find(".name a").First(); a.Length() > 0 {
+		if t := cleanText(a.Text()); t != "" {
+			return t
+		}
+		if title, _ := a.Attr("title"); title != "" {
+			return cleanText(title)
+		}
+	}
+	if label := strings.TrimSpace(opp.AttrOr("aria-label", "")); label != "" {
+		return strings.ReplaceAll(label, "_", " ")
+	}
+	return ""
 }
 
 func parseMatchlistMatch(match *goquery.Selection, stage string, stageTS *int64, domIndex int) (rawResult, bool) {
@@ -194,6 +359,16 @@ func matchSideFromMatchlist(opp, popup *goquery.Selection, left bool) *model.Par
 	}
 
 	if name == "" {
+		if dyn := opp.Find(".team-name-dynamic").First(); dyn.Length() > 0 {
+			for _, attr := range []string{"data-team-bracketname", "data-team-shortname", "data-team-name"} {
+				if v := cleanText(dyn.AttrOr(attr, "")); v != "" {
+					name = v
+					break
+				}
+			}
+		}
+	}
+	if name == "" {
 		if label := strings.TrimSpace(opp.AttrOr("aria-label", "")); label != "" {
 			name = strings.ReplaceAll(label, "_", " ")
 		}
@@ -205,17 +380,7 @@ func matchSideFromMatchlist(opp, popup *goquery.Selection, left bool) *model.Par
 		n := "TBD"
 		return &model.Participant{Name: &n}
 	}
-	if link == nil {
-		local := liquipedia.LocalPlayerURL("starcraft", name)
-		link = &local
-	}
-
-	p := &model.Participant{Name: &name, Link: link}
-	if race != "" {
-		r := race
-		p.Race = &r
-	}
-	return p
+	return participantFromIdentity(name, link, race)
 }
 
 func matchSideFromBracket(entry, popup *goquery.Selection, left bool) *model.Participant {
@@ -254,17 +419,7 @@ func matchSideFromBracket(entry, popup *goquery.Selection, left bool) *model.Par
 		n := "TBD"
 		return &model.Participant{Name: &n}
 	}
-	if link == nil {
-		local := liquipedia.LocalPlayerURL("starcraft", name)
-		link = &local
-	}
-
-	p := &model.Participant{Name: &name, Link: link}
-	if race != "" {
-		r := race
-		p.Race = &r
-	}
-	return p
+	return participantFromIdentity(name, link, race)
 }
 
 func matchSideMeaningful(p *model.Participant) bool {
@@ -421,7 +576,7 @@ func cleanBracketHeader(sel *goquery.Selection) string {
 	return text
 }
 
-func bracketStage(match *goquery.Selection, h3, h4 string) string {
+func bracketStage(match *goquery.Selection, h2, h3, h4 string) string {
 	bracket := match.Closest(".brkts-bracket")
 	headers := bracket.Find(".brkts-round-header .brkts-header")
 	depth := 0
@@ -438,7 +593,10 @@ func bracketStage(match *goquery.Selection, h3, h4 string) string {
 			round = cleanBracketHeader(headers.Eq(idx))
 		}
 	}
-	return joinStage(h3, h4, round)
+	if h3 != "" || h4 != "" {
+		return joinStage(h3, h4, round)
+	}
+	return joinStage(h2, round)
 }
 
 func matchlistSubheader(match *goquery.Selection) string {

@@ -154,6 +154,9 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 		if part.Name != nil {
 			stub.Name = part.Name
 		}
+		if part.RealName != nil {
+			stub.RealName = part.RealName
+		}
 		if part.Race != nil {
 			stub.PreferredRace = part.Race
 		}

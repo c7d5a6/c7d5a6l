@@ -21,13 +21,16 @@ type Match struct {
 // Calculator applies rating formulas.
 type Calculator struct{}
 
-// Compute recalculates elos from start ratings using season tournament matches,
-// then applies an additional pass with fantasy-league tournament matches.
-func (c *Calculator) Compute(start map[int64]float64, seasonMatches, flMatches []Match) map[int64]float64 {
+// Compute recalculates elos in three passes:
+// 1) season matches before fantasy (including the FL tournament),
+// 2) fantasy-league tournament matches,
+// 3) season matches after fantasy.
+func (c *Calculator) Compute(start map[int64]float64, beforeMatches, flMatches, afterMatches []Match) map[int64]float64 {
 	out := copyElos(start)
 	seasonPlayed := make(map[int64]bool)
-	c.applySeasonMatches(out, seasonMatches, seasonPlayed)
+	c.applySeasonMatches(out, beforeMatches, seasonPlayed)
 	c.applyFantasyLeagueMatches(out, flMatches, seasonPlayed)
+	c.applySeasonMatches(out, afterMatches, seasonPlayed)
 	return out
 }
 

@@ -13,7 +13,7 @@ func TestCalculator_seasonMatchUpdates(t *testing.T) {
 		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 2, ScoreB: 1, Played: true},
 	}
 	var calc rating.Calculator
-	got := calc.Compute(start, matches, nil)
+	got := calc.Compute(start, matches, nil, nil)
 
 	w1, w2 := 2.0, 1.0
 	r1, r2 := 1750.0, 1800.0
@@ -40,7 +40,7 @@ func TestCalculator_seasonMatchGolden(t *testing.T) {
 		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 4, ScoreB: 3, Played: true},
 	}
 	var calc rating.Calculator
-	got := calc.Compute(start, matches, nil)
+	got := calc.Compute(start, matches, nil, nil)
 
 	if round1(got[1]) != 2709.7 {
 		t.Fatalf("player 1: got=%v want=2709.7", round1(got[1]))
@@ -64,8 +64,8 @@ func TestCalculator_flUsesPostSeasonOpponentRatings(t *testing.T) {
 	}
 	var calc rating.Calculator
 
-	flOnly := calc.Compute(start, nil, fl)
-	both := calc.Compute(start, season, fl)
+	flOnly := calc.Compute(start, nil, fl, nil)
+	both := calc.Compute(start, season, fl, nil)
 
 	// Same FL map loss, but opponent rating in pSumm differs after season pass.
 	if flOnly[1] == both[1] {
@@ -73,7 +73,7 @@ func TestCalculator_flUsesPostSeasonOpponentRatings(t *testing.T) {
 	}
 
 	// Verify against manual: season first, then FL aggregate using updated opp rating.
-	afterSeason := calc.Compute(start, season, nil)
+	afterSeason := calc.Compute(start, season, nil, nil)
 	oppAfterSeason := afterSeason[2]
 	perf := (-400.0 + oppAfterSeason) / 1.0
 	want := flPlayed(t, afterSeason[1], perf)
@@ -91,8 +91,8 @@ func TestCalculator_seasonThenFL(t *testing.T) {
 		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 1, ScoreB: 0, Played: true},
 	}
 	var calc rating.Calculator
-	seasonOnly := calc.Compute(start, season, nil)
-	both := calc.Compute(start, season, fl)
+	seasonOnly := calc.Compute(start, season, nil, nil)
+	both := calc.Compute(start, season, fl, nil)
 
 	if seasonOnly[1] == start[1] {
 		t.Fatal("season pass should change ratings")
@@ -105,7 +105,7 @@ func TestCalculator_seasonThenFL(t *testing.T) {
 func TestCalculator_flNoPassWhenNoMatches(t *testing.T) {
 	start := map[int64]float64{1: 1750, 2: 1800}
 	var calc rating.Calculator
-	got := calc.Compute(start, nil, nil)
+	got := calc.Compute(start, nil, nil, nil)
 	if got[1] != 1750 || got[2] != 1800 {
 		t.Fatalf("empty FL pass should not change elos: %#v", got)
 	}
@@ -121,8 +121,8 @@ func TestCalculator_seasonOnlyNoFLPenalty(t *testing.T) {
 	}
 	var calc rating.Calculator
 
-	seasonOnly := calc.Compute(start, season, nil)
-	got := calc.Compute(start, season, fl)
+	seasonOnly := calc.Compute(start, season, nil, nil)
+	got := calc.Compute(start, season, fl, nil)
 
 	// Player 3: season match, no FL — regular update only, no inactive penalty.
 	if got[3] != seasonOnly[3] {
@@ -145,7 +145,7 @@ func TestCalculator_flInactiveGolden(t *testing.T) {
 		{PlayerRaceA: 2, PlayerRaceB: 3, ScoreA: 1, ScoreB: 0, Played: true},
 	}
 	var calc rating.Calculator
-	got := calc.Compute(start, nil, fl)
+	got := calc.Compute(start, nil, fl, nil)
 
 	if round1(got[1]) != 2276.7 {
 		t.Fatalf("inactive player: got=%v want=2276.7", round1(got[1]))
@@ -158,7 +158,7 @@ func TestCalculator_flInactiveWhenTournamentHadMaps(t *testing.T) {
 		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 1, ScoreB: 0, Played: true},
 	}
 	var calc rating.Calculator
-	got := calc.Compute(start, nil, fl)
+	got := calc.Compute(start, nil, fl, nil)
 
 	r1 := math.Pow(10, 1700.0/400)
 	r2 := math.Pow(10, 1900.0/400)
@@ -182,7 +182,7 @@ func TestCalculator_flMatchGolden(t *testing.T) {
 		{PlayerRaceA: 1, PlayerRaceB: 3, ScoreA: 0, ScoreB: 2, Played: true},
 	}
 	var calc rating.Calculator
-	got := calc.Compute(start, nil, fl)
+	got := calc.Compute(start, nil, fl, nil)
 
 	if round1(got[1]) != 2423.9 {
 		t.Fatalf("player: got=%v want=2423.9", round1(got[1]))
@@ -195,7 +195,7 @@ func TestCalculator_flMapUpdatesBothPlayers(t *testing.T) {
 		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 1, ScoreB: 0, Played: true},
 	}
 	var calc rating.Calculator
-	got := calc.Compute(start, nil, fl)
+	got := calc.Compute(start, nil, fl, nil)
 
 	perf1 := 400.0 + 1800.0
 	want1 := flPlayed(t, 1750, perf1)
@@ -224,10 +224,10 @@ func TestCalculator_flBo3ExpandsToThreeMaps(t *testing.T) {
 
 	oneMap := calc.Compute(start, nil, []rating.Match{
 		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 1, ScoreB: 0, Played: true},
-	})
+	}, nil)
 	threeMaps := calc.Compute(start, nil, []rating.Match{
 		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 1, ScoreB: 2, Played: true},
-	})
+	}, nil)
 
 	if oneMap[1] == threeMaps[1] {
 		t.Fatal("BO3 1:2 should differ from single map 1:0")
@@ -237,10 +237,31 @@ func TestCalculator_flBo3ExpandsToThreeMaps(t *testing.T) {
 	}
 }
 
+func TestCalculator_threePassAfterFantasy(t *testing.T) {
+	start := map[int64]float64{1: 1750, 2: 1800}
+	before := []rating.Match{
+		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 2, ScoreB: 0, Played: true},
+	}
+	fl := []rating.Match{
+		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 0, ScoreB: 1, Played: true},
+	}
+	after := []rating.Match{
+		{PlayerRaceA: 1, PlayerRaceB: 2, ScoreA: 1, ScoreB: 0, Played: true},
+	}
+	var calc rating.Calculator
+
+	throughFL := calc.Compute(start, before, fl, nil)
+	full := calc.Compute(start, before, fl, after)
+
+	if throughFL[1] == full[1] {
+		t.Fatalf("after-fantasy pass should change ratings: throughFL=%v full=%v", throughFL[1], full[1])
+	}
+}
+
 func TestCalculator_twoPassOrder(t *testing.T) {
 	start := map[int64]float64{1: 1750}
 	var calc rating.Calculator
-	got := calc.Compute(start, nil, nil)
+	got := calc.Compute(start, nil, nil, nil)
 	if got[1] != 1750 {
 		t.Fatalf("got=%v", got[1])
 	}

@@ -187,18 +187,16 @@ export function PlayersPage() {
                       </div>
                       <div class="season-strip__actions">
                         <Show when={activeLeague()}>
-                          {(league) => (
-                            <button
-                              type="button"
-                              class="chip chip--compact season-strip__chip"
-                              classList={{ 'chip--on': fantasyOnly() }}
-                              aria-pressed={fantasyOnly()}
-                              disabled={fantasyPlayers.loading}
-                              onClick={() => setFantasyOnly((on) => !on)}
-                            >
-                              {fantasyOnly() ? 'Show all players' : 'Show fantasy roster'}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            class="chip chip--compact season-strip__chip"
+                            classList={{ 'chip--on': fantasyOnly() }}
+                            aria-pressed={fantasyOnly()}
+                            disabled={fantasyPlayers.loading}
+                            onClick={() => setFantasyOnly((on) => !on)}
+                          >
+                            {fantasyOnly() ? 'Show all players' : 'Show fantasy roster'}
+                          </button>
                         </Show>
                         <Show when={isAdmin()}>
                           <A href="/season-close" class="chip chip--compact season-strip__chip season-strip__link">

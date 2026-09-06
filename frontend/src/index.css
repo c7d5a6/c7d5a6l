@@ -2681,6 +2681,10 @@ button.lamp-flash::after {
   min-width: 0;
 }
 
+.roster__team-tag {
+  flex-shrink: 0;
+}
+
 .roster__portrait {
   width: 1.75rem;
   height: 1.75rem;

@@ -47,6 +47,14 @@ export async function fetchFantasyTeams(leagueId: number): Promise<FantasyTeamRo
   return data.teams ?? []
 }
 
+export async function fetchMyFantasyTeam(leagueId: number): Promise<FantasyTeamRow | null> {
+  const res = await authFetch(`/api/fantasy-leagues/${leagueId}/my-team`)
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(await readApiError(res, `my fantasy team uplink failed (${res.status})`))
+  const data = (await res.json()) as { team: FantasyTeamRow }
+  return data.team ?? null
+}
+
 export async function fetchFantasyGroups(leagueId: number): Promise<FantasyGroup[]> {
   const res = await authFetch(`/api/fantasy-leagues/${leagueId}/groups`)
   if (!res.ok) throw new Error(await readApiError(res, `groups uplink failed (${res.status})`))

@@ -13,10 +13,10 @@ import {
   createResource,
   createSignal,
 } from 'solid-js'
-import { authFetch, isAdmin } from '../lib/auth'
-import { fetchActiveFantasyLeague, fetchFantasyPlayers } from '../lib/api/fantasy'
+import { authFetch, authUser, isAdmin } from '../lib/auth'
+import { fetchActiveFantasyLeague, fetchFantasyPlayers, fetchMyFantasyTeam } from '../lib/api/fantasy'
 import { invalidatePlayerInfo } from '../lib/playerHoverCache'
-import type { FantasyPlayerRow } from '../types/fantasy'
+import type { FantasyPlayerRow, FantasyTeamRow } from '../types/fantasy'
 import {
   playerPortraitSrc,
   type PlayerRaceEntry,
@@ -76,6 +76,15 @@ function fantasyRosterKeys(players: FantasyPlayerRow[]): Set<string> {
   return keys
 }
 
+function teamRosterKeys(team: FantasyTeamRow | null | undefined): Set<string> {
+  const keys = new Set<string>()
+  if (!team) return keys
+  for (const m of team.members) {
+    if (m.link && m.race) keys.add(rosterKey(m.link, m.race))
+  }
+  return keys
+}
+
 /** Roster channel — player_race rows ranked by elo. */
 export function PlayersPage() {
   const [roster, { refetch }] = createResource(fetchPlayers)
@@ -84,6 +93,11 @@ export function PlayersPage() {
     () => activeLeague()?.id ?? null,
     (id) => (id == null ? Promise.resolve([] as FantasyPlayerRow[]) : fetchFantasyPlayers(id)),
   )
+  const myTeamLeagueId = createMemo(() => {
+    if (!authUser() || !activeLeague()?.id) return null
+    return activeLeague()!.id
+  })
+  const [myTeam] = createResource(myTeamLeagueId, (id) => fetchMyFantasyTeam(id))
   const [fantasyOnly, setFantasyOnly] = createSignal(false)
   const [editingId, setEditingId] = createSignal<number | null>(null)
   const [draftElo, setDraftElo] = createSignal('')
@@ -93,6 +107,7 @@ export function PlayersPage() {
 
   const allRows = createMemo(() => roster()?.players ?? [])
   const fantasyKeys = createMemo(() => fantasyRosterKeys(fantasyPlayers() ?? []))
+  const myTeamKeys = createMemo(() => teamRosterKeys(myTeam()))
   const visibleRows = createMemo(() => {
     const rows = allRows()
     if (!fantasyOnly()) return rows
@@ -289,6 +304,9 @@ export function PlayersPage() {
                             race={row.race}
                             hasPortrait={row.hasPortrait}
                           />
+                          <Show when={myTeamKeys().has(rosterKey(row.link, row.race))}>
+                            <span class="chip chip--compact chip--fantasy roster__team-tag">Team</span>
+                          </Show>
                         </span>
                         <span class="roster__cell roster__elo" role="cell">
                           <Show

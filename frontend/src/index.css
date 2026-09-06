@@ -1002,6 +1002,118 @@ button.lamp-flash::after {
   pointer-events: none;
 }
 
+/* —— Player merge modal —— */
+
+.merge-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.merge-modal__panel {
+  width: min(32rem, 100%);
+  max-height: min(80vh, 36rem);
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem 1.1rem;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.75);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  overflow: hidden;
+}
+
+.merge-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.merge-modal__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.merge-modal__hint {
+  margin: 0;
+  color: var(--color-text-dim);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.merge-modal__list {
+  display: grid;
+  gap: 0.45rem;
+  min-height: 8rem;
+  max-height: 18rem;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.merge-modal__row {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  background: var(--color-panel-raised);
+  border: 1px solid var(--color-rule);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.merge-modal__row:hover:not(:disabled) {
+  border-color: var(--color-accent-dim);
+}
+
+.merge-modal__row--selected {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px rgba(255, 196, 64, 0.25);
+}
+
+.merge-modal__row:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.merge-modal__row-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.merge-modal__row-name {
+  font-family: var(--font-title);
+  letter-spacing: 0.04em;
+}
+
+.merge-modal__row-meta {
+  color: var(--color-text-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.merge-modal__row-aliases {
+  color: var(--color-text-dim);
+  font-size: 0.78rem;
+}
+
+.merge-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .me-profile {
   display: grid;
   gap: 1rem;
@@ -2523,7 +2635,7 @@ button.lamp-flash::after {
 
 .roster--players-admin .roster__head,
 .roster--players-admin .roster__row {
-  grid-template-columns: 2.5rem minmax(0, 1fr) 5.5rem 3.25rem minmax(7.5rem, auto);
+  grid-template-columns: 2.5rem minmax(0, 1fr) 5.5rem 3.25rem minmax(9.5rem, auto);
 }
 
 .roster__elo-input {

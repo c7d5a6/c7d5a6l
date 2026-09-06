@@ -1,6 +1,7 @@
 import { ConsoleCard } from '../components/ConsoleCard'
 import { ChannelHead } from '../components/ChannelChrome'
 import { Player } from '../components/Player'
+import { PlayerMergeModal } from '../components/PlayerMergeModal'
 import { A } from '@solidjs/router'
 import { For, Match, Show, Switch, createResource, createSignal } from 'solid-js'
 import { authFetch, isAdmin } from '../lib/auth'
@@ -59,6 +60,7 @@ export function PlayersPage() {
   const [draftElo, setDraftElo] = createSignal('')
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
+  const [mergeMain, setMergeMain] = createSignal<PlayerRaceEntry | null>(null)
 
   function startEdit(row: PlayerRaceEntry) {
     setEditingId(row.playerRaceId)
@@ -250,17 +252,35 @@ export function PlayersPage() {
                             <Show
                               when={editingId() === row.playerRaceId}
                               fallback={
-                                <button
-                                  type="button"
-                                  class="btn btn--ghost btn--compact"
-                                  disabled={
-                                    busy() ||
-                                    (editingId() != null && editingId() !== row.playerRaceId)
-                                  }
-                                  onClick={() => startEdit(row)}
-                                >
-                                  Edit
-                                </button>
+                                <div class="roster__elo-actions">
+                                  <button
+                                    type="button"
+                                    class="btn btn--ghost btn--compact"
+                                    disabled={
+                                      busy() ||
+                                      mergeMain() != null ||
+                                      (editingId() != null && editingId() !== row.playerRaceId)
+                                    }
+                                    onClick={() => startEdit(row)}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="btn btn--ghost btn--compact"
+                                    disabled={
+                                      busy() ||
+                                      mergeMain() != null ||
+                                      (editingId() != null && editingId() !== row.playerRaceId)
+                                    }
+                                    onClick={() => {
+                                      setError(null)
+                                      setMergeMain(row)
+                                    }}
+                                  >
+                                    Merge
+                                  </button>
+                                </div>
                               }
                             >
                               <div class="roster__elo-actions">
@@ -294,6 +314,18 @@ export function PlayersPage() {
         </Match>
       </Switch>
       </div>
+
+      <Show when={mergeMain()}>
+        {(main) => (
+          <PlayerMergeModal
+            main={main()}
+            onClose={() => setMergeMain(null)}
+            onMerged={async () => {
+              await refetch()
+            }}
+          />
+        )}
+      </Show>
     </ConsoleCard>
   )
 }

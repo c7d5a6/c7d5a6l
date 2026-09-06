@@ -102,6 +102,8 @@ func main() {
 	mux.HandleFunc("GET /api/players", apiServer.ListPlayers)
 	mux.Handle("POST /api/players", requireAdmin(apiServer.SavePlayer))
 	mux.Handle("PATCH /api/players/races/{id}", requireAdmin(apiServer.PatchPlayerRace))
+	mux.Handle("GET /api/players/{id}/merge-candidates", requireAdmin(apiServer.ListMergeCandidates))
+	mux.Handle("POST /api/players/merge", requireAdmin(apiServer.MergePlayers))
 	mux.HandleFunc("GET /api/players/lookup", apiServer.GetPlayerLookup)
 	mux.HandleFunc("GET /api/players/portrait", apiServer.GetPlayerPortrait)
 	mux.HandleFunc("GET /api/tournaments", apiServer.ListTournaments)

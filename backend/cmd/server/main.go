@@ -58,7 +58,7 @@ func main() {
 	playerImporter := service.NewPlayerImporter(sqlDB, importRepo, playerRepo, playerFetcher, lpClient)
 	fantasyRepo := repository.NewFantasy(sqlDB)
 	seasonRepo := repository.NewSeason(sqlDB)
-	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo)
+	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo, fantasyRepo)
 	if err := seasonSvc.EnsurePreSeason(context.Background()); err != nil {
 		log.Fatalf("ensure pre-season: %v", err)
 	}

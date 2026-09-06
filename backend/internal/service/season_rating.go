@@ -15,7 +15,7 @@ type ratingPlan struct {
 	applyFL       bool
 }
 
-func (s *Season) resolveRatingPlan(ctx context.Context, active *model.Season, tournamentIDs []int64, closingFantasyLeagueID *int64) (ratingPlan, error) {
+func (s *Season) resolveRatingPlan(ctx context.Context, active *model.Season, tournamentIDs []int64, closingFantasyLeagueID *int64, flLeagueID *int64) (ratingPlan, error) {
 	ids := tournamentIDs
 	if ids == nil {
 		ids, err := s.finishedSeasonTournamentIDs(ctx, active)
@@ -25,15 +25,20 @@ func (s *Season) resolveRatingPlan(ctx context.Context, active *model.Season, to
 		tournamentIDs = ids
 	}
 
+	flTourID, applyFL, err := s.fantasyLeagueTourID(ctx, flLeagueID)
+	if err != nil {
+		return ratingPlan{}, err
+	}
+
 	if closingFantasyLeagueID != nil {
-		flTourID, err := s.repo.FantasyTournamentFromLeague(ctx, s.db, *closingFantasyLeagueID)
+		closeTourID, err := s.repo.FantasyTournamentFromLeague(ctx, s.db, *closingFantasyLeagueID)
 		if err != nil {
 			return ratingPlan{}, err
 		}
 		return ratingPlan{
 			beforeTourIDs: tournamentIDs,
 			afterTourIDs:  nil,
-			flTourID:      flTourID,
+			flTourID:      closeTourID,
 			applyBefore:   true,
 			applyFL:       true,
 		}, nil
@@ -44,11 +49,11 @@ func (s *Season) resolveRatingPlan(ctx context.Context, active *model.Season, to
 		return ratingPlan{}, err
 	}
 	if prev != nil && prev.ClosingFantasyLeagueID != nil {
-		flTourID, err := s.repo.FantasyTournamentFromLeague(ctx, s.db, *prev.ClosingFantasyLeagueID)
+		pivotTourID, err := s.repo.FantasyTournamentFromLeague(ctx, s.db, *prev.ClosingFantasyLeagueID)
 		if err != nil {
 			return ratingPlan{}, err
 		}
-		before, after, err := s.repo.SplitTournamentsAroundFantasy(ctx, s.db, tournamentIDs, flTourID)
+		before, after, err := s.repo.SplitTournamentsAroundFantasy(ctx, s.db, tournamentIDs, pivotTourID)
 		if err != nil {
 			return ratingPlan{}, err
 		}
@@ -57,17 +62,28 @@ func (s *Season) resolveRatingPlan(ctx context.Context, active *model.Season, to
 			afterTourIDs:  after,
 			flTourID:      flTourID,
 			applyBefore:   false,
-			applyFL:       false,
+			applyFL:       applyFL,
 		}, nil
 	}
 
 	return ratingPlan{
 		beforeTourIDs: tournamentIDs,
 		afterTourIDs:  nil,
-		flTourID:      0,
+		flTourID:      flTourID,
 		applyBefore:   true,
-		applyFL:       false,
+		applyFL:       applyFL,
 	}, nil
+}
+
+func (s *Season) fantasyLeagueTourID(ctx context.Context, flLeagueID *int64) (tourID int64, apply bool, err error) {
+	if flLeagueID == nil {
+		return 0, false, nil
+	}
+	tourID, err = s.repo.FantasyTournamentFromLeague(ctx, s.db, *flLeagueID)
+	if err != nil {
+		return 0, false, err
+	}
+	return tourID, tourID > 0, nil
 }
 
 func (s *Season) loadRatingMatches(ctx context.Context, plan ratingPlan) (before, fl, after []rating.Match, err error) {

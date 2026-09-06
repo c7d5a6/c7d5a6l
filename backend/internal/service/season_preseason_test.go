@@ -23,7 +23,8 @@ func TestEnsurePreSeasonBootstrapsFromSeason1(t *testing.T) {
 
 	seasonRepo := repository.NewSeason(sqlDB)
 	playerRepo := repository.NewPlayer(sqlDB)
-	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo)
+	fantasyRepo := repository.NewFantasy(sqlDB)
+	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo, fantasyRepo)
 
 	if _, err := sqlDB.ExecContext(ctx, `UPDATE season SET started_at = '2026-03-15T12:00:00Z' WHERE status = 'active'`); err != nil {
 		t.Fatal(err)
@@ -152,7 +153,7 @@ func TestEnsurePreSeasonBootstrapsEmptySeasonTable(t *testing.T) {
 	}
 
 	seasonRepo := repository.NewSeason(sqlDB)
-	seasonSvc := service.NewSeason(sqlDB, seasonRepo, repository.NewPlayer(sqlDB))
+	seasonSvc := service.NewSeason(sqlDB, seasonRepo, repository.NewPlayer(sqlDB), repository.NewFantasy(sqlDB))
 	if err := seasonSvc.EnsurePreSeason(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +190,7 @@ func TestEnsurePreSeasonBootstrapsSeason1WithoutPlayers(t *testing.T) {
 	}
 
 	seasonRepo := repository.NewSeason(sqlDB)
-	seasonSvc := service.NewSeason(sqlDB, seasonRepo, repository.NewPlayer(sqlDB))
+	seasonSvc := service.NewSeason(sqlDB, seasonRepo, repository.NewPlayer(sqlDB), repository.NewFantasy(sqlDB))
 	if err := seasonSvc.EnsurePreSeason(ctx); err != nil {
 		t.Fatal(err)
 	}

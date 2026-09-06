@@ -26,9 +26,9 @@ func setupSeasonFixture(t *testing.T) (context.Context, *service.Season, *servic
 
 	playerRepo := repository.NewPlayer(sqlDB)
 	tourRepo := repository.NewTournament(sqlDB)
-	seasonRepo := repository.NewSeason(sqlDB)
-	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo)
 	fantasyRepo := repository.NewFantasy(sqlDB)
+	seasonRepo := repository.NewSeason(sqlDB)
+	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo, fantasyRepo)
 	fantasySvc := service.NewFantasy(sqlDB, fantasyRepo, tourRepo, seasonSvc)
 
 	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, stubPlayerFetcher{
@@ -201,6 +201,42 @@ func TestStartLeagueClosesSeason(t *testing.T) {
 	}
 	if active.Name != "Season 2" || active.ReadyToClose {
 		t.Fatalf("finish should not close season: %#v", active)
+	}
+}
+
+func TestLiveRatingsApplyActiveFantasyLeague(t *testing.T) {
+	ctx, seasonSvc, fantasySvc, seasonRepo := setupSeasonFixture(t)
+
+	var tourID int64
+	if err := seasonRepo.DB().QueryRowContext(ctx, `SELECT id FROM tournament LIMIT 1`).Scan(&tourID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fantasySvc.CreateOrSeed(ctx, tourID); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, season, err := seasonSvc.ListRaceEntriesWithSeason(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if season == nil || season.Name != "Season 1" {
+		t.Fatalf("season=%#v", season)
+	}
+	if len(entries) < 2 {
+		t.Fatalf("entries=%d", len(entries))
+	}
+
+	changed := 0
+	for _, e := range entries {
+		if e.SeasonStartElo == nil || e.ProjectedElo == nil {
+			t.Fatalf("missing ratings: %#v", e)
+		}
+		if *e.ProjectedElo != *e.SeasonStartElo {
+			changed++
+		}
+	}
+	if changed == 0 {
+		t.Fatal("live ratings should apply active fantasy league pass on top of season tournaments")
 	}
 }
 

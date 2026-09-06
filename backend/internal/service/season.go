@@ -24,11 +24,12 @@ type Season struct {
 	db      *sql.DB
 	repo    *repository.Season
 	players *repository.Player
+	fantasy *repository.Fantasy
 	calc    rating.Calculator
 }
 
-func NewSeason(db *sql.DB, repo *repository.Season, players *repository.Player) *Season {
-	return &Season{db: db, repo: repo, players: players}
+func NewSeason(db *sql.DB, repo *repository.Season, players *repository.Player, fantasy *repository.Fantasy) *Season {
+	return &Season{db: db, repo: repo, players: players, fantasy: fantasy}
 }
 
 // EnsurePreSeason bootstraps Season 1 when missing and ensures the synthetic Pre-season row exists.
@@ -108,7 +109,7 @@ func (s *Season) closeSeason(ctx context.Context, tournamentIDs []int64, fantasy
 		}
 	}
 
-	endElos, endRanks, err := s.computeSeasonRatings(ctx, active, ids, fantasyLeagueID)
+	endElos, endRanks, err := s.computeClosingSeasonRatings(ctx, active, ids, fantasyLeagueID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -288,13 +289,40 @@ func (s *Season) finishedSeasonTournamentIDs(ctx context.Context, active *model.
 	return out, nil
 }
 
-func (s *Season) computeSeasonRatings(ctx context.Context, active *model.Season, seasonTournamentIDs []int64, closingFantasyLeagueID *int64) (map[int64]float64, map[int64]int, error) {
+func (s *Season) activeFantasyLeagueID(ctx context.Context) (*int64, error) {
+	if s.fantasy == nil {
+		return nil, nil
+	}
+	league, err := s.fantasy.GetActiveLeague(ctx, s.db)
+	if err != nil || league == nil {
+		return nil, err
+	}
+	return &league.ID, nil
+}
+
+func (s *Season) computeClosingSeasonRatings(ctx context.Context, active *model.Season, seasonTournamentIDs []int64, closingFantasyLeagueID *int64) (map[int64]float64, map[int64]int, error) {
+	flLeagueID := closingFantasyLeagueID
+	if flLeagueID == nil {
+		flLeagueID = active.ClosingFantasyLeagueID
+	}
+	return s.computeRatings(ctx, active, seasonTournamentIDs, closingFantasyLeagueID, flLeagueID)
+}
+
+func (s *Season) computeLiveSeasonRatings(ctx context.Context, active *model.Season) (map[int64]float64, map[int64]int, error) {
+	flLeagueID, err := s.activeFantasyLeagueID(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s.computeRatings(ctx, active, nil, nil, flLeagueID)
+}
+
+func (s *Season) computeRatings(ctx context.Context, active *model.Season, seasonTournamentIDs []int64, closingFantasyLeagueID *int64, flLeagueID *int64) (map[int64]float64, map[int64]int, error) {
 	startElos, err := s.loadStartElos(ctx, active.ID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	plan, err := s.resolveRatingPlan(ctx, active, seasonTournamentIDs, closingFantasyLeagueID)
+	plan, err := s.resolveRatingPlan(ctx, active, seasonTournamentIDs, closingFantasyLeagueID, flLeagueID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -306,10 +334,6 @@ func (s *Season) computeSeasonRatings(ctx context.Context, active *model.Season,
 
 	elos := s.calc.Compute(startElos, beforeMatches, flMatches, afterMatches)
 	return elos, computeRanks(elos), nil
-}
-
-func (s *Season) computeLiveSeasonRatings(ctx context.Context, active *model.Season) (map[int64]float64, map[int64]int, error) {
-	return s.computeSeasonRatings(ctx, active, nil, nil)
 }
 
 func sortEntriesByRank(entries []model.PlayerRaceEntry, ranks map[int64]int) {

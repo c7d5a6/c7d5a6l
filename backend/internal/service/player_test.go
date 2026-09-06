@@ -325,7 +325,7 @@ func TestPlayerUpdateRaceEloSyncsSeasonBaseline(t *testing.T) {
 	}
 	playerRepo := repository.NewPlayer(sqlDB)
 	seasonRepo := repository.NewSeason(sqlDB)
-	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo)
+	seasonSvc := service.NewSeason(sqlDB, seasonRepo, playerRepo, repository.NewFantasy(sqlDB))
 	playerSvc := service.NewPlayer(sqlDB, playerRepo, nil)
 
 	if _, _, err := playerSvc.Save(ctx, model.PlayerPage{

@@ -196,9 +196,7 @@ export function PlayersPage() {
                               disabled={fantasyPlayers.loading}
                               onClick={() => setFantasyOnly((on) => !on)}
                             >
-                              {fantasyOnly()
-                                ? 'Fantasy roster'
-                                : `Fantasy: ${league().tournamentName ?? 'league'}`}
+                              {fantasyOnly() ? 'Show all players' : 'Show fantasy roster'}
                             </button>
                           )}
                         </Show>
@@ -229,7 +227,7 @@ export function PlayersPage() {
                         disabled={fantasyPlayers.loading}
                         onClick={() => setFantasyOnly((on) => !on)}
                       >
-                        {fantasyOnly() ? 'Fantasy roster' : 'Show fantasy roster'}
+                        {fantasyOnly() ? 'Show all players' : 'Show fantasy roster'}
                       </button>
                     </div>
                   )}

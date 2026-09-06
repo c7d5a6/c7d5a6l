@@ -15,6 +15,9 @@ func TestStartDate_AllFixtures(t *testing.T) {
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/14.html": "2022-08-09",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/8.html":  "2019-06-30",
 		"starcraft/KCM/Race_Survival/2026/1.html":                 "2026-01-15",
+		"starcraft/Daily_Proleague/K-League/2026-09-03.html":      "2026-09-03",
+		"starcraft/Daily_Proleague/Hybrid_Proleague/2026-08-29.html": "2026-08-29",
+		"starcraft/KCM/Special/1.html":                            "2026-09-01",
 	}
 
 	fixtures := loadFixturesForExpectations(t, wantByFixture)
@@ -52,6 +55,9 @@ func TestEndDate_AllFixtures(t *testing.T) {
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/14.html": "2022-10-09",
 		"starcraft/AfreecaTV/StarCraft_League_Remastered/8.html":  "2019-09-01",
 		"starcraft/KCM/Race_Survival/2026/1.html":                 "2026-03-26",
+		"starcraft/Daily_Proleague/K-League/2026-09-03.html":      "2026-09-03",
+		"starcraft/Daily_Proleague/Hybrid_Proleague/2026-08-29.html": "2026-08-29",
+		"starcraft/KCM/Special/1.html":                            "2026-09-01",
 	}
 
 	fixtures := loadFixturesForExpectations(t, wantByFixture)

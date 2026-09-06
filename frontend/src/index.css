@@ -2763,6 +2763,29 @@ button.lamp-flash::after {
   filter: brightness(1.15);
 }
 
+.season-strip__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+button.chip.season-strip__chip {
+  cursor: pointer;
+  font: inherit;
+}
+
+button.chip.season-strip__chip:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.chip--on {
+  color: var(--color-theme);
+  border-color: color-mix(in srgb, var(--color-theme) 55%, var(--color-border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-theme) 25%, transparent);
+}
+
 .season-close__hint {
   margin-top: 0.25rem;
 }

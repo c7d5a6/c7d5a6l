@@ -3,9 +3,20 @@ import { ChannelHead } from '../components/ChannelChrome'
 import { Player } from '../components/Player'
 import { PlayerMergeModal } from '../components/PlayerMergeModal'
 import { A } from '@solidjs/router'
-import { For, Match, Show, Switch, createResource, createSignal } from 'solid-js'
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+} from 'solid-js'
 import { authFetch, isAdmin } from '../lib/auth'
+import { fetchActiveFantasyLeague, fetchFantasyPlayers } from '../lib/api/fantasy'
 import { invalidatePlayerInfo } from '../lib/playerHoverCache'
+import type { FantasyPlayerRow } from '../types/fantasy'
 import {
   playerPortraitSrc,
   type PlayerRaceEntry,
@@ -53,14 +64,45 @@ function formatRankDelta(delta: number | null | undefined): string {
   return delta > 0 ? `+${delta}` : String(delta)
 }
 
+function rosterKey(link: string, race: string): string {
+  return `${link.toLowerCase()}\0${race.toLowerCase()}`
+}
+
+function fantasyRosterKeys(players: FantasyPlayerRow[]): Set<string> {
+  const keys = new Set<string>()
+  for (const p of players) {
+    if (p.link && p.race) keys.add(rosterKey(p.link, p.race))
+  }
+  return keys
+}
+
 /** Roster channel — player_race rows ranked by elo. */
 export function PlayersPage() {
   const [roster, { refetch }] = createResource(fetchPlayers)
+  const [activeLeague] = createResource(fetchActiveFantasyLeague)
+  const [fantasyPlayers] = createResource(
+    () => activeLeague()?.id ?? null,
+    (id) => (id == null ? Promise.resolve([] as FantasyPlayerRow[]) : fetchFantasyPlayers(id)),
+  )
+  const [fantasyOnly, setFantasyOnly] = createSignal(false)
   const [editingId, setEditingId] = createSignal<number | null>(null)
   const [draftElo, setDraftElo] = createSignal('')
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
   const [mergeMain, setMergeMain] = createSignal<PlayerRaceEntry | null>(null)
+
+  const allRows = createMemo(() => roster()?.players ?? [])
+  const fantasyKeys = createMemo(() => fantasyRosterKeys(fantasyPlayers() ?? []))
+  const visibleRows = createMemo(() => {
+    const rows = allRows()
+    if (!fantasyOnly()) return rows
+    const keys = fantasyKeys()
+    return rows.filter((row) => keys.has(rosterKey(row.link, row.race)))
+  })
+
+  createEffect(() => {
+    if (!activeLeague() && fantasyOnly()) setFantasyOnly(false)
+  })
 
   function startEdit(row: PlayerRaceEntry) {
     setEditingId(row.playerRaceId)
@@ -129,12 +171,11 @@ export function PlayersPage() {
           </p>
         </Match>
         <Match when={roster()?.players}>
-          {(rows) => (
-            <>
-              <Show when={rows().length === 0}>
+          <>
+              <Show when={allRows().length === 0}>
                 <p class="status status--idle">No race entries in database</p>
               </Show>
-              <Show when={rows().length > 0}>
+              <Show when={allRows().length > 0}>
                 <Show when={roster()?.season}>
                   {(season) => (
                     <div class="season-strip">
@@ -144,18 +185,67 @@ export function PlayersPage() {
                           Opened {formatSeasonDate(season().startedAt)}
                         </span>
                       </div>
-                      <Show when={isAdmin()}>
-                        <A href="/season-close" class="chip chip--compact season-strip__chip season-strip__link">
-                          Close season
-                        </A>
-                      </Show>
+                      <div class="season-strip__actions">
+                        <Show when={activeLeague()}>
+                          {(league) => (
+                            <button
+                              type="button"
+                              class="chip chip--compact season-strip__chip"
+                              classList={{ 'chip--on': fantasyOnly() }}
+                              aria-pressed={fantasyOnly()}
+                              disabled={fantasyPlayers.loading}
+                              onClick={() => setFantasyOnly((on) => !on)}
+                            >
+                              {fantasyOnly()
+                                ? 'Fantasy roster'
+                                : `Fantasy: ${league().tournamentName ?? 'league'}`}
+                            </button>
+                          )}
+                        </Show>
+                        <Show when={isAdmin()}>
+                          <A href="/season-close" class="chip chip--compact season-strip__chip season-strip__link">
+                            Close season
+                          </A>
+                        </Show>
+                      </div>
                     </div>
                   )}
                 </Show>
 
+                <Show when={!roster()?.season && activeLeague()}>
+                  {(league) => (
+                    <div class="season-strip">
+                      <div class="season-strip__main">
+                        <span class="season-strip__name">Fantasy league</span>
+                        <span class="season-strip__meta">
+                          {league().tournamentName ?? league().tournamentLink}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        class="chip chip--compact season-strip__chip"
+                        classList={{ 'chip--on': fantasyOnly() }}
+                        aria-pressed={fantasyOnly()}
+                        disabled={fantasyPlayers.loading}
+                        onClick={() => setFantasyOnly((on) => !on)}
+                      >
+                        {fantasyOnly() ? 'Fantasy roster' : 'Show fantasy roster'}
+                      </button>
+                    </div>
+                  )}
+                </Show>
+
+                <Show when={fantasyOnly() && visibleRows().length === 0}>
+                  <p class="status status--idle">No players in the current fantasy league roster</p>
+                </Show>
+
                 <p class="status status--ok">
-                  {rows().length} race entr{rows().length === 1 ? 'y' : 'ies'} · ranked by season rating
+                  {fantasyOnly()
+                    ? `${visibleRows().length} of ${allRows().length} race entr${allRows().length === 1 ? 'y' : 'ies'}`
+                    : `${allRows().length} race entr${allRows().length === 1 ? 'y' : 'ies'}`}{' '}
+                  · ranked by season rating
                 </p>
+                <Show when={visibleRows().length > 0}>
                 <Show when={error()}>
                   <p class="status status--error">{error()}</p>
                 </Show>
@@ -187,7 +277,7 @@ export function PlayersPage() {
                       </span>
                     </Show>
                   </div>
-                  <For each={rows()}>
+                  <For each={visibleRows()}>
                     {(row, i) => (
                       <div class="roster__row" role="row">
                         <span class="roster__cell roster__rank" role="cell">
@@ -308,9 +398,9 @@ export function PlayersPage() {
                     )}
                   </For>
                 </div>
+                </Show>
               </Show>
-            </>
-          )}
+          </>
         </Match>
       </Switch>
       </div>

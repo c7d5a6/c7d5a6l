@@ -119,13 +119,15 @@ func (s *TelegramNotify) maybePrematch(ctx context.Context, league model.Fantasy
 		log.Printf("telegram notify: teams league=%d: %v", league.ID, err)
 		return
 	}
-	ops, err := s.formatOperators(ctx, operatorTeamsForLinks(teams, participantLinks(matches)))
-	if err != nil {
-		log.Printf("telegram notify: operators league=%d: %v", league.ID, err)
-		return
-	}
-	text := formatPrematch(strings.Join(dayPhases(matches), ", "), players, ops)
-	s.sendOnce(ctx, repository.TelegramNoticePrematch, league.ID, day, 0, "", now, text)
+	opTeams := operatorTeamsForLinks(teams, participantLinks(matches))
+	phase := strings.Join(dayPhases(matches), ", ")
+	s.sendOnce(ctx, repository.TelegramNoticePrematch, league.ID, day, 0, "", now, func() (string, error) {
+		ops, err := s.formatOperators(ctx, opTeams)
+		if err != nil {
+			return "", err
+		}
+		return formatPrematch(phase, players, ops), nil
+	})
 }
 
 func (s *TelegramNotify) maybeDayDone(ctx context.Context, league model.FantasyLeague, now time.Time) {
@@ -148,13 +150,15 @@ func (s *TelegramNotify) maybeDayDone(ctx context.Context, league model.FantasyL
 		log.Printf("telegram notify: teams league=%d: %v", league.ID, err)
 		return
 	}
-	ops, err := s.formatOperators(ctx, operatorTeamsForLinks(teams, winnerLinks(winners)))
-	if err != nil {
-		log.Printf("telegram notify: operators league=%d: %v", league.ID, err)
-		return
-	}
-	text := formatDayDone(ops, winnerNames(winners))
-	s.sendOnce(ctx, repository.TelegramNoticeDayDone, league.ID, day, 0, "", now, text)
+	opTeams := operatorTeamsForLinks(teams, winnerLinks(winners))
+	names := winnerNames(winners)
+	s.sendOnce(ctx, repository.TelegramNoticeDayDone, league.ID, day, 0, "", now, func() (string, error) {
+		ops, err := s.formatOperators(ctx, opTeams)
+		if err != nil {
+			return "", err
+		}
+		return formatDayDone(ops, names), nil
+	})
 }
 
 func (s *TelegramNotify) maybeMatchFinished(ctx context.Context, league model.FantasyLeague, now time.Time) {
@@ -169,17 +173,27 @@ func (s *TelegramNotify) maybeMatchFinished(ctx context.Context, league model.Fa
 		if !ok {
 			continue
 		}
-		s.sendOnce(ctx, repository.TelegramNoticeMatchFinished, league.ID, day, m.ID, scoreText, now, text)
+		s.sendOnce(ctx, repository.TelegramNoticeMatchFinished, league.ID, day, m.ID, scoreText, now, func() (string, error) {
+			return text, nil
+		})
 	}
 }
 
-func (s *TelegramNotify) sendOnce(ctx context.Context, kind string, leagueID int64, day string, resultID int64, scoreText string, now time.Time, text string) {
+func (s *TelegramNotify) sendOnce(ctx context.Context, kind string, leagueID int64, day string, resultID int64, scoreText string, now time.Time, build func() (string, error)) {
 	claimed, err := s.notices.Claim(ctx, s.db, kind, leagueID, day, resultID, scoreText, now.Format(time.RFC3339Nano))
 	if err != nil {
 		log.Printf("telegram notify: claim %s league=%d: %v", kind, leagueID, err)
 		return
 	}
 	if !claimed {
+		return
+	}
+	text, err := build()
+	if err != nil {
+		log.Printf("telegram notify: build %s league=%d: %v", kind, leagueID, err)
+		if relErr := s.notices.Release(ctx, s.db, kind, leagueID, day, resultID, scoreText); relErr != nil {
+			log.Printf("telegram notify: release %s league=%d: %v", kind, leagueID, relErr)
+		}
 		return
 	}
 	debuglog.Printf("telegram notify send kind=%s league=%d day=%s result=%d score=%s", kind, leagueID, day, resultID, scoreText)
@@ -218,7 +232,11 @@ func (s *TelegramNotify) formatOperators(ctx context.Context, teams []model.Fant
 			continue
 		}
 		inGroup := false
-		if u.TelegramID != nil {
+		uname := ""
+		if u.TelegramUsername != nil {
+			uname = strings.TrimPrefix(strings.TrimSpace(*u.TelegramUsername), "@")
+		}
+		if u.TelegramID != nil && uname != "" {
 			inGroup = s.memberInGroup(ctx, *u.TelegramID, cache)
 		}
 		out = append(out, OperatorMention(u.Alias, u.TelegramID, u.TelegramUsername, inGroup))

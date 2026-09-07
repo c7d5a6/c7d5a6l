@@ -21,9 +21,10 @@ const (
 )
 
 type fakeGroupBot struct {
-	sent     []string
-	failNext int
-	members  map[int64]telegram.ChatMember
+	sent               []string
+	failNext           int
+	members            map[int64]telegram.ChatMember
+	getChatMemberCalls int
 }
 
 func (f *fakeGroupBot) Configured() bool { return true }
@@ -38,6 +39,7 @@ func (f *fakeGroupBot) SendGroup(_ context.Context, text string) error {
 }
 
 func (f *fakeGroupBot) GetChatMember(_ context.Context, userID int64) (*telegram.ChatMember, error) {
+	f.getChatMemberCalls++
 	if f.members == nil {
 		return &telegram.ChatMember{Status: "left"}, nil
 	}
@@ -353,6 +355,29 @@ func TestTelegramNotify_idNotInGroupUsesAlias(t *testing.T) {
 	}
 	if !strings.Contains(f.bot.sent[0], "Удачи командам Nova!") {
 		t.Fatalf("want alias, got %s", f.bot.sent[0])
+	}
+}
+
+func TestTelegramNotify_getChatMemberOnlyWhenSending(t *testing.T) {
+	first := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+	f := setupNotify(t, first, false)
+	uid := f.addUser(t, "Jim", int64Ptr(9001), str("raynor"))
+	f.bot.members[9001] = telegram.ChatMember{Status: "member", User: telegram.User{ID: 9001, Username: "raynor"}}
+	f.roster(t, uid, f.jdID)
+
+	f.notify.Tick(f.ctx, first.Add(-16*time.Minute))
+	if f.bot.getChatMemberCalls != 0 {
+		t.Fatalf("too early must not getChatMember, calls=%d", f.bot.getChatMemberCalls)
+	}
+
+	f.notify.Tick(f.ctx, first)
+	if f.bot.getChatMemberCalls != 1 {
+		t.Fatalf("prematch send calls=%d", f.bot.getChatMemberCalls)
+	}
+
+	f.notify.Tick(f.ctx, first.Add(time.Minute))
+	if f.bot.getChatMemberCalls != 1 {
+		t.Fatalf("already sent must not getChatMember, calls=%d", f.bot.getChatMemberCalls)
 	}
 }
 

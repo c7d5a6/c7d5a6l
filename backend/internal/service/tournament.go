@@ -28,13 +28,14 @@ type PlayerPageFetcher interface {
 
 // Tournament orchestrates tournament sync and transactional save.
 type Tournament struct {
-	db      *sql.DB
-	tours   *repository.Tournament
-	players *repository.Player
-	imports *repository.PlayerImport
-	queue   *repository.TournamentQueue
-	fetcher PlayerPageFetcher
-	assets  AssetFetcher
+	db        *sql.DB
+	tours     *repository.Tournament
+	players   *repository.Player
+	imports   *repository.PlayerImport
+	queue     *repository.TournamentQueue
+	fetcher   PlayerPageFetcher
+	assets    AssetFetcher
+	afterSave func(context.Context, int64)
 }
 
 func NewTournament(
@@ -57,6 +58,25 @@ func NewTournament(
 		fetcher: fetcher,
 		assets:  assets,
 	}
+}
+
+// SetAfterSave registers a hook after a successful Save commit (results upserted).
+func (s *Tournament) SetAfterSave(hook func(context.Context, int64)) {
+	if s == nil {
+		return
+	}
+	s.afterSave = hook
+}
+
+func (s *Tournament) fireAfterSave(tournamentID int64) {
+	if s == nil || s.afterSave == nil || tournamentID == 0 {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		s.afterSave(ctx, tournamentID)
+	}()
 }
 
 // ListSummaries returns lightweight tournament rows for pickers.
@@ -220,6 +240,7 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 	if stored == nil {
 		return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("tournament missing after save")
 	}
+	s.fireAfterSave(stored.ID)
 
 	out := stored.Page
 	if out.Results == nil {

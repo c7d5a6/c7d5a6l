@@ -45,6 +45,7 @@ type Participant struct {
 
 // Result is a scheduled or completed match between two sides.
 type Result struct {
+	ID           int64        `json:"id,omitempty"`
 	Played       bool         `json:"played"`
 	ScoreA       *int         `json:"scoreA"`
 	ScoreB       *int         `json:"scoreB"`

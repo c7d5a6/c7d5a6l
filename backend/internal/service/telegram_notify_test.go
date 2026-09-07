@@ -272,22 +272,25 @@ func TestTelegramNotify_dayDoneWaitsForWinners(t *testing.T) {
 
 	f.savePlayed(t, false)
 	f.notify.Tick(f.ctx, now)
-	if len(f.bot.sent) != 1 {
-		t.Fatalf("played without winners should not congrats: %v", f.bot.sent)
+	if len(f.bot.sent) != 2 {
+		t.Fatalf("played should send match line, not congrats: %v", f.bot.sent)
+	}
+	if f.bot.sent[1] != "Jaedong 2:0 Flash" {
+		t.Fatalf("match finished=%q", f.bot.sent[1])
 	}
 
 	f.savePlayed(t, true)
 	f.notify.Tick(f.ctx, now)
-	if len(f.bot.sent) != 2 {
+	if len(f.bot.sent) != 3 {
 		t.Fatalf("want day_done, sent=%v", f.bot.sent)
 	}
-	done := f.bot.sent[1]
+	done := f.bot.sent[2]
 	if done != "Поздравляем @raynor: Jaedong победил." {
 		t.Fatalf("day done=%q", done)
 	}
 
 	f.notify.Tick(f.ctx, now)
-	if len(f.bot.sent) != 2 {
+	if len(f.bot.sent) != 3 {
 		t.Fatalf("dedup day_done=%v", f.bot.sent)
 	}
 }
@@ -311,6 +314,15 @@ func TestTelegramNotify_dayDoneNoRosterNoCongrats(t *testing.T) {
 	}
 	if done != "Jaedong победил." {
 		t.Fatalf("got %q sent=%v", done, f.bot.sent)
+	}
+	var line string
+	for _, m := range f.bot.sent {
+		if m == "Jaedong 2:1 Flash" {
+			line = m
+		}
+	}
+	if line == "" {
+		t.Fatalf("missing match line sent=%v", f.bot.sent)
 	}
 }
 
@@ -341,6 +353,57 @@ func TestTelegramNotify_idNotInGroupUsesAlias(t *testing.T) {
 	}
 	if !strings.Contains(f.bot.sent[0], "Удачи командам Nova!") {
 		t.Fatalf("want alias, got %s", f.bot.sent[0])
+	}
+}
+
+func TestTelegramNotify_matchScoreSendsOnChangeNotDuplicate(t *testing.T) {
+	first := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+	f := setupNotify(t, first, false)
+	now := first.Add(time.Hour)
+
+	f.notify.Tick(f.ctx, now)
+	if len(f.bot.sent) != 1 || !strings.Contains(f.bot.sent[0], "Сегодня") {
+		t.Fatalf("prematch first: %v", f.bot.sent)
+	}
+
+	f.savePlayed(t, false)
+	f.notify.Tick(f.ctx, now)
+	if len(f.bot.sent) != 2 || f.bot.sent[1] != "Jaedong 2:0 Flash" {
+		t.Fatalf("first score: %v", f.bot.sent)
+	}
+
+	f.notify.Tick(f.ctx, now)
+	if len(f.bot.sent) != 2 {
+		t.Fatalf("same score must not resend: %v", f.bot.sent)
+	}
+
+	f.page.Results[0].ScoreA = intPtr(2)
+	f.page.Results[0].ScoreB = intPtr(1)
+	if _, _, _, err := f.tours.Save(f.ctx, f.page); err != nil {
+		t.Fatal(err)
+	}
+	f.notify.Tick(f.ctx, now)
+	if len(f.bot.sent) != 3 || f.bot.sent[2] != "Jaedong 2:1 Flash" {
+		t.Fatalf("new score should send: %v", f.bot.sent)
+	}
+}
+
+func TestTelegramNotify_skipsZeroZeroScore(t *testing.T) {
+	first := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+	f := setupNotify(t, first, false)
+	now := first.Add(time.Hour)
+
+	f.page.Results[0].Played = true
+	f.page.Results[0].ScoreA = intPtr(0)
+	f.page.Results[0].ScoreB = intPtr(0)
+	if _, _, _, err := f.tours.Save(f.ctx, f.page); err != nil {
+		t.Fatal(err)
+	}
+	f.notify.Tick(f.ctx, now)
+	for _, m := range f.bot.sent {
+		if strings.Contains(m, "0:0") {
+			t.Fatalf("must not send 0:0: %v", f.bot.sent)
+		}
 	}
 }
 

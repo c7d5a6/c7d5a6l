@@ -73,6 +73,7 @@ func (s *TelegramNotify) Tick(ctx context.Context, now time.Time) {
 			continue
 		}
 		s.maybePrematch(ctx, league, now)
+		s.maybeMatchFinished(ctx, league, now)
 		s.maybeDayDone(ctx, league, now)
 	}
 }
@@ -90,6 +91,7 @@ func (s *TelegramNotify) OnTournamentSaved(ctx context.Context, tournamentID int
 	if league == nil || !league.Started || league.Finished {
 		return
 	}
+	s.maybeMatchFinished(ctx, *league, time.Now().UTC())
 	s.maybeDayDone(ctx, *league, time.Now().UTC())
 }
 
@@ -123,7 +125,7 @@ func (s *TelegramNotify) maybePrematch(ctx context.Context, league model.Fantasy
 		return
 	}
 	text := formatPrematch(strings.Join(dayPhases(matches), ", "), players, ops)
-	s.sendOnce(ctx, repository.TelegramNoticePrematch, league.ID, day, now, text)
+	s.sendOnce(ctx, repository.TelegramNoticePrematch, league.ID, day, 0, "", now, text)
 }
 
 func (s *TelegramNotify) maybeDayDone(ctx context.Context, league model.FantasyLeague, now time.Time) {
@@ -152,11 +154,27 @@ func (s *TelegramNotify) maybeDayDone(ctx context.Context, league model.FantasyL
 		return
 	}
 	text := formatDayDone(ops, winnerNames(winners))
-	s.sendOnce(ctx, repository.TelegramNoticeDayDone, league.ID, day, now, text)
+	s.sendOnce(ctx, repository.TelegramNoticeDayDone, league.ID, day, 0, "", now, text)
 }
 
-func (s *TelegramNotify) sendOnce(ctx context.Context, kind string, leagueID int64, day string, now time.Time, text string) {
-	claimed, err := s.notices.Claim(ctx, s.db, kind, leagueID, day, now.Format(time.RFC3339Nano))
+func (s *TelegramNotify) maybeMatchFinished(ctx context.Context, league model.FantasyLeague, now time.Time) {
+	day := now.Format("2006-01-02")
+	board, err := s.fantasy.MatchBoard(ctx, league.ID)
+	if err != nil {
+		log.Printf("telegram notify: match board league=%d: %v", league.ID, err)
+		return
+	}
+	for _, m := range matchesOnDay(board.Results, day) {
+		text, scoreText, ok := formatMatchScore(m)
+		if !ok {
+			continue
+		}
+		s.sendOnce(ctx, repository.TelegramNoticeMatchFinished, league.ID, day, m.ID, scoreText, now, text)
+	}
+}
+
+func (s *TelegramNotify) sendOnce(ctx context.Context, kind string, leagueID int64, day string, resultID int64, scoreText string, now time.Time, text string) {
+	claimed, err := s.notices.Claim(ctx, s.db, kind, leagueID, day, resultID, scoreText, now.Format(time.RFC3339Nano))
 	if err != nil {
 		log.Printf("telegram notify: claim %s league=%d: %v", kind, leagueID, err)
 		return
@@ -164,15 +182,15 @@ func (s *TelegramNotify) sendOnce(ctx context.Context, kind string, leagueID int
 	if !claimed {
 		return
 	}
-	debuglog.Printf("telegram notify send kind=%s league=%d day=%s", kind, leagueID, day)
+	debuglog.Printf("telegram notify send kind=%s league=%d day=%s result=%d score=%s", kind, leagueID, day, resultID, scoreText)
 	if err := s.bot.SendGroup(ctx, text); err != nil {
 		log.Printf("telegram notify: send %s league=%d: %v", kind, leagueID, err)
-		if relErr := s.notices.Release(ctx, s.db, kind, leagueID, day); relErr != nil {
+		if relErr := s.notices.Release(ctx, s.db, kind, leagueID, day, resultID, scoreText); relErr != nil {
 			log.Printf("telegram notify: release %s league=%d: %v", kind, leagueID, relErr)
 		}
 		return
 	}
-	log.Printf("telegram notify: sent %s league=%d day=%s", kind, leagueID, day)
+	log.Printf("telegram notify: sent %s league=%d day=%s result=%d score=%s", kind, leagueID, day, resultID, scoreText)
 }
 
 func (s *TelegramNotify) formatOperators(ctx context.Context, teams []model.FantasyTeamRow) ([]string, error) {
@@ -270,4 +288,26 @@ func formatDayDone(operators, players []string) string {
 		return fmt.Sprintf("%s %s.", list, verb)
 	}
 	return fmt.Sprintf("Поздравляем %s: %s %s.", strings.Join(operators, ", "), list, verb)
+}
+
+func formatMatchScore(m model.Result) (line, scoreText string, ok bool) {
+	if m.ID == 0 || m.ScoreA == nil || m.ScoreB == nil {
+		return "", "", false
+	}
+	a := ""
+	b := ""
+	if m.ParticipantA != nil {
+		a = displayPlayerName(m.ParticipantA.Name, m.ParticipantA.Link)
+	}
+	if m.ParticipantB != nil {
+		b = displayPlayerName(m.ParticipantB.Name, m.ParticipantB.Link)
+	}
+	if a == "" || b == "" || strings.EqualFold(a, "TBD") || strings.EqualFold(b, "TBD") {
+		return "", "", false
+	}
+	if *m.ScoreA == 0 && *m.ScoreB == 0 {
+		return "", "", false
+	}
+	scoreText = fmt.Sprintf("%d:%d", *m.ScoreA, *m.ScoreB)
+	return fmt.Sprintf("%s %s %s", a, scoreText, b), scoreText, true
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/c7d5a6/c7d5a6l/internal/model"
 	"github.com/c7d5a6/c7d5a6l/internal/repository"
 	"github.com/c7d5a6/c7d5a6l/internal/service"
+	"github.com/c7d5a6/c7d5a6l/internal/telegram"
 )
 
 func main() {
@@ -79,6 +80,21 @@ func main() {
 	})
 	if !authSvc.Configured() {
 		log.Printf("auth: Telegram login disabled (set C7D5A6L_TELEGRAM_BOT_TOKEN, C7D5A6L_TELEGRAM_BOT_USERNAME, C7D5A6L_JWT_SECRET)")
+	}
+	tgBot := telegram.New(os.Getenv("C7D5A6L_TELEGRAM_BOT_TOKEN"), os.Getenv("C7D5A6L_TELEGRAM_GROUP_ID"))
+	var tgNotify *service.TelegramNotify
+	if !tgBot.Configured() {
+		log.Printf("telegram bot disabled (set C7D5A6L_TELEGRAM_BOT_TOKEN, C7D5A6L_TELEGRAM_GROUP_ID)")
+	} else {
+		tgNotify = service.NewTelegramNotify(
+			sqlDB,
+			fantasySvc,
+			userRepo,
+			repository.NewTelegramNotice(),
+			tgBot,
+			service.ParseDurationEnv(os.Getenv("C7D5A6L_TELEGRAM_PREMATCH_LEAD"), service.DefaultTelegramPrematchLead),
+		)
+		tournamentSvc.SetAfterSave(tgNotify.OnTournamentSaved)
 	}
 	apiServer := &api.Server{
 		Liquipedia:  lpClient,
@@ -160,6 +176,10 @@ func main() {
 
 	sched := job.StartRefreshTournaments(tournamentSvc, lpClient)
 	importer := job.StartImportPlayers(playerImporter)
+	var tgJob *job.TelegramNotify
+	if tgNotify != nil {
+		tgJob = job.StartTelegramNotify(tgNotify)
+	}
 
 	addr := ":18765"
 	srv := &http.Server{Addr: addr, Handler: withCORS(mux)}
@@ -179,6 +199,9 @@ func main() {
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
 	importer.Stop()
+	if tgJob != nil {
+		tgJob.Stop()
+	}
 	<-sched.Stop().Done()
 	log.Printf("shutdown complete")
 }

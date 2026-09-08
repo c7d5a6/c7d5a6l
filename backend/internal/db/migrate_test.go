@@ -30,8 +30,8 @@ func TestMigrate_idempotent(t *testing.T) {
 	if err := sqlDB.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatalf("version: %v", err)
 	}
-	if version != 20 {
-		t.Fatalf("version=%d, want 20", version)
+	if version != 23 {
+		t.Fatalf("version=%d, want 23", version)
 	}
 
 	tables := []string{
@@ -54,6 +54,7 @@ func TestMigrate_idempotent(t *testing.T) {
 		"season_tournament",
 		"season_player_race",
 		"tournament_queue",
+		"telegram_notice",
 	}
 	for _, name := range tables {
 		var n int
@@ -101,5 +102,16 @@ func TestMigrate_idempotent(t *testing.T) {
 		if n != 1 {
 			t.Errorf("user.%s missing", col)
 		}
+	}
+
+	var linkV2 int
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('player') WHERE name='link_v2'`,
+	).Scan(&linkV2)
+	if err != nil {
+		t.Fatalf("pragma player.link_v2: %v", err)
+	}
+	if linkV2 != 1 {
+		t.Fatal("player.link_v2 missing")
 	}
 }

@@ -66,6 +66,18 @@ func (s *Fantasy) GetActiveLeague(ctx context.Context) (*model.FantasyLeague, er
 	return s.repo.GetActiveLeague(ctx, s.db)
 }
 
+// LeagueForTournament returns the fantasy league for a tournament, or nil.
+func (s *Fantasy) LeagueForTournament(ctx context.Context, tournamentID int64) (*model.FantasyLeague, error) {
+	id, err := s.repo.GetLeagueIDByTournament(ctx, s.db, tournamentID)
+	if err != nil {
+		return nil, err
+	}
+	if id == 0 {
+		return nil, nil
+	}
+	return s.repo.GetLeagueByID(ctx, s.db, id)
+}
+
 // ListUnusedTournaments returns tournaments without a fantasy league.
 func (s *Fantasy) ListUnusedTournaments(ctx context.Context) ([]model.TournamentSummary, error) {
 	return s.repo.ListUnusedTournaments(ctx, s.db)

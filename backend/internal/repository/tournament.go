@@ -615,6 +615,7 @@ func (r *Tournament) InsertTBDResults(ctx context.Context, q DBTX, tournamentID 
 func (r *Tournament) ListResults(ctx context.Context, q DBTX, tournamentID int64) ([]model.Result, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT
+			tr.id,
 			tr.played,
 			tr.score_a,
 			tr.score_b,
@@ -647,25 +648,26 @@ func (r *Tournament) ListResults(ctx context.Context, q DBTX, tournamentID int64
 	out := make([]model.Result, 0)
 	for rows.Next() {
 		var (
-			played              int
-			scoreA, scoreB      sql.NullInt64
-			playedAt            sql.NullString
-			phase, round        string
-			groupID             sql.NullInt64
-			sortOrder           int
-			playerAID           sql.NullInt64
-			playerBID           sql.NullInt64
-			linkA               sql.NullString
-			nameA               sql.NullString
-			raceA               sql.NullString
-			exclA               sql.NullInt64
-			linkB               sql.NullString
-			nameB               sql.NullString
-			raceB               sql.NullString
-			exclB               sql.NullInt64
+			id             int64
+			played         int
+			scoreA, scoreB sql.NullInt64
+			playedAt       sql.NullString
+			phase, round   string
+			groupID        sql.NullInt64
+			sortOrder      int
+			playerAID      sql.NullInt64
+			playerBID      sql.NullInt64
+			linkA          sql.NullString
+			nameA          sql.NullString
+			raceA          sql.NullString
+			exclA          sql.NullInt64
+			linkB          sql.NullString
+			nameB          sql.NullString
+			raceB          sql.NullString
+			exclB          sql.NullInt64
 		)
 		if err := rows.Scan(
-			&played, &scoreA, &scoreB, &playedAt, &phase, &round, &groupID, &sortOrder,
+			&id, &played, &scoreA, &scoreB, &playedAt, &phase, &round, &groupID, &sortOrder,
 			&playerAID, &playerBID,
 			&linkA, &nameA, &raceA, &exclA,
 			&linkB, &nameB, &raceB, &exclB,
@@ -673,6 +675,7 @@ func (r *Tournament) ListResults(ctx context.Context, q DBTX, tournamentID int64
 			return nil, err
 		}
 		res := model.Result{
+			ID:     id,
 			Played: played != 0,
 			Phase:  phase,
 			Round:  round,

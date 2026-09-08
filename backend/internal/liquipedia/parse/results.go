@@ -49,10 +49,10 @@ func Results(doc *goquery.Document) ([]model.Result, error) {
 
 func collectRawResults(doc *goquery.Document) []rawResult {
 	var (
-		out      []rawResult
-		domIndex int
+		out        []rawResult
+		domIndex   int
 		h2, h3, h4 string
-		stageTS  *int64
+		stageTS    *int64
 	)
 
 	doc.Find("h2, h3, h4, .group-table-countdown, .brkts-matchlist-match, .brkts-match-info-flat, .brkts-bracket .brkts-match").Each(func(_ int, sel *goquery.Selection) {
@@ -272,12 +272,7 @@ func parseMatchlistMatch(match *goquery.Selection, stage string, stageTS *int64,
 		}
 	}
 
-	played := scoreA != nil && scoreB != nil
-	if !played {
-		if fin, ok := popup.Find(".timer-object").First().Attr("data-finished"); ok && fin == "finished" {
-			played = scoreA != nil && scoreB != nil
-		}
-	}
+	played := matchSeriesPlayed(match, popup, scoreA, scoreB)
 
 	dt, unix := matchDateTime(popup, stageTS)
 
@@ -312,7 +307,7 @@ func parseBracketMatch(match *goquery.Selection, stage string, stageTS *int64, d
 
 	scoreA := parseScoreText(cleanText(entries.Eq(0).Find(".brkts-opponent-score-inner").First().Text()))
 	scoreB := parseScoreText(cleanText(entries.Eq(1).Find(".brkts-opponent-score-inner").First().Text()))
-	played := scoreA != nil && scoreB != nil
+	played := matchSeriesPlayed(match, popup, scoreA, scoreB)
 
 	dt, unix := matchDateTime(popup, stageTS)
 
@@ -577,21 +572,9 @@ func cleanBracketHeader(sel *goquery.Selection) string {
 }
 
 func bracketStage(match *goquery.Selection, h2, h3, h4 string) string {
-	bracket := match.Closest(".brkts-bracket")
-	headers := bracket.Find(".brkts-round-header .brkts-header")
-	depth := 0
-	match.Parents().Each(func(_ int, p *goquery.Selection) {
-		if p.HasClass("brkts-round-body") {
-			depth++
-		}
-	})
-
 	round := ""
-	if depth > 0 && headers.Length() > 0 {
-		idx := headers.Length() - depth
-		if idx >= 0 && idx < headers.Length() {
-			round = cleanBracketHeader(headers.Eq(idx))
-		}
+	if h := bracketRoundHeader(match); h != nil && h.Length() > 0 {
+		round = cleanBracketHeader(h)
 	}
 	if h3 != "" || h4 != "" {
 		return joinStage(h3, h4, round)

@@ -1,6 +1,7 @@
 import { For, createEffect, createSignal, onMount, type JSX } from 'solid-js'
 import { Navigate, Route, Router, useLocation, useNavigate, type RouteSectionProps } from '@solidjs/router'
 import { AuthDock } from './components/AuthDock'
+import { DevStageMark } from './components/DevStageMark'
 import { NavRail, type NavRailId } from './components/NavRail'
 import { PagePanels } from './components/PagePanels'
 import { StageArt } from './components/StageArt'
@@ -74,6 +75,7 @@ function StageShell(props: RouteSectionProps): JSX.Element {
     <>
       {/* Outside .stage so overflow/isolation cannot stretch cover to document height */}
       <StageArt />
+      <DevStageMark />
       <div class="stage">
         <div class="stage__grid" aria-hidden="true" />
         <div class="stage__crt" aria-hidden="true" />

@@ -349,6 +349,46 @@ button.lamp-flash::after {
   );
 }
 
+.stage__dev-mark {
+  pointer-events: none;
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 1.35rem 0.75rem 1rem;
+  font-family: var(--font-display);
+  font-size: clamp(0.95rem, 2.4vw, 1.15rem);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-hazard);
+  background: color-mix(in srgb, var(--color-void) 70%, var(--color-hazard) 30%);
+  border-top: 2px solid color-mix(in srgb, var(--color-hazard) 85%, var(--color-border));
+  border-right: 2px solid color-mix(in srgb, var(--color-hazard) 85%, var(--color-border));
+  box-shadow:
+    0 0 36px color-mix(in srgb, var(--color-hazard) 35%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 calc(100% - 14px), 14px 100%);
+  user-select: none;
+}
+
+.stage__dev-mark__dot {
+  flex-shrink: 0;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--color-hazard);
+  box-shadow: 0 0 14px var(--color-hazard);
+  animation: beacon-alert 1.05s ease-in-out infinite;
+}
+
+.stage__dev-mark__text {
+  line-height: 1;
+  font-weight: 600;
+}
+
 .stage__crt {
   pointer-events: none;
   position: absolute;
@@ -541,6 +581,7 @@ button.lamp-flash::after {
   .atm-phosphor,
   .chip--live::before,
   .chip--alert::before,
+  .stage__dev-mark__dot,
   .btn--busy,
   .stage-rail__seg--tip::after,
   .champ-mark__star,
@@ -555,6 +596,7 @@ button.lamp-flash::after {
 
   .chip--live::before,
   .chip--alert::before,
+  .stage__dev-mark__dot,
   .champ-mark__star {
     opacity: 1;
   }

@@ -39,6 +39,9 @@ func main() {
 	if err := db.Migrate(context.Background(), sqlDB); err != nil {
 		log.Fatalf("db migrate: %v", err)
 	}
+	if err := db.Maintain(context.Background(), sqlDB); err != nil {
+		log.Fatalf("db maintain: %v", err)
+	}
 	log.Printf("sqlite ready at %s", dbPath)
 
 	lpClient := liquipedia.NewClient()

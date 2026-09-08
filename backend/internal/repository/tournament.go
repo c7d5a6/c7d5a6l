@@ -794,7 +794,8 @@ func (r *Tournament) ListTournamentsDueRefresh(ctx context.Context, q DBTX, nowU
 		SELECT DISTINCT t.id, t.link
 		FROM tournament t
 		JOIN tournament_result tr ON tr.tournament_id = t.id
-		WHERE tr.played = 0
+		WHERE t.finished = 0
+		  AND tr.played = 0
 		  AND tr.played_at IS NOT NULL
 		  AND tr.played_at < ?
 		  AND substr(tr.played_at, 1, 10) = ?
@@ -810,7 +811,8 @@ func (r *Tournament) ListTournamentsInProgress(ctx context.Context, q DBTX, nowU
 		SELECT DISTINCT t.id, t.link
 		FROM tournament t
 		JOIN tournament_result tr ON tr.tournament_id = t.id
-		WHERE tr.played = 0
+		WHERE t.finished = 0
+		  AND tr.played = 0
 		  AND tr.played_at IS NOT NULL
 		  AND tr.played_at < ?
 		ORDER BY t.id ASC
@@ -827,6 +829,14 @@ func (r *Tournament) ListUnfinishedTournaments(ctx context.Context, q DBTX) ([]T
 		ORDER BY id ASC
 	`)
 	return scanTournamentIDs(rows, errWrap(err, "list unfinished tournaments"))
+}
+
+// SetFinished marks a tournament finished without changing other fields.
+func (r *Tournament) SetFinished(ctx context.Context, q DBTX, id int64) error {
+	if _, err := q.ExecContext(ctx, `UPDATE tournament SET finished = 1 WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("set tournament finished: %w", err)
+	}
+	return nil
 }
 
 func errWrap(err error, msg string) error {

@@ -163,4 +163,114 @@ func TestListUnfinishedAndInProgress(t *testing.T) {
 	}
 }
 
+func TestFinishIfEndedMonthAgo(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	jaedong := "https://liquipedia.net/starcraft/Jaedong"
+	flash := "https://liquipedia.net/starcraft/Flash"
+	tourRepo := repository.NewTournament(sqlDB)
+	svc := service.NewTournament(sqlDB, tourRepo, repository.NewPlayer(sqlDB), nil, stubFetcher{
+		jaedong: {Name: str("Jaedong"), PreferredRace: str("zerg"), IDs: []string{}},
+		flash:   {Name: str("Flash"), PreferredRace: str("terran"), IDs: []string{}},
+	}, nil)
+
+	now := time.Date(2026, 9, 8, 15, 0, 0, 0, time.UTC)
+	past := now.Add(-2 * time.Hour).Format(time.RFC3339)
+	participants := []model.Participant{
+		{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+		{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+	}
+	save := func(link, end string) int64 {
+		t.Helper()
+		page := model.TournamentPage{
+			Link:         link,
+			Name:         str("Open"),
+			Finished:     boolPtr(false),
+			Participants: participants,
+			Results: []model.Result{{
+				Played: false, Phase: "Round of 24", Round: "Group A", Order: 1,
+				DateTime:     &past,
+				ParticipantA: &participants[0],
+				ParticipantB: &participants[1],
+			}},
+		}
+		if end != "" {
+			page.EndDate = str(end)
+		}
+		if _, _, _, err := svc.Save(ctx, page); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := tourRepo.GetByLink(ctx, sqlDB, link)
+		if err != nil || stored == nil {
+			t.Fatalf("get %s: %v", link, err)
+		}
+		return stored.ID
+	}
+
+	staleID := save("https://liquipedia.net/starcraft/ASL/stale", "2026-08-08")
+	freshID := save("https://liquipedia.net/starcraft/ASL/fresh", "2026-08-09")
+	noEndID := save("https://liquipedia.net/starcraft/ASL/noend", "")
+
+	skip, err := svc.FinishIfEndedMonthAgo(ctx, staleID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !skip {
+		t.Fatal("want skip after a month past end date")
+	}
+	stale, err := tourRepo.GetByID(ctx, sqlDB, staleID)
+	if err != nil || stale == nil || stale.Page.Finished == nil || !*stale.Page.Finished {
+		t.Fatalf("stale should be finished, got %+v", stale)
+	}
+
+	skip, err = svc.FinishIfEndedMonthAgo(ctx, freshID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skip {
+		t.Fatal("want liquipedia sync when end date is less than a month ago")
+	}
+	fresh, err := tourRepo.GetByID(ctx, sqlDB, freshID)
+	if err != nil || fresh == nil || (fresh.Page.Finished != nil && *fresh.Page.Finished) {
+		t.Fatalf("fresh should stay unfinished, got %+v", fresh)
+	}
+
+	skip, err = svc.FinishIfEndedMonthAgo(ctx, noEndID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skip {
+		t.Fatal("want liquipedia sync when end date is missing")
+	}
+
+	unfinished, err := svc.ListUnfinished(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unfinished) != 2 {
+		t.Fatalf("unfinished=%+v", unfinished)
+	}
+
+	inProg, err := svc.ListInProgressRefresh(ctx, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inProg) != 2 {
+		t.Fatalf("in-progress after stale finish=%+v", inProg)
+	}
+
+	skip, err = svc.FinishIfEndedMonthAgo(ctx, staleID, now)
+	if err != nil || !skip {
+		t.Fatalf("already finished stale want skip, skip=%v err=%v", skip, err)
+	}
+}
+
 func boolPtr(b bool) *bool { return &b }

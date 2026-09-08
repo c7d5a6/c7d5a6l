@@ -273,6 +273,57 @@ func (s *Tournament) ListUnfinished(ctx context.Context) ([]repository.Tournamen
 	return s.tours.ListUnfinishedTournaments(ctx, s.db)
 }
 
+// FinishIfEndedMonthAgo marks the tournament finished when a calendar month has
+// passed since its end date. skip is true when Liquipedia should not be fetched.
+func (s *Tournament) FinishIfEndedMonthAgo(ctx context.Context, id int64, now time.Time) (bool, error) {
+	stored, err := s.tours.GetByID(ctx, s.db, id)
+	if err != nil {
+		return false, err
+	}
+	if stored == nil {
+		return true, nil
+	}
+	if !endedMonthAgo(stored.Page.EndDate, now) {
+		return false, nil
+	}
+	if stored.Page.Finished != nil && *stored.Page.Finished {
+		return true, nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+	if err := s.tours.SetFinished(ctx, tx, id); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit: %w", err)
+	}
+	debuglog.Printf("service.Tournament.FinishIfEndedMonthAgo id=%d end=%s", id, debuglog.Str(stored.Page.EndDate))
+	return true, nil
+}
+
+func endedMonthAgo(endDate *string, now time.Time) bool {
+	if endDate == nil {
+		return false
+	}
+	s := strings.TrimSpace(*endDate)
+	if s == "" {
+		return false
+	}
+	if len(s) >= 10 {
+		s = s[:10]
+	}
+	day, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return false
+	}
+	cutoff := day.AddDate(0, 1, 0)
+	nowDay := time.Date(now.UTC().Year(), now.UTC().Month(), now.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	return !nowDay.Before(cutoff)
+}
+
 // RefreshFromHTML parses tournament HTML and saves (roster/groups/results upsert).
 func (s *Tournament) RefreshFromHTML(ctx context.Context, link, html string) (model.TournamentPage, error) {
 	page, err := parse.Tournament(link, html)

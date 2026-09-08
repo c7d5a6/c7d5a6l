@@ -87,7 +87,8 @@ func (j *RefreshTournaments) RunInProgress(ctx context.Context) {
 	})
 }
 
-// RunUnfinished refreshes all unfinished tournaments (used on boot).
+// RunUnfinished refreshes unfinished tournaments (used on boot). Stale ones
+// (end date more than a month ago) are marked finished and not fetched.
 func (j *RefreshTournaments) RunUnfinished(ctx context.Context) {
 	j.runListed(ctx, "unfinished", func() ([]repository.TournamentDueRefresh, error) {
 		return j.Tours.ListUnfinished(ctx)
@@ -111,13 +112,22 @@ func (j *RefreshTournaments) runListed(ctx context.Context, kind string, list fu
 	}
 	log.Printf("job refresh-tournaments: %s candidates=%d", kind, len(due))
 	for _, t := range due {
-		j.refreshOne(ctx, t)
+		j.refreshOne(ctx, t, now)
 	}
 	log.Printf("job refresh-tournaments: %s done", kind)
 }
 
-func (j *RefreshTournaments) refreshOne(ctx context.Context, t repository.TournamentDueRefresh) {
+func (j *RefreshTournaments) refreshOne(ctx context.Context, t repository.TournamentDueRefresh, now time.Time) {
 	log.Printf("job refresh-tournaments: refresh start id=%d link=%s", t.ID, t.Link)
+	skip, err := j.Tours.FinishIfEndedMonthAgo(ctx, t.ID, now)
+	if err != nil {
+		log.Printf("job refresh-tournaments: refresh fail id=%d stale check: %v", t.ID, err)
+		return
+	}
+	if skip {
+		log.Printf("job refresh-tournaments: skip id=%d link=%s ended over a month ago", t.ID, t.Link)
+		return
+	}
 	if j.Client == nil {
 		log.Printf("job refresh-tournaments: refresh fail id=%d: liquipedia client nil", t.ID)
 		return

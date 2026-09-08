@@ -209,12 +209,24 @@ func (s *Auth) UserByID(ctx context.Context, id int64) (model.User, error) {
 
 // UpdateAlias changes the caller's display alias and re-issues a JWT.
 func (s *Auth) UpdateAlias(ctx context.Context, userID int64, alias string) (token string, user model.User, err error) {
-	alias = strings.TrimSpace(alias)
-	if alias == "" || len(alias) > maxAliasLen {
-		return "", model.User{}, ErrInvalidAlias
-	}
+	return s.UpdateMe(ctx, userID, &alias, nil)
+}
+
+// UpdateMe patches the caller's alias and/or notification preference and re-issues a JWT.
+func (s *Auth) UpdateMe(ctx context.Context, userID int64, alias *string, notificationsEnabled *bool) (token string, user model.User, err error) {
 	if userID <= 0 {
 		return "", model.User{}, ErrUnauthorized
+	}
+	if alias == nil && notificationsEnabled == nil {
+		return "", model.User{}, ErrInvalidUser
+	}
+
+	var nextAlias string
+	if alias != nil {
+		nextAlias = strings.TrimSpace(*alias)
+		if nextAlias == "" || len(nextAlias) > maxAliasLen {
+			return "", model.User{}, ErrInvalidAlias
+		}
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -231,20 +243,27 @@ func (s *Auth) UpdateAlias(ctx context.Context, userID int64, alias string) (tok
 		return "", model.User{}, ErrUnauthorized
 	}
 
-	taken, err := s.repo.AliasTaken(ctx, tx, alias, userID)
-	if err != nil {
-		return "", model.User{}, err
+	if alias != nil {
+		taken, err := s.repo.AliasTaken(ctx, tx, nextAlias, userID)
+		if err != nil {
+			return "", model.User{}, err
+		}
+		if taken {
+			return "", model.User{}, ErrAliasTaken
+		}
+		if err := s.repo.UpdateAlias(ctx, tx, userID, nextAlias); err != nil {
+			return "", model.User{}, err
+		}
 	}
-	if taken {
-		return "", model.User{}, ErrAliasTaken
+	if notificationsEnabled != nil {
+		if err := s.repo.UpdateNotificationsEnabled(ctx, tx, userID, *notificationsEnabled); err != nil {
+			return "", model.User{}, err
+		}
 	}
 
-	if err := s.repo.UpdateAlias(ctx, tx, userID, alias); err != nil {
-		return "", model.User{}, err
-	}
 	updated, err := s.repo.GetByID(ctx, tx, userID)
 	if err != nil || updated == nil {
-		return "", model.User{}, fmt.Errorf("reload user after alias update: %w", err)
+		return "", model.User{}, fmt.Errorf("reload user after profile update: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return "", model.User{}, fmt.Errorf("commit: %w", err)
@@ -254,7 +273,7 @@ func (s *Auth) UpdateAlias(ctx context.Context, userID int64, alias string) (tok
 	if err != nil {
 		return "", model.User{}, err
 	}
-	debuglog.Printf("auth.UpdateAlias userId=%d alias=%s", updated.ID, updated.Alias)
+	debuglog.Printf("auth.UpdateMe userId=%d alias=%s notify=%v", updated.ID, updated.Alias, updated.NotificationsEnabled)
 	return token, *updated, nil
 }
 

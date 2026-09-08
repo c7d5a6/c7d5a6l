@@ -211,7 +211,7 @@ func (s *TelegramNotify) formatOperators(ctx context.Context, teams []model.Fant
 	if s.users == nil {
 		out := make([]string, 0, len(teams))
 		for _, team := range teams {
-			out = append(out, OperatorMention(team.UserAlias, nil, nil, false))
+			out = append(out, OperatorMention(team.UserAlias, nil, nil, false, true))
 		}
 		return out, nil
 	}
@@ -228,7 +228,11 @@ func (s *TelegramNotify) formatOperators(ctx context.Context, teams []model.Fant
 			return nil, fmt.Errorf("user %d: %w", team.UserID, err)
 		}
 		if u == nil {
-			out = append(out, OperatorMention(team.UserAlias, nil, nil, false))
+			out = append(out, OperatorMention(team.UserAlias, nil, nil, false, true))
+			continue
+		}
+		if !u.NotificationsEnabled {
+			out = append(out, OperatorMention(u.Alias, nil, nil, false, false))
 			continue
 		}
 		inGroup := false
@@ -239,7 +243,7 @@ func (s *TelegramNotify) formatOperators(ctx context.Context, teams []model.Fant
 		if u.TelegramID != nil && uname != "" {
 			inGroup = s.memberInGroup(ctx, *u.TelegramID, cache)
 		}
-		out = append(out, OperatorMention(u.Alias, u.TelegramID, u.TelegramUsername, inGroup))
+		out = append(out, OperatorMention(u.Alias, u.TelegramID, u.TelegramUsername, inGroup, true))
 	}
 	return out, nil
 }
@@ -258,8 +262,11 @@ func (s *TelegramNotify) memberInGroup(ctx context.Context, telegramID int64, ca
 }
 
 // OperatorMention renders an operator for a group message.
-func OperatorMention(alias string, telegramID *int64, username *string, inGroup bool) string {
+func OperatorMention(alias string, telegramID *int64, username *string, inGroup, notificationsEnabled bool) string {
 	alias = strings.TrimSpace(alias)
+	if !notificationsEnabled {
+		return strings.TrimPrefix(alias, "@")
+	}
 	uname := ""
 	if username != nil {
 		uname = strings.TrimPrefix(strings.TrimSpace(*username), "@")

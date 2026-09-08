@@ -191,6 +191,7 @@ func TestOperatorMention(t *testing.T) {
 		id       *int64
 		username *string
 		inGroup  bool
+		off      bool
 		want     string
 	}{
 		{name: "in group tags", alias: "Jim", id: &id, username: &user, inGroup: true, want: "@raynor"},
@@ -198,10 +199,12 @@ func TestOperatorMention(t *testing.T) {
 		{name: "id not in group", alias: "Jim", id: &id, username: &user, inGroup: false, want: "Jim"},
 		{name: "no id still at-username", alias: "Ghost", username: &user, want: "@raynor"},
 		{name: "alias only", alias: "Pilot", want: "Pilot"},
+		{name: "disabled uses alias not username", alias: "Jim", id: &id, username: &user, inGroup: true, off: true, want: "Jim"},
+		{name: "disabled strips leading at", alias: "@Pilot", username: &user, inGroup: true, off: true, want: "Pilot"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := service.OperatorMention(tc.alias, tc.id, tc.username, tc.inGroup)
+			got := service.OperatorMention(tc.alias, tc.id, tc.username, tc.inGroup, !tc.off)
 			if got != tc.want {
 				t.Fatalf("got %q want %q", got, tc.want)
 			}
@@ -355,6 +358,31 @@ func TestTelegramNotify_idNotInGroupUsesAlias(t *testing.T) {
 	}
 	if !strings.Contains(f.bot.sent[0], "Удачи командам Nova!") {
 		t.Fatalf("want alias, got %s", f.bot.sent[0])
+	}
+}
+
+func TestTelegramNotify_notificationsDisabledUsesAlias(t *testing.T) {
+	first := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+	f := setupNotify(t, first, false)
+	uid := f.addUser(t, "@Jim", int64Ptr(9001), str("raynor"))
+	f.bot.members[9001] = telegram.ChatMember{Status: "member", User: telegram.User{ID: 9001, Username: "raynor"}}
+	if err := f.users.UpdateNotificationsEnabled(f.ctx, f.users.DB(), uid, false); err != nil {
+		t.Fatal(err)
+	}
+	f.roster(t, uid, f.jdID)
+
+	f.notify.Tick(f.ctx, first)
+	if f.bot.getChatMemberCalls != 0 {
+		t.Fatalf("disabled notify must not getChatMember, calls=%d", f.bot.getChatMemberCalls)
+	}
+	if len(f.bot.sent) != 1 {
+		t.Fatalf("sent=%v", f.bot.sent)
+	}
+	if strings.Contains(f.bot.sent[0], "@raynor") || strings.Contains(f.bot.sent[0], "@Jim") {
+		t.Fatalf("want alias without mention, got %s", f.bot.sent[0])
+	}
+	if !strings.Contains(f.bot.sent[0], "Удачи командам Jim!") {
+		t.Fatalf("want stripped alias, got %s", f.bot.sent[0])
 	}
 }
 

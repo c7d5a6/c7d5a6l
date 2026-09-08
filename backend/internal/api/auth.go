@@ -28,7 +28,8 @@ type meResponse struct {
 }
 
 type patchMeRequest struct {
-	Alias string `json:"alias"`
+	Alias                *string `json:"alias"`
+	NotificationsEnabled *bool   `json:"notificationsEnabled"`
 }
 
 type listUsersResponse struct {
@@ -141,7 +142,7 @@ func (s *Server) AuthLogout(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"message": "ok"})
 }
 
-// PatchMe updates the caller's alias and returns a fresh JWT.
+// PatchMe updates the caller's alias and/or notification preference and returns a fresh JWT.
 func (s *Server) PatchMe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if s.Auth == nil {
@@ -158,7 +159,7 @@ func (s *Server) PatchMe(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
-	token, user, err := s.Auth.UpdateAlias(r.Context(), p.UserID, req.Alias)
+	token, user, err := s.Auth.UpdateMe(r.Context(), p.UserID, req.Alias, req.NotificationsEnabled)
 	if err != nil {
 		if errors.Is(err, service.ErrUnauthorized) {
 			writeError(w, http.StatusUnauthorized, "unauthorized")
@@ -168,19 +169,23 @@ func (s *Server) PatchMe(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid alias")
 			return
 		}
+		if errors.Is(err, service.ErrInvalidUser) {
+			writeError(w, http.StatusBadRequest, "nothing to update")
+			return
+		}
 		if errors.Is(err, service.ErrAliasTaken) {
 			writeError(w, http.StatusConflict, "alias taken")
 			return
 		}
 		log.Printf("patch me userId=%d: %v", p.UserID, err)
-		writeError(w, http.StatusInternalServerError, "failed to update alias")
+		writeError(w, http.StatusInternalServerError, "failed to update profile")
 		return
 	}
-	debuglog.Printf("PatchMe userId=%d alias=%s", user.ID, user.Alias)
+	debuglog.Printf("PatchMe userId=%d alias=%s notify=%v", user.ID, user.Alias, user.NotificationsEnabled)
 	user, err = s.userWithTitles(r.Context(), user)
 	if err != nil {
 		log.Printf("patch me titles userId=%d: %v", user.ID, err)
-		writeError(w, http.StatusInternalServerError, "failed to update alias")
+		writeError(w, http.StatusInternalServerError, "failed to update profile")
 		return
 	}
 	_ = json.NewEncoder(w).Encode(telegramLoginResponse{Token: token, User: user})

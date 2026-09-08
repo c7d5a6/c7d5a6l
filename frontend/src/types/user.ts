@@ -33,6 +33,7 @@ export type AuthUser = {
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null
+  notificationsEnabled?: boolean
   titles?: UserTitle[]
 }
 

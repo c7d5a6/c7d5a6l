@@ -23,25 +23,18 @@ func (r *User) DB() *sql.DB {
 	return r.db
 }
 
+const userCols = `id, alias, telegram_id, telegram_username, first_name, last_name,
+		photo_url, role, created_at, updated_at, last_login_at, notifications_enabled`
+
 // GetByTelegramID returns the user or nil if missing.
 func (r *User) GetByTelegramID(ctx context.Context, q DBTX, telegramID int64) (*model.User, error) {
-	row := q.QueryRowContext(ctx, `
-		SELECT id, alias, telegram_id, telegram_username, first_name, last_name,
-		       photo_url, role, created_at, updated_at, last_login_at
-		FROM user
-		WHERE telegram_id = ?
-	`, telegramID)
+	row := q.QueryRowContext(ctx, `SELECT `+userCols+` FROM user WHERE telegram_id = ?`, telegramID)
 	return scanUser(row)
 }
 
 // GetByID returns the user or nil if missing.
 func (r *User) GetByID(ctx context.Context, q DBTX, id int64) (*model.User, error) {
-	row := q.QueryRowContext(ctx, `
-		SELECT id, alias, telegram_id, telegram_username, first_name, last_name,
-		       photo_url, role, created_at, updated_at, last_login_at
-		FROM user
-		WHERE id = ?
-	`, id)
+	row := q.QueryRowContext(ctx, `SELECT `+userCols+` FROM user WHERE id = ?`, id)
 	return scanUser(row)
 }
 
@@ -150,6 +143,22 @@ func (r *User) UpdateAlias(ctx context.Context, q DBTX, id int64, alias string) 
 	return nil
 }
 
+// UpdateNotificationsEnabled sets whether group notices may @mention the user.
+func (r *User) UpdateNotificationsEnabled(ctx context.Context, q DBTX, id int64, enabled bool) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	v := 0
+	if enabled {
+		v = 1
+	}
+	_, err := q.ExecContext(ctx, `
+		UPDATE user SET notifications_enabled = ?, updated_at = ? WHERE id = ?
+	`, v, now, id)
+	if err != nil {
+		return fmt.Errorf("update notifications: %w", err)
+	}
+	return nil
+}
+
 // Update replaces admin-editable profile fields (does not touch last_login_at).
 func (r *User) Update(ctx context.Context, q DBTX, u model.User) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
@@ -184,8 +193,7 @@ func (r *User) Update(ctx context.Context, q DBTX, u model.User) error {
 // ListAll returns users ordered by alias.
 func (r *User) ListAll(ctx context.Context, q DBTX) ([]model.User, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, alias, telegram_id, telegram_username, first_name, last_name,
-		       photo_url, role, created_at, updated_at, last_login_at
+		SELECT `+userCols+`
 		FROM user
 		ORDER BY alias COLLATE NOCASE ASC, id ASC
 	`)
@@ -221,6 +229,7 @@ func scanUserRow(row userScanner) (*model.User, error) {
 	var u model.User
 	var telegramID sql.NullInt64
 	var username, lastName, photo, lastLogin sql.NullString
+	var notify int
 	err := row.Scan(
 		&u.ID,
 		&u.Alias,
@@ -233,6 +242,7 @@ func scanUserRow(row userScanner) (*model.User, error) {
 		&u.CreatedAt,
 		&u.UpdatedAt,
 		&lastLogin,
+		&notify,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan user: %w", err)
@@ -242,6 +252,7 @@ func scanUserRow(row userScanner) (*model.User, error) {
 	u.LastName = nullToPtr(lastName)
 	u.PhotoURL = nullToPtr(photo)
 	u.LastLoginAt = nullToPtr(lastLogin)
+	u.NotificationsEnabled = notify != 0
 	return &u, nil
 }
 

@@ -319,6 +319,48 @@ func TestPatchMeAliasAndConflict(t *testing.T) {
 	}
 }
 
+func TestPatchMeNotifications(t *testing.T) {
+	auth, _, mux := setupAuth(t)
+	ctx := context.Background()
+
+	token, _, err := auth.LoginTelegram(ctx, validPayload(t, 301, "Raynor", "raynor"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reqMe := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	reqMe.Header.Set("Authorization", "Bearer "+token)
+	recMe := httptest.NewRecorder()
+	mux.ServeHTTP(recMe, reqMe)
+	if recMe.Code != http.StatusOK {
+		t.Fatalf("me status=%d body=%s", recMe.Code, recMe.Body.String())
+	}
+	if !strings.Contains(recMe.Body.String(), `"notificationsEnabled":true`) {
+		t.Fatalf("want enabled by default, body=%s", recMe.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/me", strings.NewReader(`{"notificationsEnabled":false}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"notificationsEnabled":false`) {
+		t.Fatalf("body=%s", rec.Body.String())
+	}
+
+	empty := httptest.NewRequest(http.MethodPatch, "/api/me", strings.NewReader(`{}`))
+	empty.Header.Set("Authorization", "Bearer "+token)
+	empty.Header.Set("Content-Type", "application/json")
+	recEmpty := httptest.NewRecorder()
+	mux.ServeHTTP(recEmpty, empty)
+	if recEmpty.Code != http.StatusBadRequest {
+		t.Fatalf("empty patch status=%d body=%s", recEmpty.Code, recEmpty.Body.String())
+	}
+}
+
 func TestListUsersAdminOnly(t *testing.T) {
 	auth, _, mux := setupAuth(t)
 	ctx := context.Background()

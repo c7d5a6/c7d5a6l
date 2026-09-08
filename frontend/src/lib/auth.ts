@@ -127,12 +127,20 @@ export async function logout(): Promise<void> {
 }
 
 export async function updateAlias(alias: string): Promise<AuthUser> {
+  return updateMe({ alias })
+}
+
+export async function updateNotificationsEnabled(enabled: boolean): Promise<AuthUser> {
+  return updateMe({ notificationsEnabled: enabled })
+}
+
+export async function updateMe(body: { alias?: string; notificationsEnabled?: boolean }): Promise<AuthUser> {
   const res = await authFetch('/api/me', {
     method: 'PATCH',
-    body: JSON.stringify({ alias }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) {
-    let msg = `alias update failed (${res.status})`
+    let msg = `profile update failed (${res.status})`
     try {
       const data = (await res.json()) as { error?: string }
       if (data.error) msg = data.error

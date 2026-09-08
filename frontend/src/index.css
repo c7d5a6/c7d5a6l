@@ -1212,14 +1212,24 @@ button.lamp-flash::after {
   flex: 1 1 12rem;
 }
 
-.me-profile__alias .status {
+.me-profile__titles-row,
+.me-profile__notify-row {
+  align-items: center;
+}
+
+.me-profile__notify {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  cursor: pointer;
+}
+
+.me-profile__alias .status,
+.me-profile__notify-row .status {
   margin: 0.35rem 0 0;
   font-family: var(--font-body);
   letter-spacing: 0;
-}
-
-.me-profile__titles-row {
-  align-items: center;
 }
 
 .me-profile__version {

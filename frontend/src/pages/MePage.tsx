@@ -3,7 +3,7 @@ import { ChannelHead, NestedPlate } from '../components/ChannelChrome'
 import { UserTitles } from '../components/UserTitles'
 import { Show, createEffect, createSignal, type JSX } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
-import { authUser, homePath, logout, updateAlias } from '../lib/auth'
+import { authUser, homePath, logout, updateAlias, updateNotificationsEnabled } from '../lib/auth'
 import { APP_VERSION } from '../lib/version'
 
 /** Profile channel — Telegram identity + logout. */
@@ -15,6 +15,11 @@ export function MePage(): JSX.Element {
   const [aliasBusy, setAliasBusy] = createSignal(false)
   const [aliasError, setAliasError] = createSignal<string | null>(null)
   const [aliasOk, setAliasOk] = createSignal(false)
+  const [notifyBusy, setNotifyBusy] = createSignal(false)
+  const [notifyError, setNotifyError] = createSignal<string | null>(null)
+  const [notifyDraft, setNotifyDraft] = createSignal<boolean | null>(null)
+
+  const notificationsOn = () => notifyDraft() ?? (authUser()?.notificationsEnabled !== false)
 
   createEffect(() => {
     const u = authUser()
@@ -44,6 +49,21 @@ export function MePage(): JSX.Element {
       setAliasError(err instanceof Error ? err.message : 'Alias update failed')
     } finally {
       setAliasBusy(false)
+    }
+  }
+
+  async function onToggleNotify(enabled: boolean) {
+    setNotifyBusy(true)
+    setNotifyError(null)
+    setNotifyDraft(enabled)
+    try {
+      await updateNotificationsEnabled(enabled)
+      setNotifyDraft(null)
+    } catch (err) {
+      setNotifyDraft(null)
+      setNotifyError(err instanceof Error ? err.message : 'Notification update failed')
+    } finally {
+      setNotifyBusy(false)
     }
   }
 
@@ -121,6 +141,27 @@ export function MePage(): JSX.Element {
                     : u().telegramId != null
                       ? `id ${u().telegramId}`
                       : 'Not linked'}
+                </dd>
+              </div>
+              <div class="me-profile__notify-row">
+                <dt>Notifications</dt>
+                <dd>
+                  <label class="me-profile__notify">
+                    <span class="sc-check">
+                      <input
+                        type="checkbox"
+                        class="sc-check__input"
+                        checked={notificationsOn()}
+                        disabled={notifyBusy()}
+                        onChange={(e) => void onToggleNotify(e.currentTarget.checked)}
+                      />
+                      <span class="sc-check__box" aria-hidden="true" />
+                    </span>
+                    <span>{notificationsOn() ? 'Enabled' : 'Disabled'}</span>
+                  </label>
+                  <Show when={notifyError()}>
+                    <p class="status status--error">{notifyError()}</p>
+                  </Show>
                 </dd>
               </div>
               <div>

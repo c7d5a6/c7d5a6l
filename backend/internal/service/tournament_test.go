@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/c7d5a6/c7d5a6l/internal/db"
+	"github.com/c7d5a6/c7d5a6l/internal/liquipedia"
 	"github.com/c7d5a6/c7d5a6l/internal/model"
 	"github.com/c7d5a6/c7d5a6l/internal/repository"
 	"github.com/c7d5a6/c7d5a6l/internal/service"
@@ -380,6 +381,60 @@ func TestTournamentSaveResultsUpsert(t *testing.T) {
 	}
 	if n != 2 {
 		t.Fatalf("db rows=%d want 2", n)
+	}
+}
+
+func TestTournamentSaveResultsResolvesLocalName(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	byulLink := "https://liquipedia.net/starcraft/ByuL"
+	lastHeroLink := liquipedia.LocalPlayerURL("starcraft", "LastHerO")
+	localByul := liquipedia.LocalPlayerURL("starcraft", "ByuL")
+	hangulLink := liquipedia.LocalPlayerURL("starcraft", "김홍철")
+	svc := service.NewTournament(sqlDB, repository.NewTournament(sqlDB), repository.NewPlayer(sqlDB), nil, stubPlayerFetcher{
+		byulLink: {Name: str("ByuL"), PreferredRace: str("zerg"), IDs: []string{}},
+	}, nil)
+
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/22/Qualifier/Day_2",
+		Name: str("Qualifier Day 2"),
+		Participants: []model.Participant{
+			{Name: str("ByuL"), Link: str(byulLink), Race: str("zerg")},
+			{Name: str("LastHerO"), RealName: str("김홍철"), Link: str(lastHeroLink), Race: str("protoss")},
+		},
+		Groups: []model.TournamentGroup{
+			{Name: "Group 1", Phase: "Qualifier", SortOrder: 0, Players: []model.Participant{
+				{Name: str("ByuL"), Link: str(localByul), Race: str("zerg")},
+				{Name: str("김홍철"), Link: str(hangulLink), Race: str("protoss")},
+			}},
+		},
+		Results: []model.Result{
+			{
+				Played: true, Phase: "Qualifier", Round: "Group 1", Order: 1,
+				ScoreA:       intPtr(2),
+				ScoreB:       intPtr(0),
+				ParticipantA: &model.Participant{Name: str("ByuL"), Link: str(localByul), Race: str("zerg")},
+				ParticipantB: &model.Participant{Name: str("김홍철"), Link: str(hangulLink), Race: str("protoss")},
+			},
+		},
+	}
+	saved, _, _, err := svc.Save(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Results) != 1 {
+		t.Fatalf("results=%d, want 1 (local:// names should resolve to roster)", len(saved.Results))
+	}
+	if len(saved.Groups) != 1 || len(saved.Groups[0].Players) != 2 {
+		t.Fatalf("groups=%+v, want both players attached", saved.Groups)
 	}
 }
 

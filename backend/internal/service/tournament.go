@@ -516,6 +516,11 @@ func (s *Tournament) buildRosterEntries(ctx context.Context, q repository.DBTX, 
 		if err != nil {
 			return nil, err
 		}
+		for _, alias := range participantLookupNames(p) {
+			if _, err := s.players.EnsureAliasID(ctx, q, playerID, alias); err != nil {
+				return nil, err
+			}
+		}
 		aliasID, err := s.players.EnsureAliasID(ctx, q, playerID, aliasName)
 		if err != nil {
 			return nil, err
@@ -717,11 +722,45 @@ func buildGroupEntries(groups []model.TournamentGroup) []repository.GroupEntry {
 			}
 			entry.Players = append(entry.Players, repository.GroupPlayerEntry{
 				Link:     link,
+				Name:     groupPlayerLookupName(p, link),
 				IsWinner: p.IsWinner,
 			})
 		}
 		out = append(out, entry)
 	}
+	return out
+}
+
+func groupPlayerLookupName(p model.Participant, link string) string {
+	names := participantLookupNames(p)
+	if len(names) > 0 {
+		return names[0]
+	}
+	return liquipedia.LocalPlayerName(link)
+}
+
+func participantLookupNames(p model.Participant) []string {
+	seen := make(map[string]struct{})
+	var out []string
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
+		}
+		key := strings.ToLower(s)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, s)
+	}
+	add(nullStr(p.Name))
+	add(nullStr(p.RealName))
+	if id, real, ok := parse.SplitLatinIDKoreanRealName(nullStr(p.Name)); ok {
+		add(id)
+		add(real)
+	}
+	add(liquipedia.LocalPlayerName(nullStr(p.Link)))
 	return out
 }
 
@@ -833,7 +872,19 @@ func (s *Tournament) resultPlayerID(ctx context.Context, q repository.DBTX, tour
 	if err != nil {
 		return 0, false, err
 	}
-	return id, false, nil
+	if id != 0 {
+		return id, false, nil
+	}
+	for _, name := range participantLookupNames(*p) {
+		id, err = s.tours.TournamentPlayerIDByName(ctx, q, tournamentID, name)
+		if err != nil {
+			return 0, false, err
+		}
+		if id != 0 {
+			return id, false, nil
+		}
+	}
+	return 0, false, nil
 }
 
 func resultsSummaries(results []model.Result) []string {

@@ -312,6 +312,7 @@ func (r *Tournament) ReplaceRoster(ctx context.Context, q DBTX, tournamentID int
 // GroupPlayerEntry is one group member (roster link + winner flag).
 type GroupPlayerEntry struct {
 	Link     string
+	Name     string
 	IsWinner bool
 }
 
@@ -349,6 +350,12 @@ func (r *Tournament) ReplaceGroups(ctx context.Context, q DBTX, tournamentID int
 			tpID, err := r.TournamentPlayerIDByLink(ctx, q, tournamentID, link)
 			if err != nil {
 				return err
+			}
+			if tpID == 0 {
+				tpID, err = r.TournamentPlayerIDByName(ctx, q, tournamentID, gp.Name)
+				if err != nil {
+					return err
+				}
 			}
 			if tpID == 0 {
 				debuglog.Printf("ReplaceGroups skip orphan link=%s tournamentID=%d", link, tournamentID)
@@ -487,6 +494,51 @@ func (r *Tournament) TournamentPlayerIDByLink(ctx context.Context, q DBTX, tourn
 		return 0, fmt.Errorf("tournament player by link: %w", err)
 	}
 	return id, nil
+}
+
+// TournamentPlayerIDByName resolves a roster row by player name, real name, or alias.
+// Returns 0 when none or more than one roster player matches.
+func (r *Tournament) TournamentPlayerIDByName(ctx context.Context, q DBTX, tournamentID int64, name string) (int64, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, nil
+	}
+	rows, err := q.QueryContext(ctx, `
+		SELECT DISTINCT tp.id
+		FROM tournament_player tp
+		JOIN player_race pr ON pr.id = tp.player_race_id
+		JOIN player p ON p.id = pr.player_id
+		LEFT JOIN player_alias pa ON pa.player_id = p.id
+		WHERE tp.tournament_id = ?
+		  AND (
+		    p.name = ? COLLATE NOCASE
+		    OR p.real_name = ? COLLATE NOCASE
+		    OR pa.name = ? COLLATE NOCASE
+		  )
+	`, tournamentID, name, name, name)
+	if err != nil {
+		return 0, fmt.Errorf("tournament player by name: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(ids) == 1 {
+		return ids[0], nil
+	}
+	if len(ids) > 1 {
+		debuglog.Printf("TournamentPlayerIDByName ambiguous name=%s matches=%d tournamentID=%d", name, len(ids), tournamentID)
+	}
+	return 0, nil
 }
 
 // ResultEntry is one match to upsert or insert (TBD).

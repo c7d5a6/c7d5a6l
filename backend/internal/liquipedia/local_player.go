@@ -21,6 +21,31 @@ func LocalPlayerURL(wiki, name string) string {
 	return fmt.Sprintf("%s://%s/player/%s", LocalPlayerScheme, wiki, esc)
 }
 
+// LocalPlayerName returns the decoded player name from a local:// URL.
+func LocalPlayerName(link string) string {
+	if !IsLocalPlayerURL(link) {
+		return ""
+	}
+	canonical, err := normalizeLocalPlayerURL(link)
+	if err != nil {
+		return ""
+	}
+	u, err := url.Parse(canonical)
+	if err != nil {
+		return ""
+	}
+	path := strings.Trim(u.EscapedPath(), "/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	name, err := url.PathUnescape(parts[1])
+	if err != nil {
+		return ""
+	}
+	return keepMediaWikiParens(strings.TrimSpace(name))
+}
+
 // IsLocalPlayerURL reports whether link is a synthetic local player identity.
 func IsLocalPlayerURL(link string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(link)), LocalPlayerScheme+"://")

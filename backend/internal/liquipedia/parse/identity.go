@@ -21,7 +21,7 @@ func resolveParticipantIdentity(name string, wiki string, link *string) (string,
 	}
 
 	var realName *string
-	if id, real, ok := splitLatinIDKoreanRealName(name); ok {
+	if id, real, ok := SplitLatinIDKoreanRealName(name); ok {
 		name = id
 		realName = &real
 	}
@@ -33,8 +33,8 @@ func resolveParticipantIdentity(name string, wiki string, link *string) (string,
 	return name, realName, link
 }
 
-// splitLatinIDKoreanRealName splits "LastHerO 김홍철" into ID + real name.
-func splitLatinIDKoreanRealName(name string) (id, realName string, ok bool) {
+// SplitLatinIDKoreanRealName splits "LastHerO 김홍철" into ID + real name.
+func SplitLatinIDKoreanRealName(name string) (id, realName string, ok bool) {
 	name = cleanText(name)
 	idx := firstHangulIndex(name)
 	if idx <= 0 {

@@ -22,4 +22,11 @@ func TestLocalPlayerURL(t *testing.T) {
 	if norm != want {
 		t.Fatalf("normalize=%q want %q", norm, want)
 	}
+	if got := liquipedia.LocalPlayerName(want); got != "Ever)P(NaBi" {
+		t.Fatalf("LocalPlayerName=%q", got)
+	}
+	hangul := liquipedia.LocalPlayerURL("starcraft", "홍광민")
+	if got := liquipedia.LocalPlayerName(hangul); got != "홍광민" {
+		t.Fatalf("LocalPlayerName hangul=%q from %q", got, hangul)
+	}
 }

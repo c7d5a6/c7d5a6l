@@ -216,3 +216,90 @@ func TestMatchlistParse_liveOneZeroUnknownNotPlayed(t *testing.T) {
 		t.Fatal("live 1:0 with unknown format must not be played")
 	}
 }
+
+func TestBracketParse_winnerClassOneZeroPlayed(t *testing.T) {
+	t.Parallel()
+	html := `
+<html><body>
+<div class="brkts-bracket">
+<div class="brkts-match brkts-match-popup-wrapper">
+  <div class="brkts-opponent-entry brkts-opponent-hover" aria-label="Ggaemo">
+    <div class="brkts-opponent-entry-left brkts-opponent-win Zerg">
+      <span class="name">ggaemo</span>
+    </div>
+    <div class="brkts-opponent-score-outer"><div class="brkts-opponent-score-inner"><b>1</b></div></div>
+  </div>
+  <div class="brkts-opponent-entry brkts-opponent-entry-last brkts-opponent-hover" aria-label="Shine">
+    <div class="brkts-opponent-entry-left Zerg">
+      <span class="name">Shine</span>
+    </div>
+    <div class="brkts-opponent-score-outer"><div class="brkts-opponent-score-inner">0</div></div>
+  </div>
+</div>
+</div>
+</body></html>`
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Results(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("results=%d", len(got))
+	}
+	r := got[0]
+	if !r.Played {
+		t.Fatal("bracket 1:0 with winner class must be played")
+	}
+	if r.ScoreA == nil || *r.ScoreA != 1 || r.ScoreB == nil || *r.ScoreB != 0 {
+		t.Fatalf("score=%v:%v want 1:0", r.ScoreA, r.ScoreB)
+	}
+	if r.ParticipantA == nil || r.ParticipantA.Name == nil || *r.ParticipantA.Name != "ggaemo" {
+		t.Fatalf("a=%v", r.ParticipantA)
+	}
+	if r.ParticipantB == nil || r.ParticipantB.Name == nil || *r.ParticipantB.Name != "Shine" {
+		t.Fatalf("b=%v", r.ParticipantB)
+	}
+}
+
+func TestBracketParse_bo3OneOneNotPlayedKeepsScore(t *testing.T) {
+	t.Parallel()
+	html := `
+<html><body>
+<div class="brkts-bracket">
+<div class="brkts-match brkts-match-popup-wrapper">
+  <div class="brkts-opponent-entry" aria-label="Ggaemo">
+    <div class="brkts-opponent-entry-left Zerg"><span class="name">ggaemo</span></div>
+    <div class="brkts-opponent-score-outer"><div class="brkts-opponent-score-inner">1</div></div>
+  </div>
+  <div class="brkts-opponent-entry" aria-label="Shine">
+    <div class="brkts-opponent-entry-left Zerg"><span class="name">Shine</span></div>
+    <div class="brkts-opponent-score-outer"><div class="brkts-opponent-score-inner">1</div></div>
+  </div>
+  <div class="brkts-match-info-popup">
+    <span class="match-info-header-scoreholder-lower">(Bo3)</span>
+  </div>
+</div>
+</div>
+</body></html>`
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Results(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("results=%d", len(got))
+	}
+	r := got[0]
+	if r.Played {
+		t.Fatal("Bo3 1:1 must not be played")
+	}
+	if r.ScoreA == nil || *r.ScoreA != 1 || r.ScoreB == nil || *r.ScoreB != 1 {
+		t.Fatalf("score=%v:%v want 1:1", r.ScoreA, r.ScoreB)
+	}
+}

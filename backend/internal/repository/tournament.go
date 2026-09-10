@@ -503,6 +503,10 @@ func (r *Tournament) TournamentPlayerIDByName(ctx context.Context, q DBTX, tourn
 	if name == "" {
 		return 0, nil
 	}
+	slug := name
+	if strings.ContainsAny(name, "%_") {
+		slug = ""
+	}
 	rows, err := q.QueryContext(ctx, `
 		SELECT DISTINCT tp.id
 		FROM tournament_player tp
@@ -514,8 +518,12 @@ func (r *Tournament) TournamentPlayerIDByName(ctx context.Context, q DBTX, tourn
 		    p.name = ? COLLATE NOCASE
 		    OR p.real_name = ? COLLATE NOCASE
 		    OR pa.name = ? COLLATE NOCASE
+		    OR (? != '' AND (
+		      p.link_v2 LIKE '%/' || ? COLLATE NOCASE
+		      OR p.link_v2 LIKE '%/' || ? || '_(%' COLLATE NOCASE
+		    ))
 		  )
-	`, tournamentID, name, name, name)
+	`, tournamentID, name, name, name, slug, slug, slug)
 	if err != nil {
 		return 0, fmt.Errorf("tournament player by name: %w", err)
 	}

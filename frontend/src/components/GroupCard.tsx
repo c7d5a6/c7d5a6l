@@ -16,8 +16,13 @@ export function MatchRow(props: MatchRowProps): JSX.Element {
   const r = () => props.result
   const a = () => r().participantA
   const b = () => r().participantB
-  const played = () =>
-    r().played && r().scoreA != null && r().scoreB != null
+  const hasScore = () => {
+    const a = r().scoreA
+    const b = r().scoreB
+    if (a == null || b == null) return false
+    return r().played || a !== 0 || b !== 0
+  }
+  const played = () => r().played && r().scoreA != null && r().scoreB != null
   const loserA = () => played() && (r().scoreA as number) < (r().scoreB as number)
   const loserB = () => played() && (r().scoreB as number) < (r().scoreA as number)
   const winA = () => played() && (r().scoreA as number) > (r().scoreB as number)
@@ -37,7 +42,7 @@ export function MatchRow(props: MatchRowProps): JSX.Element {
         </Show>
       </div>
       <span class="match-row__score">
-        <Show when={r().played} fallback={<span class="match-row__vs">vs</span>}>
+        <Show when={hasScore()} fallback={<span class="match-row__vs">vs</span>}>
           <span
             classList={{
               'match-row__n': true,

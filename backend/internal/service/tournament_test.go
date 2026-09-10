@@ -328,6 +328,8 @@ func TestTournamentSaveResultsUpsert(t *testing.T) {
 			{
 				Played: false, Phase: "Round of 24", Round: "Group A", Order: 1,
 				DateTime:     str("2026-08-20T12:00:00Z"),
+				ScoreA:       intPtr(1),
+				ScoreB:       intPtr(1),
 				ParticipantA: &model.Participant{Name: str("Jaedong"), Link: str(jaedongLink), Race: str("zerg")},
 				ParticipantB: &model.Participant{Name: str("Flash"), Link: str(flashLink), Race: str("terran")},
 			},
@@ -339,6 +341,9 @@ func TestTournamentSaveResultsUpsert(t *testing.T) {
 	}
 	if len(saved.Results) != 1 || saved.Results[0].Played {
 		t.Fatalf("saved results=%+v", saved.Results)
+	}
+	if saved.Results[0].ScoreA == nil || *saved.Results[0].ScoreA != 1 || saved.Results[0].ScoreB == nil || *saved.Results[0].ScoreB != 1 {
+		t.Fatalf("in-progress Bo3 score=%+v want 1:1", saved.Results[0])
 	}
 	if saved.Results[0].GroupID == nil {
 		t.Fatal("expected groupId on result")

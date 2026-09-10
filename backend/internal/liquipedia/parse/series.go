@@ -36,15 +36,29 @@ func seriesPlayed(scoreA, scoreB *int, bestOf int) bool {
 }
 
 func matchSeriesPlayed(match, popup *goquery.Selection, scoreA, scoreB *int) bool {
+	if scoreA == nil || scoreB == nil {
+		return false
+	}
 	bestOf := matchBestOf(match, popup)
 	if seriesPlayed(scoreA, scoreB, bestOf) {
 		return true
 	}
-	if bestOf > 0 || scoreA == nil || scoreB == nil {
+	// Qualifier brackets often omit Bo1 but mark the winner in CSS.
+	if matchHasWinner(match) {
+		return true
+	}
+	if bestOf > 0 {
 		return false
 	}
 	fin, ok := popup.Find(".timer-object").First().Attr("data-finished")
 	return ok && fin == "finished"
+}
+
+func matchHasWinner(match *goquery.Selection) bool {
+	if match == nil || match.Length() == 0 {
+		return false
+	}
+	return match.Find(".brkts-opponent-win, .brkts-matchlist-slot-winner").Length() > 0
 }
 
 func parseBestOfN(s string) int {

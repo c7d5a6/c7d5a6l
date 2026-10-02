@@ -2,9 +2,11 @@ package model
 
 // PlayerPage is the parsed representation of a Liquipedia player page.
 // Link is required; every other field is optional until parsing fills it in.
+// ID is set when loaded from the database.
 // PortraitURL is the Liquipedia source image URL (not for browser hotlinking).
 // HasPortrait is true when a cached portrait blob exists in the database.
 type PlayerPage struct {
+	ID            int64     `json:"id,omitempty"`
 	Link          string    `json:"link"`
 	Name          *string   `json:"name"`
 	RealName      *string   `json:"realName"`

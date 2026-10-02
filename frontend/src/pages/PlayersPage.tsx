@@ -299,6 +299,7 @@ export function PlayersPage() {
                             name={row.name}
                             link={row.link}
                             race={row.race}
+                            playerId={row.playerId}
                             hasPortrait={row.hasPortrait}
                           />
                           <Show when={myTeamKeys().has(playerRaceKey(row.link, row.race))}>

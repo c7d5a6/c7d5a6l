@@ -122,6 +122,7 @@ func main() {
 
 	mux.Handle("POST /api/parse", requireAdmin(apiServer.ParseLink))
 	mux.HandleFunc("GET /api/players", apiServer.ListPlayers)
+	mux.HandleFunc("GET /api/players/{id}", apiServer.GetPlayer)
 	mux.Handle("POST /api/players", requireAdmin(apiServer.SavePlayer))
 	mux.Handle("PATCH /api/players/races/{id}", requireAdmin(apiServer.PatchPlayerRace))
 	mux.Handle("GET /api/players/{id}/merge-candidates", requireAdmin(apiServer.ListMergeCandidates))

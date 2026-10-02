@@ -47,6 +47,19 @@ export function tournamentDetailId(path: string): number | null {
   return Number.isFinite(id) && id > 0 ? id : null
 }
 
+export function isPlayersPath(path: string): boolean {
+  const p = normalizePath(path)
+  return p === NAV_PATHS.players || p.startsWith(`${NAV_PATHS.players}/`)
+}
+
+export function playerDetailId(path: string): number | null {
+  const p = normalizePath(path)
+  const prefix = `${NAV_PATHS.players}/`
+  if (!p.startsWith(prefix)) return null
+  const id = Number(p.slice(prefix.length).split('/')[0])
+  return Number.isFinite(id) && id > 0 ? id : null
+}
+
 export function fantasyManageLeagueId(path: string): number | null {
   const p = normalizePath(path)
   const prefix = `${NAV_PATHS.leagues}/`

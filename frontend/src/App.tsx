@@ -125,6 +125,7 @@ function App() {
       <Route path={LAYER_ROUTE_PATHS[8]} component={() => null} />
       <Route path={LAYER_ROUTE_PATHS[9]} component={() => null} />
       <Route path={LAYER_ROUTE_PATHS[10]} component={() => null} />
+      <Route path={LAYER_ROUTE_PATHS[11]} component={() => null} />
       <Route path="*404" component={HomeRedirect} />
     </Router>
   )

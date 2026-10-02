@@ -1,3 +1,4 @@
+import { A, useNavigate } from '@solidjs/router'
 import { Portal } from 'solid-js/web'
 import { For, Show, createEffect, createSignal, onCleanup, type JSX } from 'solid-js'
 import {
@@ -197,6 +198,8 @@ function placeCard(anchor: DOMRect): { left: number; top: number } {
 export type PlayerProps = {
   name: string | null | undefined
   link?: string | null
+  /** When set, name navigates to the in-app player dossier. */
+  playerId?: number | null
   race?: string | null
   excluded?: boolean
   loser?: boolean
@@ -208,10 +211,11 @@ export type PlayerProps = {
 }
 
 /**
- * Race-aware player chip: icon + name (profile link colored by current race).
+ * Race-aware player chip: icon + name (in-app dossier link when known).
  * Linked names open a delayed hover dossier.
  */
 export function Player(props: PlayerProps): JSX.Element {
+  const navigate = useNavigate()
   const race = () => parseRaceId(props.race)
   const meta = () => {
     const id = race()
@@ -249,13 +253,32 @@ export function Player(props: PlayerProps): JSX.Element {
     hideTimer = window.setTimeout(() => setHint(null), HIDE_DELAY_MS)
   }
 
+  const dossierHref = () => {
+    const id = props.playerId
+    return id != null && id > 0 ? `/players/${id}` : undefined
+  }
+
   const externalLink = () => {
     const link = props.link?.trim()
     return link && !link.startsWith('local://') ? link : undefined
   }
 
+  async function goToDossier(e: MouseEvent) {
+    const href = dossierHref()
+    if (href) return
+    const link = props.link?.trim()
+    if (!link || link.startsWith('local://')) return
+    e.preventDefault()
+    const result = await loadPlayerInfo(link)
+    if (result.status === 'ok' && result.player.id) {
+      navigate(`/players/${result.player.id}`)
+      return
+    }
+    window.open(link, '_blank', 'noreferrer')
+  }
+
   const hintTargetProps = () => {
-    if (!props.link?.trim()) return {}
+    if (!props.link?.trim() && !dossierHref()) return {}
     return {
       onMouseEnter: (e: MouseEvent & { currentTarget: HTMLElement }) => openHint(e.currentTarget),
       onMouseLeave: scheduleClose,
@@ -281,23 +304,35 @@ export function Player(props: PlayerProps): JSX.Element {
       </Show>
 
       <Show
-        when={externalLink()}
+        when={dossierHref()}
         fallback={
-          <span class="player__name" {...hintTargetProps()}>
-            {displayValue(props.name)}
-          </span>
+          <Show
+            when={externalLink()}
+            fallback={
+              <span class="player__name" {...hintTargetProps()}>
+                {displayValue(props.name)}
+              </span>
+            }
+          >
+            {(href) => (
+              <a
+                class="player__name player__link"
+                href={href()}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => void goToDossier(e)}
+                {...hintTargetProps()}
+              >
+                {displayValue(props.name)}
+              </a>
+            )}
+          </Show>
         }
       >
         {(href) => (
-          <a
-            class="player__name player__link"
-            href={href()}
-            target="_blank"
-            rel="noreferrer"
-            {...hintTargetProps()}
-          >
+          <A class="player__name player__link" href={href()} {...hintTargetProps()}>
             {displayValue(props.name)}
-          </a>
+          </A>
         )}
       </Show>
 

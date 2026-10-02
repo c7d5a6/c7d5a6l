@@ -221,6 +221,7 @@ Lock these unless the catalog gains a clearly better tone match — then update 
 | `/tournaments` | Admin tournament queue / listing | Terran industrial / fleet (parser sibling) | `003` battlecruiser void |
 | `/me` | Operator profile / identity | Terran industrial (sibling of parser) | `002` industrial towers |
 | `/players` | Roster / people | Terran war / roster | `terran-01` / `terran.png` · alt `009` rain marine · fleet alt `003` |
+| `/players/:id` | Player dossier | Terran war / roster | `009` rain marine (list uses `008`) |
 | `/fantasy-league` | Competition / league scale | Epic void war | `001` purification · alt `sc03` bombardment · `007` / `sc01` |
 
 Sibling pages under a channel inherit that row’s **family**; pick a different file in-family so the fade still changes the picture.

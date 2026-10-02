@@ -54,6 +54,7 @@ export type TournamentPage = {
 }
 
 export type PlayerPage = {
+  id?: number
   link: string
   name: string | null
   realName: string | null
@@ -82,8 +83,62 @@ export type PlayerRaceEntry = {
   seasonStartElo?: number | null
   lastSeasonEndElo?: number | null
   lastSeasonEndRank?: number | null
+  /** Current roster rank (1-based) among all race entries. */
+  rank?: number | null
   /** Rank change vs last season end (positive = moved up). */
   rankDelta?: number | null
+}
+
+export type WinrateStat = {
+  wins: number
+  losses: number
+  rate: number | null
+}
+
+export type WinrateBlock = {
+  vsAll: WinrateStat
+  vsTerran: WinrateStat
+  vsZerg: WinrateStat
+  vsProtoss: WinrateStat
+}
+
+export type PlayerWinrates = {
+  season: WinrateBlock
+  fantasy: WinrateBlock
+  overall: WinrateBlock
+  allFantasy: WinrateBlock
+}
+
+export type PlayerMatch = {
+  id: number
+  tournamentId: number
+  tournamentLink: string
+  tournamentName: string | null
+  played: boolean
+  scoreMine: number
+  scoreOpp: number
+  myRace: string
+  opponentName: string | null
+  opponentLink: string | null
+  opponentRace: string | null
+  opponentPlayerId?: number | null
+  phase: string
+  round: string
+  dateTime: string | null
+}
+
+export type PlayerDetail = {
+  id: number
+  link: string
+  name: string | null
+  realName: string | null
+  ids: string[]
+  preferredRace: string | null
+  hasPortrait: boolean
+  races: PlayerRaceEntry[]
+  winrates: PlayerWinrates
+  seasonMatches: PlayerMatch[]
+  season?: SeasonSummary | null
 }
 
 export type SeasonSummary = {

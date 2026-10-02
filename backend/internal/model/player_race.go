@@ -15,5 +15,7 @@ type PlayerRaceEntry struct {
 	SeasonStartElo    *float64 `json:"seasonStartElo,omitempty"`
 	LastSeasonEndElo  *float64 `json:"lastSeasonEndElo,omitempty"`
 	LastSeasonEndRank *int     `json:"lastSeasonEndRank,omitempty"`
-	RankDelta         *int     `json:"rankDelta,omitempty"`
+	// Rank is the current roster position (1-based) among all race entries.
+	Rank      *int `json:"rank,omitempty"`
+	RankDelta *int `json:"rankDelta,omitempty"`
 }

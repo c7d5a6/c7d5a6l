@@ -1,5 +1,6 @@
 import { authFetch } from '../auth'
 import { readApiError } from './http'
+import type { PlayerDetail } from '../../types/tournament'
 
 export type MergeCandidate = {
   playerId: number
@@ -9,6 +10,16 @@ export type MergeCandidate = {
   aliases: string[]
   score: number
   matchReason: string
+}
+
+export async function fetchPlayer(playerId: number): Promise<PlayerDetail> {
+  const res = await authFetch(`/api/players/${playerId}`)
+  if (!res.ok) {
+    throw new Error(await readApiError(res, `player uplink failed (${res.status})`))
+  }
+  const data = (await res.json()) as { player?: PlayerDetail }
+  if (!data.player) throw new Error('player uplink returned empty payload')
+  return data.player
 }
 
 export async function fetchMergeCandidates(

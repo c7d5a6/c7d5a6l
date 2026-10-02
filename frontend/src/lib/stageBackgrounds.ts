@@ -2,6 +2,7 @@ import bg002 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-0
 import bg003 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-003.webp'
 import bg004 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-004.webp'
 import bg008 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-008.webp'
+import bg009 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-009.webp'
 import bg010 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-010.webp'
 import bg015 from '../../assets/background/lemon-sky-studios-lemon-sky-studios-015.webp'
 import terranArt from '../../assets/background/lemon-sky-studios-lemonsky-studio-terran-01.webp'
@@ -15,6 +16,7 @@ const STAGE_BACKGROUNDS: Record<string, string> = {
   '/parser': bg002,
   '/tournaments': bg003,
   '/players': bg008,
+  '/players/detail': bg009,
   '/fantasy-league': bg015,
   '/users': terranArt,
   '/titles': bg004,
@@ -28,5 +30,7 @@ export function stageBackgroundForPath(path: string): string {
   if (p.startsWith('/tournaments')) return STAGE_BACKGROUNDS['/tournaments']
   if (p.startsWith('/fantasy-manage')) return STAGE_BACKGROUNDS['/fantasy-league']
   if (p === '/season-close') return STAGE_BACKGROUNDS['/fantasy-league']
+  if (p.startsWith('/players/')) return STAGE_BACKGROUNDS['/players/detail']
+  if (p === '/players') return STAGE_BACKGROUNDS['/players']
   return STAGE_BACKGROUNDS[p] ?? DEFAULT_ART
 }

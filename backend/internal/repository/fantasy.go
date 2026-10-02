@@ -55,6 +55,27 @@ func (r *Fantasy) ListLeagues(ctx context.Context, q DBTX) ([]model.FantasyLeagu
 	return out, rows.Err()
 }
 
+// ListFantasyTournamentIDs returns tournament ids bound to any fantasy league.
+func (r *Fantasy) ListFantasyTournamentIDs(ctx context.Context, q DBTX) ([]int64, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT DISTINCT tournament_id FROM fantasy_league ORDER BY tournament_id ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list fantasy tournament ids: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]int64, 0)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
 // GetLeagueByID returns a league or nil, nil when missing.
 func (r *Fantasy) GetLeagueByID(ctx context.Context, q DBTX, id int64) (*model.FantasyLeague, error) {
 	row := q.QueryRowContext(ctx, `

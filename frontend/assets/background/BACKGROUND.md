@@ -216,6 +216,7 @@ Canonical mapping for the app lives in `frontend/STYLE_GUIDE.md` §3a (per-page 
 | `/tournaments` — admin queue | Terran industrial / fleet | `003` |
 | `/me` — operator profile | Terran industrial (parser sibling) | `002` |
 | `/players` — roster | Terran war / people | `terran-01` / `terran.png`, `009`, `003` |
+| `/players/:id` — dossier | Terran war / people | `009` (distinct from list `008`) |
 | `/fantasy-league` — competition | Epic void war | `001`, `sc03`, `007`, `sc01` |
 | Protoss-tagged sibling views | Protoss sacred | `006`, `008`, `sc02`, `toss.png` |
 | Zerg-tagged sibling views | Zerg organic | `012`, `zerg2`, `hydralisk-01`, `zerg1` |

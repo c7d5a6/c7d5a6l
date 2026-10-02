@@ -45,6 +45,27 @@ type PortraitBlob struct {
 // GetByLink loads a player and alternate IDs (aliases excluding the primary name).
 // Returns nil, nil when no row matches. Does not load portrait bytes.
 func (r *Player) GetByLink(ctx context.Context, q DBTX, link string) (*model.PlayerPage, error) {
+	return r.getPlayerPage(ctx, q, `
+		SELECT id, name, real_name, preferred_race, portrait_url,
+			CASE WHEN portrait IS NOT NULL AND length(portrait) > 0 THEN 1 ELSE 0 END,
+			`+PlayerLinkExprBare+`
+		FROM player
+		WHERE link_v2 = ?
+	`, link)
+}
+
+// GetByID loads a player by primary key. Returns nil, nil when missing.
+func (r *Player) GetByID(ctx context.Context, q DBTX, playerID int64) (*model.PlayerPage, error) {
+	return r.getPlayerPage(ctx, q, `
+		SELECT id, name, real_name, preferred_race, portrait_url,
+			CASE WHEN portrait IS NOT NULL AND length(portrait) > 0 THEN 1 ELSE 0 END,
+			`+PlayerLinkExprBare+`
+		FROM player
+		WHERE id = ?
+	`, playerID)
+}
+
+func (r *Player) getPlayerPage(ctx context.Context, q DBTX, query string, arg any) (*model.PlayerPage, error) {
 	var (
 		id            int64
 		storedLink    string
@@ -54,21 +75,18 @@ func (r *Player) GetByLink(ctx context.Context, q DBTX, link string) (*model.Pla
 		portraitURL   sql.NullString
 		hasPortrait   int
 	)
-	err := q.QueryRowContext(ctx, `
-		SELECT id, name, real_name, preferred_race, portrait_url,
-			CASE WHEN portrait IS NOT NULL AND length(portrait) > 0 THEN 1 ELSE 0 END,
-			`+PlayerLinkExprBare+`
-		FROM player
-		WHERE link_v2 = ?
-	`, link).Scan(&id, &name, &realName, &preferredRace, &portraitURL, &hasPortrait, &storedLink)
+	err := q.QueryRowContext(ctx, query, arg).Scan(
+		&id, &name, &realName, &preferredRace, &portraitURL, &hasPortrait, &storedLink,
+	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get player by link: %w", err)
+		return nil, fmt.Errorf("get player: %w", err)
 	}
 
 	page := model.NewPlayerPage(storedLink)
+	page.ID = id
 	if name.Valid {
 		v := name.String
 		page.Name = &v

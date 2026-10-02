@@ -2945,13 +2945,6 @@ button.lamp-flash::after {
   white-space: nowrap;
 }
 
-.player-match__my-race {
-  width: 0.85rem;
-  height: 0.85rem;
-  margin-right: 0.25rem;
-  vertical-align: -0.1rem;
-}
-
 @media (max-width: 720px) {
   .player-dossier__identity {
     grid-template-columns: 1fr;

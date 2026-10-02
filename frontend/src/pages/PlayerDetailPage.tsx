@@ -291,30 +291,42 @@ function PlayerDossier(props: { player: PlayerDetail }): JSX.Element {
         fallback={<p class="status status--idle">No played matches in the current season window</p>}
       >
         <div class="player-dossier__matches" role="list">
-          <For each={p().seasonMatches}>{(m) => <SeasonMatchRow match={m} />}</For>
+          <For each={p().seasonMatches}>
+            {(m) => (
+              <SeasonMatchRow
+                match={m}
+                player={{
+                  id: p().id,
+                  name: p().name,
+                  link: p().link,
+                }}
+              />
+            )}
+          </For>
         </div>
       </Show>
     </div>
   )
 }
 
-function SeasonMatchRow(props: { match: PlayerMatch }): JSX.Element {
+function SeasonMatchRow(props: {
+  match: PlayerMatch
+  player: { id: number; name: string | null; link: string }
+}): JSX.Element {
   const m = () => props.match
   const won = () => m().scoreMine > m().scoreOpp
   const lost = () => m().scoreMine < m().scoreOpp
-  const myRace = () => {
-    const id = parseRaceId(m().myRace)
-    return id ? RACE_META[id] : null
-  }
 
   return (
     <div class="match-row match-row--compact player-match" role="listitem">
       <div class="match-row__side">
         <Player
-          name={m().opponentName}
-          link={m().opponentLink}
-          race={m().opponentRace}
-          playerId={m().opponentPlayerId}
+          name={props.player.name}
+          link={props.player.link}
+          race={m().myRace}
+          playerId={props.player.id}
+          winner={won()}
+          loser={lost()}
         />
         <span class="player-match__tour">
           {displayValue(m().tournamentName) || m().tournamentLink}
@@ -324,10 +336,7 @@ function SeasonMatchRow(props: { match: PlayerMatch }): JSX.Element {
           </Show>
         </span>
       </div>
-      <span class="match-row__score" title="Your maps : opponent maps">
-        <Show when={myRace()}>
-          {(meta) => <img class="player-match__my-race" src={meta().icon} alt="" title={meta().label} />}
-        </Show>
+      <span class="match-row__score">
         <span classList={{ 'match-row__n': true, 'match-row__n--win': won(), 'match-row__n--lose': lost() }}>
           {m().scoreMine}
         </span>
@@ -337,6 +346,14 @@ function SeasonMatchRow(props: { match: PlayerMatch }): JSX.Element {
         </span>
       </span>
       <div class="match-row__side match-row__side--b">
+        <Player
+          name={m().opponentName}
+          link={m().opponentLink}
+          race={m().opponentRace}
+          playerId={m().opponentPlayerId}
+          winner={lost()}
+          loser={won()}
+        />
         <Show when={m().dateTime}>
           <span class="match-row__time">{formatMatchTime(m().dateTime)}</span>
         </Show>

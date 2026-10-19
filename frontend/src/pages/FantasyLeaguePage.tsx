@@ -1,5 +1,6 @@
 import { ConsoleCard } from '../components/ConsoleCard'
 import { ChampionMark } from '../components/ChampionMark'
+import { FantasyFinalPanel } from '../components/FantasyFinalPanel'
 import { FantasyGroupsPanel } from '../components/FantasyGroupsPanel'
 import { FantasyResultsPanel } from '../components/FantasyResultsPanel'
 import { FantasyTodayPanel } from '../components/FantasyTodayPanel'
@@ -83,12 +84,19 @@ export function FantasyLeaguePage() {
     if (groups.state === 'ready' || groups.error) setGroupsShell('in')
   })
 
-  // Match Day stays on for the whole league page; draft Groups takes the side slot while editing.
+  // Match day for a live league. A finished league uses the champions card instead.
+  // Draft Groups takes the side slot while editing.
   createEffect(() => {
     if (editingTeam()) {
       if (todayShell() === 'in') setTodayShell('out')
       return
     }
+    if (league()?.finished) {
+      if (teams.loading || pointPlayers.loading) return
+      if (todayShell() !== 'in') setTodayShell('in')
+      return
+    }
+    if (league.loading) return
     if (matchBoard.loading) return
     if (!matchBoard()) {
       if (todayShell() === 'in') setTodayShell('out')
@@ -120,22 +128,35 @@ export function FantasyLeaguePage() {
         'fantasy-league-layout--side': sideLive(),
       }}
     >
-      <Show when={todayPanelLive() && matchBoard()}>
-        {(board) => (
-          <ConsoleCard
-            class="console--side console--side-left"
-            hazard="right"
-            drop
-            exiting={todayShell() === 'out'}
-            onExitEnd={() => setTodayShell('off')}
+      <Show when={todayPanelLive() && (league()?.finished || matchBoard())}>
+        <ConsoleCard
+          class="console--side console--side-left"
+          hazard="right"
+          drop
+          exiting={todayShell() === 'out'}
+          onExitEnd={() => setTodayShell('off')}
+        >
+          <Show
+            when={league()?.finished}
+            fallback={
+              <Show when={matchBoard()}>
+                {(board) => (
+                  <FantasyTodayPanel
+                    board={board()}
+                    teams={teams() ?? []}
+                    defeatedLinks={defeatedLinks()}
+                  />
+                )}
+              </Show>
+            }
           >
-            <FantasyTodayPanel
-              board={board()}
+            <FantasyFinalPanel
+              leagueId={league()!.id}
               teams={teams() ?? []}
-              defeatedLinks={defeatedLinks()}
+              players={pointPlayers() ?? []}
             />
-          </ConsoleCard>
-        )}
+          </Show>
+        </ConsoleCard>
       </Show>
 
       <ConsoleCard class="console--wide">

@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -247,11 +248,14 @@ func TestTournamentSaveGroupsRoundTrip(t *testing.T) {
 	if saved.Groups[0].Phase != "Round of 24" || saved.Groups[0].Name != "Group A" {
 		t.Fatalf("group0=%+v", saved.Groups[0])
 	}
-	if len(saved.Groups[0].Players) != 1 {
-		t.Fatalf("orphan should be skipped, players=%d", len(saved.Groups[0].Players))
+	if len(saved.Groups[0].Players) != 2 {
+		t.Fatalf("group players=%d, want Jaedong and the group-only entrant", len(saved.Groups[0].Players))
 	}
 	if saved.Groups[0].Players[0].Link == nil || *saved.Groups[0].Players[0].Link != jaedongLink {
 		t.Fatalf("group A player=%v", saved.Groups[0].Players[0].Link)
+	}
+	if saved.Groups[0].Players[1].Link == nil || *saved.Groups[0].Players[1].Link != orphanLink {
+		t.Fatalf("group A second=%v", saved.Groups[0].Players[1].Link)
 	}
 	if saved.Groups[1].Name != "Group B" || len(saved.Groups[1].Players) != 1 {
 		t.Fatalf("group1=%+v", saved.Groups[1])
@@ -735,3 +739,111 @@ func TestTournamentQueueSyncIgnoreAndList(t *testing.T) {
 
 func intPtr(n int) *int    { return &n }
 func boolPtr(b bool) *bool { return &b }
+
+func TestTournamentSaveUnionsResultAndGroupPlayers(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	playerRepo := repository.NewPlayer(sqlDB)
+	tourRepo := repository.NewTournament(sqlDB)
+	jaedong := "https://liquipedia.net/starcraft/Jaedong"
+	flash := "https://liquipedia.net/starcraft/Flash"
+	bisu := "https://liquipedia.net/starcraft/Bisu"
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, nil, nil)
+
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/union",
+		Name: str("Union"),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+		},
+		Results: []model.Result{{
+			Phase:        "Playoffs",
+			Round:        "Finals",
+			Played:       true,
+			ParticipantA: &model.Participant{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+			ParticipantB: &model.Participant{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+		}},
+		Groups: []model.TournamentGroup{{
+			Name: "Group A", Phase: "Round of 24",
+			Players: []model.Participant{
+				{Name: str("Bisu"), Link: str(bisu), Race: str("protoss")},
+			},
+		}},
+	}
+	if _, _, _, err := svc.Save(ctx, page); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := tourRepo.GetByLink(ctx, sqlDB, page.Link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, p := range stored.Page.Participants {
+		if p.Link != nil {
+			got[*p.Link] = true
+		}
+	}
+	for _, link := range []string{jaedong, flash, bisu} {
+		if !got[link] {
+			t.Fatalf("roster missing %s, have %v", link, got)
+		}
+	}
+}
+
+func TestTournamentSaveRefusesEmptyRoster(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	playerRepo := repository.NewPlayer(sqlDB)
+	tourRepo := repository.NewTournament(sqlDB)
+	jaedong := "https://liquipedia.net/starcraft/Jaedong"
+	flash := "https://liquipedia.net/starcraft/Flash"
+	svc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, nil, nil)
+
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/keep",
+		Name: str("Keep"),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+			{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+		},
+	}
+	if _, _, _, err := svc.Save(ctx, page); err != nil {
+		t.Fatal(err)
+	}
+
+	empty := model.TournamentPage{
+		Link: page.Link,
+		Name: str("Wiped"),
+	}
+	_, _, _, err = svc.Save(ctx, empty)
+	if !errors.Is(err, service.ErrEmptyRoster) {
+		t.Fatalf("err=%v", err)
+	}
+
+	stored, err := tourRepo.GetByLink(ctx, sqlDB, page.Link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Page.Name == nil || *stored.Page.Name != "Keep" {
+		t.Fatalf("name=%v", stored.Page.Name)
+	}
+	if len(stored.Page.Participants) != 2 {
+		t.Fatalf("roster=%d, want 2", len(stored.Page.Participants))
+	}
+}

@@ -174,6 +174,148 @@ func TestFantasySurvivesTournamentResave(t *testing.T) {
 	}
 }
 
+func TestFantasyRosterKeptWhenParticipantTableEmpty(t *testing.T) {
+	ctx, fantasySvc, fantasyRepo, tournamentID := setupFantasyFixture(t)
+	sqlDB := fantasyRepo.DB()
+	league, err := fantasySvc.CreateOrSeed(ctx, tournamentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := fantasySvc.ListPlayers(ctx, league.ID, repository.PlayerSortCost)
+	if err != nil || len(before) != 2 {
+		t.Fatalf("before=%d err=%v", len(before), err)
+	}
+	res, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO user (alias, first_name, role) VALUES ('Pilot', 'Pilot', 'USER')
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userID, _ := res.LastInsertId()
+	ids := []int64{before[0].ID, before[1].ID}
+	if _, err := sqlDB.ExecContext(ctx, `UPDATE fantasy_player SET cost = 1 WHERE fantasy_league_id = ?`, league.ID); err != nil {
+		t.Fatal(err)
+	}
+	team, err := fantasySvc.UpsertTeam(ctx, service.UpsertTeamParams{
+		LeagueID: league.ID, UserID: userID, FantasyPlayerIDs: ids, RequireNotStarted: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(team.Members) != 2 {
+		t.Fatalf("members=%d", len(team.Members))
+	}
+
+	playerRepo := repository.NewPlayer(sqlDB)
+	tourRepo := repository.NewTournament(sqlDB)
+	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, nil, nil)
+	jaedong := "https://liquipedia.net/starcraft/Jaedong"
+	flash := "https://liquipedia.net/starcraft/Flash"
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/20",
+		Name: str("ASL Season 20"),
+		Results: []model.Result{{
+			Phase:        "Round of 24",
+			Round:        "Group A",
+			Played:       true,
+			ParticipantA: &model.Participant{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+			ParticipantB: &model.Participant{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+		}},
+		Groups: []model.TournamentGroup{{
+			Name: "Group A", Phase: "Round of 24",
+			Players: []model.Participant{
+				{Name: str("Jaedong"), Link: str(jaedong), Race: str("zerg")},
+				{Name: str("Flash"), Link: str(flash), Race: str("terran")},
+			},
+		}},
+	}
+	if _, _, _, err := tourSvc.Save(ctx, page); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := fantasySvc.ListPlayers(ctx, league.ID, repository.PlayerSortCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 2 {
+		t.Fatalf("fantasy players=%d want 2", len(after))
+	}
+	var members int
+	if err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM fantasy_team_member`).Scan(&members); err != nil {
+		t.Fatal(err)
+	}
+	if members != 2 {
+		t.Fatalf("team members=%d want 2", members)
+	}
+	stored, err := tourRepo.GetByLink(ctx, sqlDB, page.Link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Page.Participants) != 2 {
+		t.Fatalf("roster=%d want 2", len(stored.Page.Participants))
+	}
+}
+
+func TestFantasyLinkedPlayerKeptWhenMissingFromPage(t *testing.T) {
+	ctx, fantasySvc, fantasyRepo, tournamentID := setupFantasyFixture(t)
+	sqlDB := fantasyRepo.DB()
+	league, err := fantasySvc.CreateOrSeed(ctx, tournamentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := fantasySvc.ListPlayers(ctx, league.ID, repository.PlayerSortCost)
+	if err != nil || len(before) != 2 {
+		t.Fatalf("before=%d err=%v", len(before), err)
+	}
+
+	playerRepo := repository.NewPlayer(sqlDB)
+	tourRepo := repository.NewTournament(sqlDB)
+	tourSvc := service.NewTournament(sqlDB, tourRepo, playerRepo, nil, nil, nil)
+	page := model.TournamentPage{
+		Link: "https://liquipedia.net/starcraft/ASL/20",
+		Name: str("ASL Season 20"),
+		Participants: []model.Participant{
+			{Name: str("Jaedong"), Link: str("https://liquipedia.net/starcraft/Jaedong"), Race: str("zerg")},
+		},
+	}
+	if _, _, _, err := tourSvc.Save(ctx, page); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := fantasySvc.ListPlayers(ctx, league.ID, repository.PlayerSortCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 2 {
+		t.Fatalf("fantasy players=%d want 2", len(after))
+	}
+	byID := map[int64]struct{}{}
+	for _, p := range after {
+		byID[p.ID] = struct{}{}
+	}
+	for _, p := range before {
+		if _, ok := byID[p.ID]; !ok {
+			t.Fatalf("fantasy player id=%d deleted", p.ID)
+		}
+	}
+	stored, err := tourRepo.GetByLink(ctx, sqlDB, page.Link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	links := map[string]bool{}
+	for _, p := range stored.Page.Participants {
+		if p.Link != nil {
+			links[*p.Link] = true
+		}
+	}
+	if !links["https://liquipedia.net/starcraft/Flash"] {
+		t.Fatalf("Flash dropped from roster: %v", links)
+	}
+	if links["https://liquipedia.net/starcraft/Skip"] {
+		t.Fatal("Skip should be removed; excluded and not on a fantasy team")
+	}
+}
+
 func TestFantasyListPlayersSortCostAndPoints(t *testing.T) {
 	ctx, svc, repo, tournamentID := setupFantasyFixture(t)
 	league, err := svc.CreateOrSeed(ctx, tournamentID)
@@ -531,5 +673,3 @@ func TestAssignTeamRanksCompetition(t *testing.T) {
 		t.Fatalf("order=%s,%s", out[0].UserAlias, out[1].UserAlias)
 	}
 }
-
-

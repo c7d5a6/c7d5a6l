@@ -249,8 +249,20 @@ type RosterEntry struct {
 	Excluded      bool
 }
 
+// CountRoster returns how many tournament_player rows a tournament has.
+func (r *Tournament) CountRoster(ctx context.Context, q DBTX, tournamentID int64) (int, error) {
+	var n int
+	if err := q.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM tournament_player WHERE tournament_id = ?
+	`, tournamentID).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count tournament roster: %w", err)
+	}
+	return n, nil
+}
+
 // ReplaceRoster upserts enrollment by (tournament_id, player_race_id) so existing
-// tournament_player ids stay stable (fantasy_player FKs). Rows not in entries are deleted.
+// tournament_player ids stay stable (fantasy_player FKs). Rows not in entries are
+// deleted, except rows a fantasy_player still references.
 func (r *Tournament) ReplaceRoster(ctx context.Context, q DBTX, tournamentID int64, entries []RosterEntry) error {
 	rows, err := q.QueryContext(ctx, `
 		SELECT id, player_race_id FROM tournament_player WHERE tournament_id = ?
@@ -272,6 +284,11 @@ func (r *Tournament) ReplaceRoster(ctx context.Context, q DBTX, tournamentID int
 		return err
 	}
 	rows.Close()
+
+	protected, err := r.fantasyProtectedRosterIDs(ctx, q, tournamentID)
+	if err != nil {
+		return err
+	}
 
 	keep := make(map[int64]struct{}, len(entries))
 	for _, e := range entries {
@@ -302,11 +319,41 @@ func (r *Tournament) ReplaceRoster(ctx context.Context, q DBTX, tournamentID int
 		if _, ok := keep[raceID]; ok {
 			continue
 		}
+		if _, ok := protected[id]; ok {
+			debuglog.Printf("ReplaceRoster keep fantasy tournament_player id=%d raceID=%d", id, raceID)
+			continue
+		}
 		if _, err := q.ExecContext(ctx, `DELETE FROM tournament_player WHERE id = ?`, id); err != nil {
 			return fmt.Errorf("delete removed tournament_player: %w", err)
 		}
 	}
 	return nil
+}
+
+func (r *Tournament) fantasyProtectedRosterIDs(ctx context.Context, q DBTX, tournamentID int64) (map[int64]struct{}, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT fp.tournament_player_id
+		FROM fantasy_player fp
+		JOIN tournament_player tp ON tp.id = fp.tournament_player_id
+		WHERE tp.tournament_id = ?
+	`, tournamentID)
+	if err != nil {
+		return nil, fmt.Errorf("list fantasy roster ids: %w", err)
+	}
+	defer rows.Close()
+
+	out := map[int64]struct{}{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // GroupPlayerEntry is one group member (roster link + winner flag).

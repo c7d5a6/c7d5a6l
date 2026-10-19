@@ -11,10 +11,10 @@ func TestParticipants_AllFixtures(t *testing.T) {
 	t.Parallel()
 
 	type expect struct {
-		minCount       int
-		maxCount       int
-		excludedNames  []string
-		sample         map[string]sampleParticipant
+		minCount      int
+		maxCount      int
+		excludedNames []string
+		sample        map[string]sampleParticipant
 	}
 
 	wantByFixture := map[string]expect{
@@ -53,8 +53,8 @@ func TestParticipants_AllFixtures(t *testing.T) {
 			},
 		},
 		"starcraft/KCM/Race_Survival/2026/1.html": {
-			minCount: 31,
-			maxCount: 31,
+			minCount:      31,
+			maxCount:      31,
 			excludedNames: []string{"huro", "Flash"},
 			sample: map[string]sampleParticipant{
 				"Bisu":  {race: "protoss", linkSuffix: "/starcraft/Bisu", excluded: false},
@@ -131,6 +131,43 @@ func TestParticipants_AllFixtures(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestParticipants_Table2FactionGrid(t *testing.T) {
+	t.Parallel()
+	fx := loadFixturesNamed(t, map[string]struct{}{
+		"starcraft/participant_table2.html": {},
+	})[0]
+
+	got, err := parse.Participants(documentFromHTML(t, fx.html))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("count=%d, want 3", len(got))
+	}
+	byName := map[string]model.Participant{}
+	for _, p := range got {
+		if p.Name == nil {
+			t.Fatal("missing name")
+		}
+		byName[*p.Name] = p
+	}
+	flash := byName["Flash"]
+	if flash.Race == nil || *flash.Race != "terran" || !flash.Excluded {
+		t.Fatalf("Flash=%+v", flash)
+	}
+	if flash.Link == nil || !stringsHasSuffix(*flash.Link, "/starcraft/Flash") {
+		t.Fatalf("Flash link=%v", flash.Link)
+	}
+	soma := byName["soma"]
+	if soma.Race == nil || *soma.Race != "zerg" || soma.Excluded {
+		t.Fatalf("soma=%+v", soma)
+	}
+	bisu := byName["Bisu"]
+	if bisu.Race == nil || *bisu.Race != "protoss" || bisu.Excluded {
+		t.Fatalf("Bisu=%+v", bisu)
 	}
 }
 

@@ -11,8 +11,11 @@ import (
 )
 
 // Participants extracts tournament entrants: name, profile link, race, excluded.
-// Supports modern .participantTable grids, legacy .participantstable, and KCM race-team cards.
+// Supports table2 faction tables, .participantTable grids, legacy .participantstable, and KCM race-team cards.
 func Participants(doc *goquery.Document) ([]model.Participant, error) {
+	if list := participantsFromTable2(doc); len(list) > 0 {
+		return list, nil
+	}
 	if list := participantsFromFactionTable(doc); len(list) > 0 {
 		return list, nil
 	}
@@ -23,6 +26,89 @@ func Participants(doc *goquery.Document) ([]model.Participant, error) {
 		return list, nil
 	}
 	return []model.Participant{}, nil
+}
+
+// participantsFromTable2 reads Liquipedia's table.table2__table faction grids.
+// Race comes from the header row; section titles and empty cells are skipped.
+func participantsFromTable2(doc *goquery.Document) []model.Participant {
+	var best []model.Participant
+	doc.Find("table.table2__table").Each(func(_ int, table *goquery.Selection) {
+		list := participantsFromSingleTable2(table)
+		if len(list) > len(best) {
+			best = list
+		}
+	})
+	return best
+}
+
+func participantsFromSingleTable2(table *goquery.Selection) []model.Participant {
+	var races []string
+	var out []model.Participant
+	seen := map[string]struct{}{}
+
+	table.Find("tr").Each(func(_ int, row *goquery.Selection) {
+		if row.Find(".participantTable-faction-section-title, .participantTable-section-title").Length() > 0 {
+			return
+		}
+		if header := table2HeaderRaces(row); len(header) > 0 {
+			races = header
+			return
+		}
+		if len(races) == 0 {
+			return
+		}
+
+		row.ChildrenFiltered("td").Each(func(col int, cell *goquery.Selection) {
+			if cleanText(cell.Text()) == "" {
+				return
+			}
+			entry := cell.Find(".participantTable-tableEntry").First()
+			if entry.Length() == 0 {
+				entry = cell
+			}
+			p, ok := participantFromBlock(entry, raceAt(races, col))
+			if !ok {
+				return
+			}
+			key := participantKey(p)
+			if _, exists := seen[key]; exists {
+				return
+			}
+			seen[key] = struct{}{}
+			out = append(out, p)
+		})
+	})
+	return out
+}
+
+func table2HeaderRaces(row *goquery.Selection) []string {
+	cells := row.ChildrenFiltered("th")
+	if cells.Length() < 2 {
+		return nil
+	}
+	races := make([]string, 0, cells.Length())
+	ok := true
+	cells.Each(func(_ int, cell *goquery.Selection) {
+		if !ok {
+			return
+		}
+		race := raceFromClasses(cell)
+		if race == "" {
+			race = normalizeRace(cell.Find("img").First().AttrOr("alt", ""))
+		}
+		if race == "" {
+			race = normalizeRace(cleanText(cell.Text()))
+		}
+		if race == "" {
+			ok = false
+			return
+		}
+		races = append(races, race)
+	})
+	if !ok || len(races) != cells.Length() {
+		return nil
+	}
+	return races
 }
 
 func participantsFromFactionTable(doc *goquery.Document) []model.Participant {

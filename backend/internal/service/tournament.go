@@ -19,6 +19,8 @@ import (
 var (
 	ErrTournamentNotFound = errors.New("tournament not found")
 	ErrQueueNotFound      = errors.New("tournament queue item not found")
+	// ErrEmptyRoster is returned when a save would replace a stored roster with nobody.
+	ErrEmptyRoster = errors.New("refuse empty roster replace")
 )
 
 // PlayerPageFetcher loads a player page by Liquipedia link (used when importing missing participants).
@@ -146,9 +148,10 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 	if page.Link == "" {
 		return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("tournament link is required")
 	}
-	debuglog.Printf("service.Tournament.Save link=%s participants=%d", page.Link, len(page.Participants))
+	sources := rosterParticipantSources(page)
+	debuglog.Printf("service.Tournament.Save link=%s participants=%d rosterSources=%d", page.Link, len(page.Participants), len(sources))
 
-	toImport, err := s.collectMissingLinks(ctx, page.Participants)
+	toImport, err := s.collectMissingLinks(ctx, sources)
 	if err != nil {
 		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
@@ -159,7 +162,7 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 	}
 	defer tx.Rollback()
 
-	byLink := participantByLink(page.Participants)
+	byLink := participantByLink(sources)
 	var toEnqueue []string
 	for _, link := range toImport {
 		canonical, err := liquipedia.NormalizePlayerLink(link)
@@ -202,9 +205,18 @@ func (s *Tournament) Save(ctx context.Context, page model.TournamentPage) (model
 		return model.TournamentPage{}, model.TournamentSync{}, 0, err
 	}
 
-	entries, err := s.buildRosterEntries(ctx, tx, page.Participants)
+	entries, err := s.buildRosterEntries(ctx, tx, sources)
 	if err != nil {
 		return model.TournamentPage{}, model.TournamentSync{}, 0, err
+	}
+	if len(sources) == 0 {
+		stored, err := s.tours.CountRoster(ctx, tx, tournamentID)
+		if err != nil {
+			return model.TournamentPage{}, model.TournamentSync{}, 0, err
+		}
+		if stored > 0 {
+			return model.TournamentPage{}, model.TournamentSync{}, 0, fmt.Errorf("%w: link=%s stored=%d", ErrEmptyRoster, page.Link, stored)
+		}
 	}
 	if err := s.tours.ReplaceRoster(ctx, tx, tournamentID, entries); err != nil {
 		return model.TournamentPage{}, model.TournamentSync{}, 0, err
@@ -488,6 +500,42 @@ func (s *Tournament) collectMissingLinks(ctx context.Context, participants []mod
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// rosterParticipantSources is the union of the participant table, match sides, and group standings.
+// The first occurrence of a profile link wins, so an explicit excluded flag is kept.
+func rosterParticipantSources(page model.TournamentPage) []model.Participant {
+	seen := map[string]struct{}{}
+	out := make([]model.Participant, 0, len(page.Participants))
+	add := func(p model.Participant) {
+		link := strings.TrimSpace(nullStr(p.Link))
+		if link == "" {
+			return
+		}
+		key := strings.ToLower(link)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, p)
+	}
+	for _, p := range page.Participants {
+		add(p)
+	}
+	for _, r := range page.Results {
+		if r.ParticipantA != nil {
+			add(*r.ParticipantA)
+		}
+		if r.ParticipantB != nil {
+			add(*r.ParticipantB)
+		}
+	}
+	for _, g := range page.Groups {
+		for _, p := range g.Players {
+			add(p)
+		}
+	}
+	return out
 }
 
 func (s *Tournament) buildRosterEntries(ctx context.Context, q repository.DBTX, participants []model.Participant) ([]repository.RosterEntry, error) {

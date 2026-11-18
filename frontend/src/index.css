@@ -389,41 +389,42 @@ button.lamp-flash::after {
   font-weight: 600;
 }
 
+/*
+ * Viewport-locked overlays (like .stage__art). They used to be absolute inside
+ * .stage, so on tall pages they became document-sized compositor layers —
+ * enormous on 4K/5K/retina displays. Fixed keeps them one screen big.
+ * CRT scanlines + vignette share ONE layer (vignette painted on top, same
+ * order as before) to save a full-screen layer to blend every frame.
+ */
 .stage__crt {
   pointer-events: none;
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 2;
-  background: repeating-linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0) 0px,
-    rgba(0, 0, 0, 0) 2px,
-    rgba(0, 0, 0, 0.32) 3px,
-    rgba(0, 0, 0, 0.32) 4px
-  );
-  /* Static src-over scanlines. mix-blend + opacity flicker re-blended the
-   * whole viewport every frame on Firefox/macOS. */
-  opacity: 0.6;
+  contain: strict;
+  background:
+    radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.78) 100%),
+    /* scanline alpha 0.32 × former layer opacity 0.6 */
+    repeating-linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.192) 3px,
+      rgba(0, 0, 0, 0.192) 4px
+    );
 }
 
 .stage__grid {
   pointer-events: none;
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 1;
+  contain: strict;
   background-image:
     linear-gradient(color-mix(in srgb, var(--color-theme) 6%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--color-theme) 5%, transparent) 1px, transparent 1px);
   background-size: 52px 52px;
   mask-image: radial-gradient(circle at center, black 18%, transparent 72%);
-}
-
-.stage__vignette {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.78) 100%);
 }
 
 /* —— Console: layered Terran metal rim + glass belly —— */

@@ -180,7 +180,7 @@ Layer order (bottom → top):
 2. Art darken wash (gradient overlay on `::after`; src-over, ~brightness 0.48 equivalent).
 3. `.stage__grid` — static green grid (masked).
 4. `.stage__crt` — **static** horizontal scanlines (`src-over`, no `mix-blend-mode`, no opacity flicker).
-5. `.stage__vignette` — edge crush.
+5. Vignette (edge crush) — painted inside `.stage__crt` together with the scanlines, so one viewport-fixed layer covers both.
 6. `.console` — metal rim + glass belly.
 
 Stage grows with content (`min-height: 100svh`). Use `overflow: clip` on `.stage` so abspos overlays can't inflate `<body>` scroll height, and so there is no nested scrollbar. Page scroll follows in-flow content only.
